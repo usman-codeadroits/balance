@@ -1,41 +1,56 @@
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function AllergiesListScreen() {
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [allergiesList, setAllergiesList] = useState<string[]>([
-    'Milk',
-    'Tree Nuts',
-    'Eggs',
-    'Peanuts',
-    'Shellfish',
-    'Soybeans',
-    'Wheat/Fish',
-    'Sesame',
+    "Milk",
+    "Tree Nuts",
+    "Eggs",
+    "Peanuts",
+    "Shellfish",
+    "Soybeans",
+    "Wheat",
+    "Fish",
+    "Sesame",
   ]);
 
   useEffect(() => {
     loadAllergies();
   }, []);
 
+  const normalizeAllergies = (list: string[]) => {
+    const normalized = list.flatMap((item) =>
+      item === "Wheat/Fish" ? ["Wheat", "Fish"] : item,
+    );
+    return Array.from(new Set(normalized));
+  };
+
   const loadAllergies = async () => {
     try {
-      const stored = await AsyncStorage.getItem('userAllergies');
+      const stored = await AsyncStorage.getItem("userAllergies");
       if (stored) {
-        setSelectedAllergies(JSON.parse(stored));
+        setSelectedAllergies(normalizeAllergies(JSON.parse(stored)));
       }
     } catch (error) {
-      console.error('Error loading allergies:', error);
+      console.error("Error loading allergies:", error);
     }
   };
 
   const toggleAllergy = (allergy: string) => {
-    setSelectedAllergies(prev => {
+    setSelectedAllergies((prev) => {
       if (prev.includes(allergy)) {
-        return prev.filter(a => a !== allergy);
+        return prev.filter((a) => a !== allergy);
       } else {
         return [...prev, allergy];
       }
@@ -44,10 +59,13 @@ export default function AllergiesListScreen() {
 
   const handleUpdate = async () => {
     try {
-      await AsyncStorage.setItem('userAllergies', JSON.stringify(selectedAllergies));
+      await AsyncStorage.setItem(
+        "userAllergies",
+        JSON.stringify(selectedAllergies),
+      );
       router.back();
     } catch (error) {
-      console.error('Error saving allergies:', error);
+      console.error("Error saving allergies:", error);
     }
   };
 
@@ -56,7 +74,10 @@ export default function AllergiesListScreen() {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/(tabs)/profile')}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push("/(tabs)/profile")}
+          >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Allergies</Text>
@@ -83,14 +104,18 @@ export default function AllergiesListScreen() {
                 key={index}
                 style={[
                   styles.allergyItem,
-                  selectedAllergies.includes(allergy) && styles.allergyItemSelected
+                  selectedAllergies.includes(allergy) &&
+                    styles.allergyItemSelected,
                 ]}
                 onPress={() => toggleAllergy(allergy)}
               >
-                <Text style={[
-                  styles.allergyText,
-                  selectedAllergies.includes(allergy) && styles.allergyTextSelected
-                ]}>
+                <Text
+                  style={[
+                    styles.allergyText,
+                    selectedAllergies.includes(allergy) &&
+                      styles.allergyTextSelected,
+                  ]}
+                >
                   {allergy}
                 </Text>
               </TouchableOpacity>
@@ -112,16 +137,16 @@ export default function AllergiesListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: '5%',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: "5%",
     paddingTop: 40,
     paddingBottom: 20,
   },
@@ -129,16 +154,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#344225',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   placeholder: {
     width: 40,
@@ -147,61 +172,61 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: '5%',
+    paddingHorizontal: "5%",
     paddingBottom: 120,
   },
   description: {
     fontSize: 14,
-    fontWeight: '400',
-    color: '#344225',
+    fontWeight: "400",
+    color: "#344225",
     lineHeight: 20,
     marginBottom: 16,
   },
   subtitle: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#344225',
+    fontWeight: "500",
+    color: "#344225",
     marginBottom: 16,
   },
   allergiesContainer: {
     gap: 12,
   },
   allergyItem: {
-    backgroundColor: '#E8F0ED',
+    backgroundColor: "#E8F0ED",
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   allergyItemSelected: {
-    backgroundColor: '#344225',
-    borderColor: '#344225',
+    backgroundColor: "#344225",
+    borderColor: "#344225",
   },
   allergyText: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#344225',
+    fontWeight: "500",
+    color: "#344225",
   },
   allergyTextSelected: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   footer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#D4E8E0',
-    paddingHorizontal: '5%',
+    backgroundColor: "#D4E8E0",
+    paddingHorizontal: "5%",
     paddingVertical: 20,
     paddingBottom: 40,
   },
   updateButton: {
-    backgroundColor: '#344225',
+    backgroundColor: "#344225",
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -209,7 +234,7 @@ const styles = StyleSheet.create({
   },
   updateButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });

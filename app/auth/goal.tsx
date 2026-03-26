@@ -1,26 +1,67 @@
-import AuthButtonGreen from '@/components/auth/auth-button-green';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import AuthButtonGreen from "@/components/auth/auth-button-green";
+import { LanguageSwitcher } from "@/components/auth/language-switcher";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
 
-type Goal = 'eat-healthy' | 'lose-weight' | 'gain-weight' | 'build-muscle' | 'maintain-weight' | null;
-
-const goals = [
-  { id: 'eat-healthy' as Goal, title: 'Eat healthy', subtitle: 'Want to intake healthier diet' },
-  { id: 'lose-weight' as Goal, title: 'Lose weight', subtitle: 'Want to shed fat, get fit and feel great' },
-  { id: 'gain-weight' as Goal, title: 'Gain Weight', subtitle: 'Want to gain weight in healthy manner' },
-  { id: 'build-muscle' as Goal, title: 'Build Muscle', subtitle: 'Your strength, we&apos;re here helping for gains' },
-  { id: 'maintain-weight' as Goal, title: 'Maintain Weight', subtitle: 'Stay fit, stay fabulous, own your wellness' },
-];
+type Goal =
+  | "eat-healthy"
+  | "lose-weight"
+  | "gain-weight"
+  | "build-muscle"
+  | "maintain-weight"
+  | null;
 
 export default function GoalScreen() {
+  const { t } = useTranslation();
+
+  const goals_list = [
+    {
+      id: "eat-healthy" as Goal,
+      title: t("goals.eat-healthy.title"),
+      subtitle: t("goals.eat-healthy.subtitle"),
+    },
+    {
+      id: "lose-weight" as Goal,
+      title: t("goals.lose-weight.title"),
+      subtitle: t("goals.lose-weight.subtitle"),
+    },
+    {
+      id: "gain-weight" as Goal,
+      title: t("goals.gain-weight.title"),
+      subtitle: t("goals.gain-weight.subtitle"),
+    },
+    {
+      id: "build-muscle" as Goal,
+      title: t("goals.build-muscle.title"),
+      subtitle: t("goals.build-muscle.subtitle"),
+    },
+    {
+      id: "maintain-weight" as Goal,
+      title: t("goals.maintain-weight.title"),
+      subtitle: t("goals.maintain-weight.subtitle"),
+    },
+  ];
+
   const [selectedGoal, setSelectedGoal] = useState<Goal>(null);
   const [loading, setLoading] = useState(false);
+  useStaticScreen();
 
   useEffect(() => {
     const loadGoal = async () => {
-      const storedGoal = await AsyncStorage.getItem('tempGoal');
+      const storedGoal = await AsyncStorage.getItem("tempGoal");
       if (storedGoal) {
         setSelectedGoal(storedGoal as Goal);
       }
@@ -30,14 +71,14 @@ export default function GoalScreen() {
 
   const handleContinue = async () => {
     if (!selectedGoal) {
-      alert('Please select your goal');
+      alert(t("goal.select_error"));
       return;
     }
 
     setLoading(true);
     try {
-      await AsyncStorage.setItem('tempGoal', selectedGoal);
-      router.push('/auth/profile-setup');
+      await AsyncStorage.setItem("tempGoal", selectedGoal);
+      router.push("/auth/profile-setup");
     } finally {
       setLoading(false);
     }
@@ -46,27 +87,33 @@ export default function GoalScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo */}
-          <View style={styles.logoContainer}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
             <Image
-              source={require('@/assets/images/balance-logo.png')}
-              style={styles.logo}
+              source={require("@/assets/images/balance-logo.png")}
+              style={styles.headerLogo}
               resizeMode="contain"
             />
+            <LanguageSwitcher light />
           </View>
 
           {/* Title */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>What&apos;s your goal?</Text>
+            <Text style={styles.title}>{t("goal.title")}</Text>
           </View>
 
           {/* Goal Options */}
           <View style={styles.optionsContainer}>
-            {goals.map((goal) => (
+            {goals_list.map((goal) => (
               <TouchableOpacity
                 key={goal.id}
                 style={[
@@ -87,7 +134,11 @@ export default function GoalScreen() {
 
         {/* Bottom Section */}
         <View style={styles.bottomSection}>
-          <AuthButtonGreen title={loading ? "Saving..." : "Continue"} onPress={handleContinue} disabled={loading} />
+          <AuthButtonGreen
+            title={loading ? t("goal.saving") : t("goal.continue")}
+            onPress={handleContinue}
+            disabled={loading}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -97,21 +148,34 @@ export default function GoalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 10,
     paddingBottom: 20,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  logo: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
+  headerLogo: {
     width: 80,
     height: 80,
   },
@@ -120,34 +184,34 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   optionsContainer: {
     gap: 12,
   },
   optionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   optionCardSelected: {
-    borderColor: '#344225',
-    backgroundColor: '#F0F7F4',
+    borderColor: "#344225",
+    backgroundColor: "#F0F7F4",
   },
   optionContent: {
     gap: 4,
   },
   optionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   optionSubtitle: {
     fontSize: 13,
-    color: '#6B7F75',
+    color: "#6B7F75",
     lineHeight: 18,
   },
   bottomSection: {

@@ -1,8 +1,8 @@
+import { getUserById, updateUser } from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getUserById, updateUser } from '@/api';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function MyInformationScreen() {
@@ -25,6 +25,39 @@ export default function MyInformationScreen() {
     }, [])
   );
 
+  const normalizeAddress = (address: any) => {
+    if (!address || typeof address !== 'object') return null;
+
+    const areas = address.area || address.areas || address.city || address.region || '';
+    const blockNumber = address.block_number || address.blockNumber || address.block || '';
+    const street = address.street || '';
+    const avenue = address.avenue || address.ave || '';
+    const houseBuliding = address.house_building || address.houseBuliding || address.house || address.building || '';
+    const floorApartment = address.floor_apartment || address.floorApartment || address.apartment || '';
+    const remarks = address.remarks || address.notes || '';
+
+    return {
+      areas,
+      blockNumber,
+      street,
+      avenue,
+      houseBuliding,
+      floorApartment,
+      remarks,
+    };
+  };
+
+  const applyAddressToState = (address: any) => {
+    if (!address) return;
+    setAddress(address.areas || '');
+    setBlock(address.blockNumber || '');
+    setStreet(address.street || '');
+    setAvenue(address.avenue || '');
+    setHouse(address.houseBuliding || '');
+    setArea(address.floorApartment || '');
+    setAdditionalInstructions(address.remarks || '');
+  };
+
   const loadUserData = async () => {
     try {
       setLoading(true);
@@ -41,6 +74,16 @@ export default function MyInformationScreen() {
           setFullName(userData.name || '');
           setEmail(userData.email || '');
           setMobileNumber(userData.mobile || userData.phone || '');
+
+          // Capture address if provided by API response
+          const address = normalizeAddress(
+            userData.address ||
+            (Array.isArray(userData.addresses) ? userData.addresses[0] : null)
+          );
+          if (address) {
+            applyAddressToState(address);
+            await AsyncStorage.setItem('userAddress', JSON.stringify(address));
+          }
           
           // Save to local storage for offline access
           await AsyncStorage.setItem('userData', JSON.stringify(userData));
@@ -62,13 +105,32 @@ export default function MyInformationScreen() {
       const storedAddress = await AsyncStorage.getItem('userAddress');
       if (storedAddress) {
         const addressData = JSON.parse(storedAddress);
-        setAddress(addressData.areas || '');
-        setBlock(addressData.blockNumber || '');
-        setStreet(addressData.street || '');
-        setAvenue(addressData.avenue || '');
-        setHouse(addressData.houseBuliding || '');
-        setArea(addressData.floorApartment || '');
-        setAdditionalInstructions(addressData.remarks || '');
+        applyAddressToState(addressData);
+      }
+
+      // Fallbacks: active subscription or pending checkout drafts may contain the latest address
+      if (!address && !block && !street && !avenue && !house && !area) {
+        const activeSubStr = await AsyncStorage.getItem('activeSubscription');
+        if (activeSubStr) {
+          const activeSub = JSON.parse(activeSubStr);
+          const activeAddress = normalizeAddress(activeSub.address);
+          if (activeAddress) {
+            applyAddressToState(activeAddress);
+            await AsyncStorage.setItem('userAddress', JSON.stringify(activeAddress));
+          }
+        }
+      }
+
+      if (!address && !block && !street && !avenue && !house && !area) {
+        const checkoutDraftStr = await AsyncStorage.getItem('pendingCheckoutData');
+        if (checkoutDraftStr) {
+          const checkoutDraft = JSON.parse(checkoutDraftStr);
+          const draftAddress = normalizeAddress(checkoutDraft?.summary?.address || checkoutDraft?.payload?.address);
+          if (draftAddress) {
+            applyAddressToState(draftAddress);
+            await AsyncStorage.setItem('userAddress', JSON.stringify(draftAddress));
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading user data:', error);

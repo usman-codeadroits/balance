@@ -1,3 +1,4 @@
+import { sendOtp } from '@/api/services/otp';
 import AuthButton from '@/components/auth/auth-button';
 import AuthTabs from '@/components/auth/auth-tabs';
 import { COUNTRIES, Country } from '@/components/auth/country-picker';
@@ -5,10 +6,11 @@ import PhoneInput from '@/components/auth/phone-input';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Image, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { sendOtp } from '@/api/services/otp';
 
 export default function AuthScreen() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Kuwait by default
@@ -16,16 +18,16 @@ export default function AuthScreen() {
 
   const handleAuth = async () => {
     if (!phoneNumber.trim()) {
-      alert('Please enter your phone number');
+      alert(t('auth.enter_phone'));
       return;
     }
 
     const sanitizedMobile = phoneNumber.replace(/\D/g, '');
     if (!sanitizedMobile) {
-      alert('Please enter a valid phone number');
+      alert(t('auth.invalid_phone'));
       return;
     }
-    
+
     setLoading(true);
 
     try {
@@ -37,18 +39,24 @@ export default function AuthScreen() {
       await AsyncStorage.setItem('tempCountryCode', selectedCountry.dialCode);
       await AsyncStorage.setItem('tempAuthType', activeTab);
 
-      await sendOtp({
+      // Call OTP/send API
+      const otpResponse = await sendOtp({
         phone_number: sanitizedMobile,
         country_code: countryCodeDigits || undefined,
       });
-      
+
+      // Log success for debugging
+      if (otpResponse.success) {
+        console.log('OTP sent successfully:', otpResponse.message);
+      }
+
       // Navigate to OTP screen
       router.push('/auth/otp');
     } catch (error) {
       console.error('Send OTP error:', error);
       Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to send OTP. Please try again.'
+        t('auth.error'),
+        error instanceof Error ? error.message : t('auth.otp_failed')
       );
     } finally {
       setLoading(false);
@@ -67,7 +75,9 @@ export default function AuthScreen() {
         style={styles.keyboardView}
       >
         <View style={styles.content}>
-          <ScrollView 
+          <View style={styles.header}>
+          </View>
+          <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -90,7 +100,7 @@ export default function AuthScreen() {
               <PhoneInput
                 value={phoneNumber}
                 onChangeText={setPhoneNumber}
-                placeholder="Phone number"
+                placeholder={t('auth.phone_placeholder')}
                 selectedCountry={selectedCountry}
                 onSelectCountry={setSelectedCountry}
               />
@@ -101,14 +111,14 @@ export default function AuthScreen() {
           <View style={styles.bottomSection}>
             {activeTab === 'signup' && (
               <View style={styles.dividerContainer}>
-                
-                
+
+
               </View>
             )}
 
             {/* Sign In/Sign Up Button */}
             <AuthButton
-              title={loading ? 'Sending OTP...' : activeTab === 'login' ? 'Sign in' : 'Sign Up'}
+              title={loading ? t('auth.sending_otp') : activeTab === 'login' ? t('auth.sign_in') : t('auth.signup')}
               onPress={handleAuth}
               disabled={loading}
             />
@@ -116,13 +126,13 @@ export default function AuthScreen() {
             {/* Bottom Text */}
             <View style={styles.bottomTextContainer}>
               <Text style={styles.bottomText}>
-                {activeTab === 'login' ? "Don't an account? " : "Already have an account? "}
+                {activeTab === 'login' ? t('auth.no_account') : t('auth.have_account')}
               </Text>
               <Text
                 style={styles.bottomTextLink}
                 onPress={() => handleTabChange(activeTab === 'login' ? 'signup' : 'login')}
               >
-                {activeTab === 'login' ? 'Sign up' : 'Sign in'}
+                {activeTab === 'login' ? t('auth.signup') : t('auth.sign_in')}
               </Text>
             </View>
           </View>
@@ -143,6 +153,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+  header: {
+    paddingTop: 10,
+    alignItems: 'flex-end',
   },
   scrollContent: {
     flexGrow: 1,

@@ -1,12 +1,25 @@
-import AuthButtonGreen from '@/components/auth/auth-button-green';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import AuthButtonGreen from "@/components/auth/auth-button-green";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 export default function EmailScreen() {
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
+  const { t } = useTranslation();
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  useStaticScreen();
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,31 +28,34 @@ export default function EmailScreen() {
 
   const handleContinue = async () => {
     if (!email.trim()) {
-      setError('Please enter your email');
+      setError(t("email.enter_email"));
       return;
     }
     if (!validateEmail(email)) {
-      setError('Please enter a valid email address');
+      setError(t("email.invalid_email"));
       return;
     }
-    setError('');
-    
+    setError("");
+
     // Store email temporarily
-    await AsyncStorage.setItem('tempEmail', email);
-    
-    router.push('/auth/name');
+    await AsyncStorage.setItem("tempEmail", email);
+
+    // Navigate to name screen (affiliate code was already handled before email screen)
+    router.push("/auth/name");
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        <View style={styles.header}>
+        </View>
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('@/assets/images/balance-logo.png')}
+            source={require("@/assets/images/balance-logo.png")}
             style={styles.logo}
             resizeMode="contain"
           />
@@ -47,7 +63,7 @@ export default function EmailScreen() {
 
         {/* Title */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>Enter your email</Text>
+          <Text style={styles.title}>{t("email.title")}</Text>
         </View>
 
         {/* Email Input */}
@@ -57,9 +73,9 @@ export default function EmailScreen() {
             value={email}
             onChangeText={(text) => {
               setEmail(text);
-              setError('');
+              setError("");
             }}
-            placeholder="Email Email"
+            placeholder={t("email.placeholder")}
             placeholderTextColor="#8B9D94"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -73,7 +89,7 @@ export default function EmailScreen() {
 
         {/* Bottom Section */}
         <View style={styles.bottomSection}>
-          <AuthButtonGreen title="Continue" onPress={handleContinue} />
+          <AuthButtonGreen title={t("email.continue")} onPress={handleContinue} />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -83,15 +99,18 @@ export default function EmailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
+  },
+  header: {
+    paddingTop: 10,
+    alignItems: 'flex-end',
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 40,
   },
   logo: {
@@ -103,27 +122,27 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   inputContainer: {
     marginBottom: 20,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
-    color: '#344225',
+    color: "#344225",
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   inputError: {
-    borderColor: '#FF6B6B',
+    borderColor: "#FF6B6B",
   },
   errorText: {
-    color: '#FF6B6B',
+    color: "#FF6B6B",
     fontSize: 12,
     marginTop: 4,
     marginLeft: 4,

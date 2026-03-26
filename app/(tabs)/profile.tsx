@@ -1,72 +1,107 @@
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import {
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+import BottomTabNav from "@/components/bottom-tab-nav";
+import { resetAppCache } from "@/utils/reset-app-cache";
+
+import { useTranslation } from "react-i18next";
+import { I18nManager } from "react-native";
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const menuItems = [
-    { id: 1, title: 'My Information', icon: 'chevron-forward', route: '/my-information' },
-    { id: 2, title: 'Allergies', icon: 'chevron-forward', route: '/allergies-preference' },
-    { id: 3, title: 'Dislikes', icon: 'chevron-forward', route: null },
-    { id: 4, title: 'Order history', icon: 'chevron-forward', route: '/order-history' },
-    { id: 5, title: 'About Us', icon: 'chevron-forward', route: null },
-    { id: 6, title: 'Terms & Conditions', icon: 'chevron-forward', route: null },
-    { id: 7, title: 'Privacy Policy', icon: 'chevron-forward', route: null },
-    { id: 8, title: 'Contact Us', icon: 'chevron-forward', route: '/contact-us' },
-    { id: 9, title: 'Change Language', icon: 'chevron-forward', route: '/change-language' },
+    {
+      id: 1,
+      title: t("profile.my_information"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: "/my-information",
+    },
+    {
+      id: 2,
+      title: t("profile.allergies"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: "/allergies-preference",
+    },
+    {
+      id: 3,
+      title: t("profile.dislikes"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: null
+    },
+    {
+      id: 4,
+      title: t("profile.order_history"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: "/order-history",
+    },
+    {
+      id: 5,
+      title: t("profile.about_us"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: null
+    },
+    {
+      id: 6,
+      title: t("profile.terms_conditions"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: null,
+    },
+    {
+      id: 7,
+      title: t("profile.privacy_policy"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: null
+    },
+    {
+      id: 8,
+      title: t("profile.contact_us"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: "/contact-us",
+    },
+    {
+      id: 9,
+      title: t("profile.change_language"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: "/change-language",
+    },
   ];
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert(t("profile.logout"), t("profile.logout_confirm"), [
+      {
+        text: t("profile.cancel"),
+        style: "cancel",
+      },
+      {
+        text: t("profile.logout"),
+        style: "destructive",
+        onPress: async () => {
+          setIsLoggingOut(true);
+          try {
+            await resetAppCache();
+          } catch (error) {
+            console.error("Error during logout:", error);
+            Alert.alert(t("profile.error"), t("profile.logout_error"));
+          } finally {
+            setIsLoggingOut(false);
+            // Navigate to auth screen (login / sign up)
+            router.replace("/auth");
+          }
         },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            setIsLoggingOut(true);
-            try {
-              // Clear all user data
-              await AsyncStorage.multiRemove([
-                'userId',
-                'userData',
-                'authToken',
-                'activeSubscription',
-                'subscriptions',
-                'tempPhoneNumber',
-                'tempCountryCode',
-                'tempEmail',
-                'tempName',
-                'tempBirthday',
-                'tempGender',
-                'tempWeight',
-                'tempHeight',
-                'otpVerifiedPhone',
-                'selectedPlan',
-                'selectedDuration',
-                'selectedDays',
-                'startDate',
-                'selectedDayMeals',
-              ]);
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Error', 'Failed to logout. Please try again.');
-            } finally {
-              setIsLoggingOut(false);
-              // Navigate to auth screen (login / sign up)
-              router.replace('/auth');
-            }
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
@@ -74,7 +109,7 @@ export default function ProfileScreen() {
       <View style={styles.content}>
         {/* Title */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>My Profile</Text>
+          <Text style={styles.title}>{t("profile.title")}</Text>
         </View>
 
         <ScrollView
@@ -85,8 +120,8 @@ export default function ProfileScreen() {
           {/* Menu Items */}
           <View style={styles.menuContainer}>
             {menuItems.map((item) => (
-              <TouchableOpacity 
-                key={item.id} 
+              <TouchableOpacity
+                key={item.id}
                 style={styles.menuItem}
                 onPress={() => item.route && router.push(item.route as any)}
               >
@@ -94,45 +129,24 @@ export default function ProfileScreen() {
                 <Ionicons name={item.icon as any} size={20} color="#344225" />
               </TouchableOpacity>
             ))}
-            
+
             {/* Logout Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.menuItem, styles.logoutItem]}
               onPress={handleLogout}
               disabled={isLoggingOut}
             >
-              <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
+              <Text style={[styles.menuText, styles.logoutText]}>{t("profile.logout")}</Text>
               <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
             </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => router.push('/(tabs)/')}
-        >
-          <Ionicons name="home" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push('/(tabs)/order-history')}
-        >
-          <Ionicons name="time" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Meals History</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="calendar" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Calendar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="person" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Profile</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomTabNav
+        activeTab="profile"
+        onHomePress={() => router.replace("/main-screen")}
+      />
     </SafeAreaView>
   );
 }
@@ -140,84 +154,55 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   titleContainer: {
-    paddingHorizontal: '5%',
+    paddingHorizontal: "5%",
     paddingTop: 40,
     paddingBottom: 20,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#344225',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#344225",
+    textAlign: "center",
   },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: '5%',
-    paddingBottom: 100,
+    paddingHorizontal: "5%",
+    paddingBottom: 140,
   },
   menuContainer: {
     gap: 12,
   },
   menuItem: {
-    backgroundColor: '#E8F0ED',
+    backgroundColor: "#E8F0ED",
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 18,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   menuText: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#344225',
+    fontWeight: "500",
+    color: "#344225",
   },
   logoutItem: {
     marginTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#D4E8E0',
+    borderTopColor: "#D4E8E0",
     paddingTop: 18,
   },
   logoutText: {
-    color: '#FF6B6B',
-    fontWeight: '600',
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: '#344225',
-    borderRadius: 24,
-    flexDirection: 'row',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    marginTop: 4,
-    textAlign: 'center',
+    color: "#FF6B6B",
+    fontWeight: "600",
   },
 });

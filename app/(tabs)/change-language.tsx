@@ -1,34 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { changeLanguage } from '@/constants/i18n';
+
 export default function ChangeLanguageScreen() {
-  const [selectedLanguage, setSelectedLanguage] = useState<'english' | 'arabic'>('english');
+  const { t, i18n } = useTranslation();
+  const currentLanguage = i18n.language;
 
-  useEffect(() => {
-    loadLanguage();
-  }, []);
-
-  const loadLanguage = async () => {
-    try {
-      const stored = await AsyncStorage.getItem('appLanguage');
-      if (stored) {
-        setSelectedLanguage(stored as 'english' | 'arabic');
-      }
-    } catch (error) {
-      console.error('Error loading language:', error);
-    }
-  };
-
-  const handleLanguageSelect = async (language: 'english' | 'arabic') => {
-    try {
-      setSelectedLanguage(language);
-      await AsyncStorage.setItem('appLanguage', language);
-    } catch (error) {
-      console.error('Error saving language:', error);
-    }
+  const handleLanguageSelect = async (language: 'en' | 'ar') => {
+    if (currentLanguage === language) return;
+    await changeLanguage(language);
   };
 
   return (
@@ -36,10 +20,10 @@ export default function ChangeLanguageScreen() {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/(tabs)/profile')}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Change Language</Text>
+          <Text style={styles.headerTitle}>{t('change_language.title')}</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -60,13 +44,13 @@ export default function ChangeLanguageScreen() {
           <TouchableOpacity
             style={[
               styles.languageButton,
-              selectedLanguage === 'english' && styles.languageButtonActive
+              currentLanguage === 'en' && styles.languageButtonActive
             ]}
-            onPress={() => handleLanguageSelect('english')}
+            onPress={() => handleLanguageSelect('en')}
           >
             <Text style={[
               styles.languageButtonText,
-              selectedLanguage === 'english' && styles.languageButtonTextActive
+              currentLanguage === 'en' && styles.languageButtonTextActive
             ]}>
               English
             </Text>
@@ -75,13 +59,13 @@ export default function ChangeLanguageScreen() {
           <TouchableOpacity
             style={[
               styles.languageButton,
-              selectedLanguage === 'arabic' && styles.languageButtonActive
+              currentLanguage === 'ar' && styles.languageButtonActive
             ]}
-            onPress={() => handleLanguageSelect('arabic')}
+            onPress={() => handleLanguageSelect('ar')}
           >
             <Text style={[
               styles.languageButtonText,
-              selectedLanguage === 'arabic' && styles.languageButtonTextActive
+              currentLanguage === 'ar' && styles.languageButtonTextActive
             ]}>
               العربية
             </Text>

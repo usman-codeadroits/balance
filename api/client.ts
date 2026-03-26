@@ -3,8 +3,7 @@
  * Handles common API functionality like error handling, timeouts, etc.
  */
 
-import { API_CONFIG } from './config';
-import type { ApiError } from './types';
+import { API_CONFIG } from "./config";
 
 export class ApiClient {
   private baseURL: string;
@@ -20,29 +19,49 @@ export class ApiClient {
   /**
    * Get authorization headers (can be extended for token-based auth)
    */
-  private async getHeaders(customHeaders?: Record<string, string>): Promise<Record<string, string>> {
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    const token = await AsyncStorage.getItem('authToken');
-    
-    return {
+  private async getHeaders(
+    customHeaders?: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    const token = await AsyncStorage.getItem("authToken");
+
+    const headers = {
       ...this.defaultHeaders,
       ...customHeaders,
       ...(token && { Authorization: `Bearer ${token}` }),
     };
+
+    if (token) {
+      console.log("🔐 Auth token found and added to headers");
+    } else {
+      console.log(
+        "⚠️ No auth token found in AsyncStorage - requests will be unauthenticated",
+      );
+    }
+
+    return headers;
   }
 
   /**
    * Handle API errors
    */
-  private handleError(error: unknown): ApiError {
+  private handleError(error: unknown): Error {
     if (error instanceof Error) {
-      return {
-        message: error.message,
-      };
+      return error;
     }
-    return {
-      message: 'An unknown error occurred',
-    };
+
+    if (typeof error === "object" && error !== null && "message" in error) {
+      const extractedMessage = String(
+        (error as Record<string, unknown>).message ||
+          "An unknown error occurred",
+      );
+      const enrichedError = new Error(extractedMessage);
+      Object.assign(enrichedError, error);
+      return enrichedError;
+    }
+
+    return new Error("An unknown error occurred");
   }
 
   /**
@@ -50,31 +69,44 @@ export class ApiClient {
    */
   async get<T>(
     endpoint: string,
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>,
   ): Promise<T> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'GET',
-        headers: await this.getHeaders(customHeaders),
+      const headers = await this.getHeaders(customHeaders);
+      const url = `${this.baseURL}${endpoint}`;
+
+      console.log("🌐 API Client GET Request:");
+      console.log("  URL:", url);
+      console.log("  Method: GET");
+      console.log("  Headers:", JSON.stringify(headers, null, 2));
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: headers,
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
+      console.log("📥 API Client Response:");
+      console.log("  Status:", response.status);
+      console.log("  Status Text:", response.statusText);
+      console.log("  OK:", response.ok);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
+          errorData.message || `HTTP error! status: ${response.status}`,
         );
       }
 
       return await response.json();
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout. Please try again.');
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Request timeout. Please try again.");
       }
       throw this.handleError(error);
     }
@@ -86,45 +118,63 @@ export class ApiClient {
   async post<T>(
     endpoint: string,
     data: unknown,
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>,
   ): Promise<T> {
     try {
+      const url = `${this.baseURL}${endpoint}`;
+      const headers = await this.getHeaders(customHeaders);
+      const body = JSON.stringify(data);
+
+      console.log("🌐 API Client POST Request:");
+      console.log("  URL:", url);
+      console.log("  Method: POST");
+      console.log("  Headers:", JSON.stringify(headers, null, 2));
+      console.log("  Body:", body);
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'POST',
-        headers: await this.getHeaders(customHeaders),
-        body: JSON.stringify(data),
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: body,
         signal: controller.signal,
       });
 
+      console.log("📥 API Client Response:");
+      console.log("  Status:", response.status);
+      console.log("  Status Text:", response.statusText);
+      console.log("  OK:", response.ok);
+
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        // Try to extract a meaningful error message
-        let errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
-        
-        // If there are validation errors, include them
-        if (errorData.errors && typeof errorData.errors === 'object') {
-          const errorMessages = Object.values(errorData.errors).flat();
-          if (errorMessages.length > 0) {
-            errorMessage = errorMessages.join('. ');
-          }
-        }
-        
-        // Create error with full message and response data
-        const error = new Error(errorMessage);
-        (error as any).response = errorData;
-        (error as any).status = response.status;
-        throw error;
+      // Handle success status codes (200, 201)
+      if (response.ok) {
+        return await response.json();
       }
 
-      return await response.json();
+      // Handle error status codes
+      const errorData = await response.json().catch(() => ({}));
+      // Try to extract a meaningful error message
+      let errorMessage =
+        errorData.message || `HTTP error! status: ${response.status}`;
+
+      // If there are validation errors, include them
+      if (errorData.errors && typeof errorData.errors === "object") {
+        const errorMessages = Object.values(errorData.errors).flat();
+        if (errorMessages.length > 0) {
+          errorMessage = errorMessages.join(". ");
+        }
+      }
+
+      // Create error with full message and response data
+      const error = new Error(errorMessage);
+      (error as any).response = errorData;
+      (error as any).status = response.status;
+      throw error;
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout. Please try again.');
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Request timeout. Please try again.");
       }
       throw this.handleError(error);
     }
@@ -136,14 +186,14 @@ export class ApiClient {
   async put<T>(
     endpoint: string,
     data: unknown,
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>,
   ): Promise<T> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: await this.getHeaders(customHeaders),
         body: JSON.stringify(data),
         signal: controller.signal,
@@ -154,14 +204,14 @@ export class ApiClient {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
+          errorData.message || `HTTP error! status: ${response.status}`,
         );
       }
 
       return await response.json();
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout. Please try again.');
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Request timeout. Please try again.");
       }
       throw this.handleError(error);
     }
@@ -172,14 +222,14 @@ export class ApiClient {
    */
   async delete<T>(
     endpoint: string,
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>,
   ): Promise<T> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'DELETE',
+        method: "DELETE",
         headers: await this.getHeaders(customHeaders),
         signal: controller.signal,
       });
@@ -189,14 +239,14 @@ export class ApiClient {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`
+          errorData.message || `HTTP error! status: ${response.status}`,
         );
       }
 
       return await response.json();
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout. Please try again.');
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Request timeout. Please try again.");
       }
       throw this.handleError(error);
     }
@@ -205,4 +255,3 @@ export class ApiClient {
 
 // Export a singleton instance
 export const apiClient = new ApiClient();
-

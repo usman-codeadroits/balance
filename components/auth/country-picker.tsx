@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export interface Country {
@@ -18,6 +19,7 @@ const COUNTRIES: Country[] = [
   { code: 'JO', name: 'Jordan', flag: '🇯🇴', dialCode: '+962' },
   { code: 'LB', name: 'Lebanon', flag: '🇱🇧', dialCode: '+961' },
   { code: 'EG', name: 'Egypt', flag: '🇪🇬', dialCode: '+20' },
+  { code: 'PK', name: 'Pakistan', flag: '🇵🇰', dialCode: '+92' },
   { code: 'US', name: 'United States', flag: '🇺🇸', dialCode: '+1' },
   { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', dialCode: '+44' },
 ];
@@ -28,6 +30,7 @@ interface CountryPickerProps {
 }
 
 export default function CountryPicker({ selectedCountry, onSelectCountry }: CountryPickerProps) {
+  const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
 
   const handleSelectCountry = (country: Country) => {
@@ -42,7 +45,7 @@ export default function CountryPicker({ selectedCountry, onSelectCountry }: Coun
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
       >
-        <Text style={styles.flag}>{selectedCountry.flag}</Text>
+        <Text style={styles.flag} allowFontScaling={false}>{selectedCountry.flag}</Text>
         <Text style={styles.dropdownIcon}>▼</Text>
       </TouchableOpacity>
 
@@ -55,7 +58,7 @@ export default function CountryPicker({ selectedCountry, onSelectCountry }: Coun
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Country</Text>
+              <Text style={styles.modalTitle}>{t('country_picker.select_country')}</Text>
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 style={styles.closeButton}
@@ -76,8 +79,8 @@ export default function CountryPicker({ selectedCountry, onSelectCountry }: Coun
                   onPress={() => handleSelectCountry(item)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.countryFlag}>{item.flag}</Text>
-                  <Text style={styles.countryName}>{item.name}</Text>
+                  <Text style={styles.countryFlag} allowFontScaling={false}>{item.flag}</Text>
+                  <Text style={styles.countryName}>{t(`country_picker.countries.${item.code}`)}</Text>
                   <Text style={styles.countryDialCode}>{item.dialCode}</Text>
                 </TouchableOpacity>
               )}
@@ -98,6 +101,8 @@ const styles = StyleSheet.create({
   flag: {
     fontSize: 24,
     marginRight: 4,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   dropdownIcon: {
     fontSize: 10,
@@ -150,6 +155,8 @@ const styles = StyleSheet.create({
   countryFlag: {
     fontSize: 24,
     marginRight: 12,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   countryName: {
     flex: 1,

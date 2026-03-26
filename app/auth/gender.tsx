@@ -1,19 +1,32 @@
-import AuthButtonGreen from '@/components/auth/auth-button-green';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import AuthButtonGreen from "@/components/auth/auth-button-green";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Alert,
+  Image,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-type Gender = 'male' | 'female' | null;
+type Gender = "male" | "female" | null;
 
 export default function GenderScreen() {
+  const { t } = useTranslation();
   const [selectedGender, setSelectedGender] = useState<Gender>(null);
   const [loading, setLoading] = useState(false);
+  useStaticScreen();
 
   useEffect(() => {
     const loadGender = async () => {
-      const storedGender = await AsyncStorage.getItem('tempGender');
-      if (storedGender === 'male' || storedGender === 'female') {
+      const storedGender = await AsyncStorage.getItem("tempGender");
+      if (storedGender === "male" || storedGender === "female") {
         setSelectedGender(storedGender);
       }
     };
@@ -22,7 +35,7 @@ export default function GenderScreen() {
 
   const handleContinue = async () => {
     if (!selectedGender) {
-      Alert.alert('Error', 'Please select your gender');
+      Alert.alert(t("common.error"), t("gender.select_error"));
       return;
     }
 
@@ -30,15 +43,17 @@ export default function GenderScreen() {
 
     try {
       // Store gender in AsyncStorage
-      await AsyncStorage.setItem('tempGender', selectedGender);
+      await AsyncStorage.setItem("tempGender", selectedGender);
 
       // Navigate to goal screen
-      router.push('/auth/goal');
+      router.push("/auth/goal");
     } catch (error) {
-      console.error('Error saving gender:', error);
+      console.error("Error saving gender:", error);
       Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to save information. Please try again.'
+        t("common.error"),
+        error instanceof Error
+          ? error.message
+          : t("gender.save_error"),
       );
     } finally {
       setLoading(false);
@@ -48,20 +63,26 @@ export default function GenderScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Logo */}
-        <View style={styles.logoContainer}>
+        {/* Header with back button and logo */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
           <Image
-            source={require('@/assets/images/balance-logo.png')}
-            style={styles.logo}
+            source={require("@/assets/images/balance-logo.png")}
+            style={styles.headerLogo}
             resizeMode="contain"
           />
         </View>
 
         {/* Title */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>What&apos;s your Gender?</Text>
+          <Text style={styles.title}>{t("gender.title")}</Text>
           <Text style={styles.subtitle}>
-            This will help us to personalize your weight loss journey
+            {t("gender.subtitle")}
           </Text>
         </View>
 
@@ -70,25 +91,25 @@ export default function GenderScreen() {
           <TouchableOpacity
             style={[
               styles.optionCard,
-              selectedGender === 'male' && styles.optionCardSelected,
+              selectedGender === "male" && styles.optionCardSelected,
             ]}
-            onPress={() => setSelectedGender('male')}
+            onPress={() => setSelectedGender("male")}
             activeOpacity={0.7}
           >
             <Text style={styles.optionEmoji}>👨</Text>
-            <Text style={styles.optionText}>Male</Text>
+            <Text style={styles.optionText}>{t("gender.male")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.optionCard,
-              selectedGender === 'female' && styles.optionCardSelected,
+              selectedGender === "female" && styles.optionCardSelected,
             ]}
-            onPress={() => setSelectedGender('female')}
+            onPress={() => setSelectedGender("female")}
             activeOpacity={0.7}
           >
             <Text style={styles.optionEmoji}>👩</Text>
-            <Text style={styles.optionText}>Female</Text>
+            <Text style={styles.optionText}>{t("gender.female")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -97,7 +118,11 @@ export default function GenderScreen() {
 
         {/* Bottom Section */}
         <View style={styles.bottomSection}>
-          <AuthButtonGreen title={loading ? "Saving..." : "Continue"} onPress={handleContinue} disabled={loading} />
+          <AuthButtonGreen
+            title={loading ? t("gender.saving") : t("gender.continue")}
+            onPress={handleContinue}
+            disabled={loading}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -107,18 +132,31 @@ export default function GenderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 10,
+    paddingBottom: 20,
   },
-  logo: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
+  headerLogo: {
     width: 80,
     height: 80,
   },
@@ -127,30 +165,30 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7F75',
+    color: "#6B7F75",
     lineHeight: 20,
   },
   optionsContainer: {
     gap: 16,
   },
   optionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   optionCardSelected: {
-    borderColor: '#344225',
-    backgroundColor: '#F0F7F4',
+    borderColor: "#344225",
+    backgroundColor: "#F0F7F4",
   },
   optionEmoji: {
     fontSize: 32,
@@ -158,8 +196,8 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   spacer: {
     flex: 1,

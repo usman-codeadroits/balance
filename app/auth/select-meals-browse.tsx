@@ -1,9 +1,29 @@
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { getMeals, type Meal, type Duration, updateSubscriptionMeal } from '@/api';
+import {
+  type Duration,
+  getMeals,
+  getSubscriptionMeals,
+  type Meal,
+  updateSubscriptionMeal,
+} from "@/api";
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import { LanguageSwitcher } from "@/components/auth/language-switcher";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type MealItem = {
   id: string;
@@ -21,19 +41,29 @@ type DayMeals = {
 };
 
 export default function SelectMealsScreen() {
+  const { t } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [selectedDuration, setSelectedDuration] = useState<Duration | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDuration, setSelectedDuration] = useState<Duration | null>(
+    null,
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [hasPersonalizedPlan, setHasPersonalizedPlan] = useState<boolean>(false);
+  const [hasPersonalizedPlan, setHasPersonalizedPlan] =
+    useState<boolean>(false);
+  const [loadingExisting, setLoadingExisting] = useState<boolean>(false);
   const params = useLocalSearchParams();
-  const type = (params.type as string) || 'meal'; // 'meal' or 'snack'
+  const type = (params.type as string) || "meal"; // 'meal' or 'snack'
   const dayIndex = params.dayIndex ? parseInt(params.dayIndex as string) : null;
-  const mealIndex = params.mealIndex ? parseInt(params.mealIndex as string) : null;
-  const subscriptionMealId = params.subscriptionMealId ? parseInt(params.subscriptionMealId as string) : undefined;
+  const mealIndex = params.mealIndex
+    ? parseInt(params.mealIndex as string)
+    : null;
+  const subscriptionMealId = params.subscriptionMealId
+    ? parseInt(params.subscriptionMealId as string)
+    : undefined;
+  useStaticScreen();
 
   useEffect(() => {
     loadPlanData();
@@ -43,32 +73,41 @@ export default function SelectMealsScreen() {
 
   const checkPersonalizedPlan = async () => {
     try {
-      const personalizedPlan = await AsyncStorage.getItem('hasPersonalizedPlan');
-      setHasPersonalizedPlan(personalizedPlan === 'true');
+      const personalizedPlan = await AsyncStorage.getItem(
+        "hasPersonalizedPlan",
+      );
+      setHasPersonalizedPlan(personalizedPlan === "true");
     } catch (error) {
-      console.error('Error checking personalized plan:', error);
+      console.error("Error checking personalized plan:", error);
     }
   };
 
   const loadPlanData = async () => {
     try {
-      const planData = await AsyncStorage.getItem('selectedPlan');
+      const planData = await AsyncStorage.getItem("selectedPlan");
       if (planData) {
         setSelectedPlan(JSON.parse(planData));
       }
-      
+
       // Load selected duration and days
-      const durationData = await AsyncStorage.getItem('selectedDuration');
+      const durationData = await AsyncStorage.getItem("selectedDuration");
       if (durationData) {
         setSelectedDuration(JSON.parse(durationData));
       }
-      
-      const daysData = await AsyncStorage.getItem('selectedDays');
+
+      const daysData = await AsyncStorage.getItem("selectedDays");
       if (daysData) {
         setSelectedDays(JSON.parse(daysData));
       }
+
+      // Only fetch existing subscription meals when updating (has active subscription)
+      const activeSubscription =
+        await AsyncStorage.getItem("activeSubscription");
+      if (activeSubscription || subscriptionMealId) {
+        await fetchExistingSubscriptionMeals();
+      }
     } catch (error) {
-      console.error('Error loading plan:', error);
+      console.error("Error loading plan:", error);
     }
   };
 
@@ -78,27 +117,140 @@ export default function SelectMealsScreen() {
       const mealsData = await getMeals();
       setMeals(mealsData);
     } catch (error) {
-      console.error('Error fetching meals:', error);
-      Alert.alert('Error', 'Failed to load meals. Please try again.');
+      console.error("Error fetching meals:", error);
+      Alert.alert(t("common.error"), t("plan_page.error"));
     } finally {
       setLoading(false);
     }
   };
 
+  const dayNameToIndex: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+
+  const normalizeExistingMeals = async (response: any) => {
+    if (!response?.success || !response?.data) return;
+
+    const subscriptionDays = response.data.subscription_days || [];
+    await AsyncStorage.setItem(
+      "subscriptionDaysData",
+      JSON.stringify(subscriptionDays),
+    );
+    await AsyncStorage.setItem(
+      "userSubscriptionId",
+      JSON.stringify(response.data.user_subscription_id),
+    );
+
+    const planData = await AsyncStorage.getItem("selectedPlan");
+    const activeSubStr = await AsyncStorage.getItem("activeSubscription");
+    const plan = planData
+      ? JSON.parse(planData)
+      : activeSubStr
+        ? JSON.parse(activeSubStr)?.plan
+        : null;
+    const mealCount = plan?.meal_count ?? 0;
+    const snackCount = plan?.snack_count ?? 0;
+
+    const dayMeals: { [key: number]: DayMeals } = {};
+    const allMealsFlat: any[] = [];
+
+    subscriptionDays.forEach((day: any) => {
+      const dayIndex = dayNameToIndex[(day.day || "").toLowerCase()];
+      if (dayIndex === undefined) return;
+
+      if (!dayMeals[dayIndex]) {
+        dayMeals[dayIndex] = {
+          meals: new Array(mealCount).fill(null),
+          snacks: new Array(snackCount).fill(null),
+        };
+      }
+
+      (day.subscription_meals || []).forEach((subMeal: any) => {
+        const mealData = subMeal.meal || {};
+        const mealItem = {
+          id: (mealData.id ?? subMeal.meal_id)?.toString() || "",
+          name: mealData.title || mealData.name || "",
+          calories: mealData.calories || 0,
+          protein: mealData.protein_g || 0,
+          carbs: mealData.carbs_g || 0,
+          fat: mealData.fat_g || 0,
+          imageUrl: mealData.image_url || mealData.image_thumb_url,
+          subscriptionMealId: subMeal.id,
+        } as any;
+
+        if (subMeal.type === "is meal") {
+          const slot = dayMeals[dayIndex].meals.findIndex((m) => m === null);
+          const targetIndex =
+            slot === -1 ? dayMeals[dayIndex].meals.length : slot;
+          dayMeals[dayIndex].meals[targetIndex] = mealItem;
+        } else {
+          const slot = dayMeals[dayIndex].snacks.findIndex((m) => m === null);
+          const targetIndex =
+            slot === -1 ? dayMeals[dayIndex].snacks.length : slot;
+          dayMeals[dayIndex].snacks[targetIndex] = mealItem;
+        }
+
+        allMealsFlat.push(subMeal);
+      });
+    });
+
+    await AsyncStorage.setItem("selectedDayMeals", JSON.stringify(dayMeals));
+    await AsyncStorage.setItem(
+      "subscriptionMealsData",
+      JSON.stringify(allMealsFlat),
+    );
+  };
+
+  const fetchExistingSubscriptionMeals = async () => {
+    try {
+      setLoadingExisting(true);
+      const userId = await AsyncStorage.getItem("userId");
+
+      // Only fetch if we have a valid userId (not empty, not null)
+      if (!userId || userId.trim() === "") {
+        setLoadingExisting(false);
+        return;
+      }
+
+      const existing = await AsyncStorage.getItem("subscriptionDaysData");
+      if (existing) {
+        // Use cached data but still refresh in background
+        const parsed = JSON.parse(existing);
+        normalizeExistingMeals({
+          success: true,
+          data: { subscription_days: parsed },
+        });
+      }
+
+      const response = await getSubscriptionMeals(parseInt(userId, 10));
+      await normalizeExistingMeals(response);
+    } catch (error) {
+      console.error("Error loading existing subscription meals:", error);
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
+
   // Filter meals/snacks based on type FIRST
   const filteredByType = meals.filter((meal) => {
-    if (type === 'meal') {
-      return meal.type === 'is meal';
+    if (type === "meal") {
+      return meal.type === "is meal";
     } else {
-      return meal.type === 'is snack';
+      return meal.type === "is snack";
     }
   });
 
   // Get unique categories from filtered items only
   const categories = Array.from(
     new Map(
-      filteredByType.map((meal) => [meal.category_id, meal.category])
-    ).values()
+      filteredByType.map((meal) => [meal.category_id, { id: meal.category_id, name: meal.category }]),
+    ).values(),
   );
 
   // Filter by category
@@ -108,7 +260,7 @@ export default function SelectMealsScreen() {
 
   // Filter by search query
   const filteredItems = filteredByCategory.filter((meal) =>
-    meal.title.toLowerCase().includes(searchQuery.toLowerCase())
+    meal.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   // Convert API meal to MealItem format
@@ -124,79 +276,137 @@ export default function SelectMealsScreen() {
 
   const handleAddItem = async (meal: Meal) => {
     if (dayIndex === null || mealIndex === null) {
-      Alert.alert('Error', 'Invalid selection parameters');
+      Alert.alert(t("common.error"), t("select_meals.error_params"));
       return;
     }
 
     const item = convertMealToItem(meal);
 
     // Check if we're in update mode
-    const activeSubscriptionData = await AsyncStorage.getItem('activeSubscription');
-    const subscriptionMealsDataStr = await AsyncStorage.getItem('subscriptionMealsData');
-    const subscriptionDaysDataStr = await AsyncStorage.getItem('subscriptionDaysData');
-    const userSubscriptionIdStr = await AsyncStorage.getItem('userSubscriptionId');
-    
-    if (activeSubscriptionData && subscriptionMealsDataStr && subscriptionDaysDataStr && userSubscriptionIdStr) {
+    const activeSubscriptionData =
+      await AsyncStorage.getItem("activeSubscription");
+    const subscriptionMealsDataStr = await AsyncStorage.getItem(
+      "subscriptionMealsData",
+    );
+    const subscriptionDaysDataStr = await AsyncStorage.getItem(
+      "subscriptionDaysData",
+    );
+    const userSubscriptionIdStr =
+      await AsyncStorage.getItem("userSubscriptionId");
+
+    if (
+      activeSubscriptionData &&
+      subscriptionMealsDataStr &&
+      subscriptionDaysDataStr &&
+      userSubscriptionIdStr
+    ) {
       // Update mode: Call API to update/create meal
       try {
         const subscriptionMeals = JSON.parse(subscriptionMealsDataStr);
-        const subscriptionDays = JSON.parse(subscriptionDaysDataStr);
-        const userId = await AsyncStorage.getItem('userId');
-        
+        const userId = await AsyncStorage.getItem("userId");
+
         if (!userId) {
-          Alert.alert('Error', 'User not found. Please login again.');
+          Alert.alert(t("common.error"), t("select_meals.error_user_not_found"));
           return;
         }
-        
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+        const dayNames = [
+          "sunday",
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+        ];
         const dayName = dayNames[dayIndex];
-        
-        const mealType = type === 'meal' ? 'is meal' : 'is snack';
-        
+
+        const mealType = type === "meal" ? "is meal" : "is snack";
+
         const updateRequest: any = {
           user_id: parseInt(userId),
           day: dayName,
           meal_id: meal.id,
           type: mealType,
         };
-        
+
         // If subscription_meal_id is provided (from params), use it for update
         // Otherwise, omit it to create new meal
-        if (subscriptionMealId !== undefined && subscriptionMealId > 0) {
-          updateRequest.subscription_meal_id = subscriptionMealId;
+        // Try provided id first, otherwise lookup from cached dayMeals
+        let resolvedSubscriptionMealId = subscriptionMealId;
+        if (
+          resolvedSubscriptionMealId === undefined ||
+          resolvedSubscriptionMealId <= 0
+        ) {
+          try {
+            const dayMealsCache =
+              await AsyncStorage.getItem("selectedDayMeals");
+            if (dayMealsCache) {
+              const parsed = JSON.parse(dayMealsCache) as {
+                [key: number]: DayMeals;
+              };
+              const targetDay = parsed[dayIndex];
+              if (targetDay) {
+                const slotItem =
+                  type === "meal"
+                    ? targetDay.meals[mealIndex]
+                    : targetDay.snacks[mealIndex];
+                if (slotItem && (slotItem as any).subscriptionMealId) {
+                  resolvedSubscriptionMealId = (slotItem as any)
+                    .subscriptionMealId;
+                }
+              }
+            }
+          } catch (err) {
+            console.warn(
+              "Failed to read cached day meals for subscriptionMealId",
+              err,
+            );
+          }
         }
-        
+
+        if (
+          resolvedSubscriptionMealId !== undefined &&
+          resolvedSubscriptionMealId > 0
+        ) {
+          updateRequest.subscription_meal_id = resolvedSubscriptionMealId;
+        }
+
         const response = await updateSubscriptionMeal(updateRequest);
-        
+
         // Update subscription meals data in AsyncStorage with the response
         if (response.data?.subscription_meal) {
           const updatedMeal = response.data.subscription_meal;
           const updatedMeals = [...subscriptionMeals];
-          
-          if (subscriptionMealId !== undefined && subscriptionMealId > 0) {
-            // Update existing meal
-            const index = updatedMeals.findIndex((m: any) => m.id === subscriptionMealId);
+
+          const targetId = updateRequest.subscription_meal_id;
+          if (targetId) {
+            const index = updatedMeals.findIndex((m: any) => m.id === targetId);
             if (index !== -1) {
               updatedMeals[index] = updatedMeal;
+            } else {
+              updatedMeals.push(updatedMeal);
             }
           } else {
-            // Add new meal
             updatedMeals.push(updatedMeal);
           }
-          
-          await AsyncStorage.setItem('subscriptionMealsData', JSON.stringify(updatedMeals));
+
+          await AsyncStorage.setItem(
+            "subscriptionMealsData",
+            JSON.stringify(updatedMeals),
+          );
         }
-        
+
         // Update local storage
-        const savedMeals = await AsyncStorage.getItem('selectedDayMeals');
+        const savedMeals = await AsyncStorage.getItem("selectedDayMeals");
         let dayMeals: { [key: number]: DayMeals } = {};
-        
+
         if (savedMeals) {
           dayMeals = JSON.parse(savedMeals);
         }
-        
+
         if (!dayMeals[dayIndex]) {
-          const planData = await AsyncStorage.getItem('selectedPlan');
+          const planData = await AsyncStorage.getItem("selectedPlan");
           const activeSub = JSON.parse(activeSubscriptionData);
           const plan = activeSub.plan || { meal_count: 0, snack_count: 0 };
           dayMeals[dayIndex] = {
@@ -204,127 +414,180 @@ export default function SelectMealsScreen() {
             snacks: new Array(plan.snack_count || 0).fill(null),
           };
         }
-        
+
         // Store subscription meal ID with the meal item
         const mealItem = {
           ...item,
-          subscriptionMealId: response.data?.subscription_meal?.id,
+          subscriptionMealId:
+            response.data?.subscription_meal?.id ||
+            updateRequest.subscription_meal_id,
         };
-        
-        if (type === 'meal') {
+
+        if (type === "meal") {
           dayMeals[dayIndex].meals[mealIndex] = mealItem;
         } else {
           dayMeals[dayIndex].snacks[mealIndex] = mealItem;
         }
-        
-        await AsyncStorage.setItem('selectedDayMeals', JSON.stringify(dayMeals));
-        
-        Alert.alert('Success', 'Meal updated successfully!');
+
+        await AsyncStorage.setItem(
+          "selectedDayMeals",
+          JSON.stringify(dayMeals),
+        );
+
+        Alert.alert(t("common.ok"), t("select_meals.success_updated"));
         router.back();
       } catch (error) {
-        console.error('Error updating meal:', error);
-        Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update meal');
+        console.error("Error updating meal:", error);
+        Alert.alert(
+          t("common.error"),
+          error instanceof Error ? error.message : t("select_meals.error_update_failed"),
+        );
       }
       return;
     }
 
     // New subscription flow: Save to AsyncStorage
     try {
-      const savedMeals = await AsyncStorage.getItem('selectedDayMeals');
+      const savedMeals = await AsyncStorage.getItem("selectedDayMeals");
       let dayMeals: { [key: number]: DayMeals } = {};
-      
+
       if (savedMeals) {
         dayMeals = JSON.parse(savedMeals);
       }
-      
+
       if (!dayMeals[dayIndex]) {
-        const planData = await AsyncStorage.getItem('selectedPlan');
-        const plan = planData ? JSON.parse(planData) : { meal_count: 0, snack_count: 0 };
+        const planData = await AsyncStorage.getItem("selectedPlan");
+        const plan = planData
+          ? JSON.parse(planData)
+          : { meal_count: 0, snack_count: 0 };
         dayMeals[dayIndex] = {
           meals: new Array(plan.meal_count || 0).fill(null),
           snacks: new Array(plan.snack_count || 0).fill(null),
         };
       }
-      
-      if (type === 'meal') {
+
+      if (type === "meal") {
         dayMeals[dayIndex].meals[mealIndex] = item;
       } else {
         dayMeals[dayIndex].snacks[mealIndex] = item;
       }
-      
-      await AsyncStorage.setItem('selectedDayMeals', JSON.stringify(dayMeals));
-      
+
+      await AsyncStorage.setItem("selectedDayMeals", JSON.stringify(dayMeals));
+
       // Navigate back
       router.back();
     } catch (error) {
-      console.error('Error saving meal:', error);
-      Alert.alert('Error', 'Failed to save selection');
+      console.error("Error saving meal:", error);
+      Alert.alert(t("common.error"), t("select_meals.error_save_failed"));
     }
   };
 
   const getPlanSummaryText = () => {
-    if (!selectedPlan) return '';
+    if (!selectedPlan) return "";
     const mealCount = selectedPlan.meal_count || 0;
     const snackCount = selectedPlan.snack_count || 0;
     const daysCount = selectedDays.length || 6;
-    return `${daysCount} day meal, ${mealCount} Meal${mealCount > 1 ? 's' : ''}, ${snackCount} snack${snackCount > 1 ? 's' : ''}, ${daysCount} days/ week`;
+    return t("select_meals.summary_desc", {
+      days: daysCount,
+      meals: mealCount,
+      snacks: snackCount
+    });
   };
 
   const calculateTotalPrice = (): number => {
     if (!selectedPlan || !selectedDuration) return 0;
-    
-    const pricePerDay = selectedPlan.pricePerDay || 0;
-    const selectedDaysCount = selectedDays.length;
-    
-    // Total price for the entire duration: price per day * selected days per week * number of weeks
-    const totalPrice = pricePerDay * selectedDaysCount * selectedDuration.no_of_weeks;
-    
+
+    const basePrice =
+      typeof selectedPlan.pricePerDay === "number"
+        ? selectedPlan.pricePerDay
+        : typeof selectedPlan.price === "number"
+          ? selectedPlan.price
+          : parseFloat(
+            String(selectedPlan.price || "").replace(/[^0-9.]/g, ""),
+          ) || 0;
+
+    const totalPrice = basePrice * selectedDuration.no_of_weeks;
+
     return totalPrice;
   };
+
+  const isLoadingState = loading || loadingExisting;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Select {type === 'snack' ? 'Snacks' : 'Meals'}</Text>
-          <View style={styles.placeholder} />
+          <Text style={styles.headerTitle}>
+            {type === "snack" ? t("select_meals.title_snacks") : t("select_meals.title_meals")}
+          </Text>
+          <LanguageSwitcher light />
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search"
+            placeholder={t("select_meals.search_placeholder")}
             placeholderTextColor="#6B7F75"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
-          <Ionicons name="search" size={20} color="#6B7F75" style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={20}
+            color="#6B7F75"
+            style={styles.searchIcon}
+          />
         </View>
 
         {/* Category Filter */}
         {categories.length > 0 && (
           <View style={styles.categoryContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScroll}
+            >
               <TouchableOpacity
-                style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
+                style={[
+                  styles.categoryChip,
+                  !selectedCategory && styles.categoryChipActive,
+                ]}
                 onPress={() => setSelectedCategory(null)}
               >
-                <Text style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>
-                  All
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    !selectedCategory && styles.categoryChipTextActive,
+                  ]}
+                >
+                  {t("select_meals.category_all")}
                 </Text>
               </TouchableOpacity>
-              {categories.map((category) => (
+              {categories.map((category: any) => (
                 <TouchableOpacity
                   key={category.id}
-                  style={[styles.categoryChip, selectedCategory === category.id && styles.categoryChipActive]}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategory === category.id &&
+                    styles.categoryChipActive,
+                  ]}
                   onPress={() => setSelectedCategory(category.id)}
                 >
-                  <Text style={[styles.categoryChipText, selectedCategory === category.id && styles.categoryChipTextActive]}>
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      selectedCategory === category.id &&
+                      styles.categoryChipTextActive,
+                    ]}
+                  >
                     {category.name}
                   </Text>
                 </TouchableOpacity>
@@ -342,29 +605,38 @@ export default function SelectMealsScreen() {
           <View style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
               <View style={styles.summaryTextContainer}>
-                <Text style={styles.summaryTitle}>Your plan, your rules</Text>
-                <Text style={styles.summarySubtitle}>{getPlanSummaryText()}</Text>
+                <Text style={styles.summaryTitle}>{t("select_meals.summary_title")}</Text>
+                <Text style={styles.summarySubtitle}>
+                  {getPlanSummaryText()}
+                </Text>
               </View>
               <Image
-                source={require('@/assets/images/bag.png')}
+                source={require("@/assets/images/bag.png")}
                 style={styles.summaryIcon}
                 resizeMode="contain"
               />
             </View>
             <View style={styles.summaryFooter}>
-              <Text style={styles.summaryTotal}>Total</Text>
-              <Text style={styles.summaryPrice}>KWD {calculateTotalPrice().toFixed(2)}</Text>
+              <Text style={styles.summaryTotal}>{t("select_meals.total")}</Text>
+              <Text style={styles.summaryPrice}>
+                KWD {calculateTotalPrice().toFixed(2)}
+              </Text>
             </View>
-            <TouchableOpacity style={styles.continueButton} onPress={() => router.back()}>
-              <Text style={styles.continueButtonText}>Continue</Text>
+            <TouchableOpacity
+              style={styles.continueButton}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.continueButtonText}>{t("select_meals.continue")}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Loading State */}
-          {loading ? (
+          {isLoadingState ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#344225" />
-              <Text style={styles.loadingText}>Loading {type === 'snack' ? 'snacks' : 'meals'}...</Text>
+              <Text style={styles.loadingText}>
+                {type === "snack" ? t("select_meals.loading_snacks") : t("select_meals.loading_meals")}
+              </Text>
             </View>
           ) : (
             <>
@@ -377,7 +649,9 @@ export default function SelectMealsScreen() {
                       <View key={meal.id} style={styles.itemCard}>
                         {!hasPersonalizedPlan && (
                           <View style={styles.caloriesBadge}>
-                            <Text style={styles.caloriesText}>{item.calories} kcal</Text>
+                            <Text style={styles.caloriesText}>
+                              {item.calories} {t("select_meals.kcal")}
+                            </Text>
                           </View>
                         )}
                         {item.imageUrl ? (
@@ -388,7 +662,7 @@ export default function SelectMealsScreen() {
                           />
                         ) : (
                           <Image
-                            source={require('@/assets/images/meal.jpg')}
+                            source={require("@/assets/images/meal.jpg")}
                             style={styles.itemImage}
                             resizeMode="cover"
                           />
@@ -399,22 +673,50 @@ export default function SelectMealsScreen() {
                             <>
                               <View style={styles.nutritionRow}>
                                 <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: '#4A90E2' }]} />
-                                  <Text style={styles.nutritionText}>Cal {item.calories}</Text>
+                                  <View
+                                    style={[
+                                      styles.nutritionDot,
+                                      { backgroundColor: "#4A90E2" },
+                                    ]}
+                                  />
+                                  <Text style={styles.nutritionText}>
+                                    {t("select_meals.cal_label")} {item.calories}
+                                  </Text>
                                 </View>
                                 <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: '#D0021B' }]} />
-                                  <Text style={styles.nutritionText}>Protein {item.protein}g</Text>
+                                  <View
+                                    style={[
+                                      styles.nutritionDot,
+                                      { backgroundColor: "#D0021B" },
+                                    ]}
+                                  />
+                                  <Text style={styles.nutritionText}>
+                                    {t("select_meals.protein_label")} {item.protein}g
+                                  </Text>
                                 </View>
                               </View>
                               <View style={styles.nutritionRow}>
                                 <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: '#7ED321' }]} />
-                                  <Text style={styles.nutritionText}>Carbs {item.carbs}g</Text>
+                                  <View
+                                    style={[
+                                      styles.nutritionDot,
+                                      { backgroundColor: "#7ED321" },
+                                    ]}
+                                  />
+                                  <Text style={styles.nutritionText}>
+                                    {t("select_meals.carbs_label")} {item.carbs}g
+                                  </Text>
                                 </View>
                                 <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: '#F5A623' }]} />
-                                  <Text style={styles.nutritionText}>Fat {item.fat}g</Text>
+                                  <View
+                                    style={[
+                                      styles.nutritionDot,
+                                      { backgroundColor: "#F5A623" },
+                                    ]}
+                                  />
+                                  <Text style={styles.nutritionText}>
+                                    {t("select_meals.fat_label")} {item.fat}g
+                                  </Text>
                                 </View>
                               </View>
                             </>
@@ -423,7 +725,7 @@ export default function SelectMealsScreen() {
                             style={styles.addButton}
                             onPress={() => handleAddItem(meal)}
                           >
-                            <Text style={styles.addButtonText}>Add +</Text>
+                            <Text style={styles.addButtonText}>{t("select_meals.add_button")}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -433,7 +735,7 @@ export default function SelectMealsScreen() {
               ) : (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
-                    No {type === 'snack' ? 'snacks' : 'meals'} found
+                    {type === "snack" ? t("select_meals.no_snacks_found") : t("select_meals.no_meals_found")}
                   </Text>
                 </View>
               )}
@@ -444,21 +746,33 @@ export default function SelectMealsScreen() {
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/" as any)}
+        >
           <Ionicons name="home" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Home</Text>
+          <Text style={styles.navLabel}>{t("nav.home")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/order-history" as any)}
+        >
           <Ionicons name="time" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Macros History</Text>
+          <Text style={styles.navLabel}>{t("nav.history")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/calendar" as any)}
+        >
           <Ionicons name="calendar" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Calendar</Text>
+          <Text style={styles.navLabel}>{t("nav.calendar")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/profile" as any)}
+        >
           <Ionicons name="person" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Profile</Text>
+          <Text style={styles.navLabel}>{t("nav.profile")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -468,269 +782,276 @@ export default function SelectMealsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: '5%',
-    paddingTop: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: "5%",
+    paddingTop: 10,
     paddingBottom: 16,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#344225',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   placeholder: {
     width: 40,
   },
   searchContainer: {
-    paddingHorizontal: '5%',
+    paddingHorizontal: "5%",
     marginBottom: 12,
-    position: 'relative',
+    position: "relative",
   },
   searchInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingRight: 45,
+    paddingHorizontal: 16,
+    paddingLeft: 44,
     fontSize: 14,
-    color: '#344225',
+    color: "#344225",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
   },
   searchIcon: {
-    position: 'absolute',
-    right: '8%',
-    top: 12,
+    position: "absolute",
+    left: 30,
+    top: 13,
   },
   categoryContainer: {
-    paddingHorizontal: '5%',
     marginBottom: 16,
   },
   categoryScroll: {
-    paddingRight: 20,
+    paddingHorizontal: "5%",
     gap: 8,
   },
   categoryChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#344225',
-    marginRight: 8,
+    borderColor: "#E0E0E0",
   },
   categoryChipActive: {
-    backgroundColor: '#344225',
+    backgroundColor: "#344225",
+    borderColor: "#344225",
   },
   categoryChipText: {
     fontSize: 13,
-    fontWeight: '500',
-    color: '#344225',
+    color: "#6B7F75",
+    fontWeight: "500",
   },
   categoryChipTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: '5%',
-    paddingBottom: 100,
+    paddingHorizontal: "5%",
+    paddingBottom: 120,
   },
   summaryCard: {
-    backgroundColor: '#344225',
-    borderRadius: 16,
+    backgroundColor: "#344225",
+    borderRadius: 20,
     padding: 20,
     marginBottom: 24,
   },
   summaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   summaryTextContainer: {
     flex: 1,
-    paddingRight: 10,
   },
   summaryTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
     marginBottom: 4,
   },
   summarySubtitle: {
+    color: "#C5D4CC",
     fontSize: 12,
-    fontWeight: '400',
-    color: '#D4E8E0',
+    lineHeight: 18,
   },
   summaryIcon: {
-    width: 80,
-    height: 80,
+    width: 40,
+    height: 40,
   },
   summaryFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
+    marginBottom: 20,
   },
   summaryTotal: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   summaryPrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    color: "#FAD979",
+    fontSize: 18,
+    fontWeight: "700",
   },
   continueButton: {
-    backgroundColor: '#FAD979',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    backgroundColor: "#FAD979",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
   },
   continueButtonText: {
-    color: '#344225',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#344225',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#6B7F75',
+    color: "#344225",
+    fontSize: 16,
+    fontWeight: "700",
   },
   itemsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 16,
   },
   itemCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    width: "47%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    overflow: "hidden",
     marginBottom: 16,
-    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  itemImage: {
+    width: "100%",
+    height: 120,
   },
   caloriesBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: '#C62828',
+    backgroundColor: "rgba(52, 66, 37, 0.8)",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 12,
     zIndex: 1,
   },
   caloriesText: {
+    color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  itemImage: {
-    width: '100%',
-    height: 120,
+    fontWeight: "600",
   },
   itemInfo: {
     padding: 12,
   },
   itemName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
     marginBottom: 8,
+    height: 40,
   },
   nutritionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
   },
   nutritionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   nutritionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   nutritionText: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#344225',
+    fontSize: 9,
+    color: "#6B7F75",
   },
   addButton: {
-    backgroundColor: '#344225',
+    backgroundColor: "#344225",
+    borderRadius: 8,
     paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
   },
   addButtonText: {
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#6B7F75",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6B7F75",
   },
   bottomNav: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: '#344225',
-    flexDirection: 'row',
+    backgroundColor: "#344225",
+    borderRadius: 24,
+    flexDirection: "row",
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 24,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    justifyContent: "space-around",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 10,
   },
   navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flex: 1,
-    paddingVertical: 4,
   },
   navLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#FFFFFF",
     marginTop: 4,
   },
 });

@@ -1,43 +1,59 @@
-import AuthButtonGreen from '@/components/auth/auth-button-green';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import AuthButtonGreen from "@/components/auth/auth-button-green";
+import { LanguageSwitcher } from "@/components/auth/language-switcher";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const DEFAULT_WEIGHT_KG = 70;
 const DEFAULT_HEIGHT_CM = 170;
 
 export default function ProfileSetupScreen() {
+  const { t } = useTranslation();
   const [weight, setWeight] = useState(String(DEFAULT_WEIGHT_KG));
   const [height, setHeight] = useState(String(DEFAULT_HEIGHT_CM));
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
-  const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('cm');
+  const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
+  const [heightUnit, setHeightUnit] = useState<"cm" | "ft">("cm");
   const [loading, setLoading] = useState(false);
+  useStaticScreen();
 
   const handleContinue = async () => {
     if (!weight.trim()) {
-      alert('Please enter your weight');
+      alert(t("profile_setup.enter_weight"));
       return;
     }
     if (!height.trim()) {
-      alert('Please enter your height');
+      alert(t("profile_setup.enter_height"));
       return;
     }
     if (isNaN(Number(weight)) || Number(weight) <= 0) {
-      alert('Please enter a valid weight');
+      alert(t("profile_setup.invalid_weight"));
       return;
     }
     if (isNaN(Number(height)) || Number(height) <= 0) {
-      alert('Please enter a valid height');
+      alert(t("profile_setup.invalid_height"));
       return;
     }
 
     setLoading(true);
 
     try {
-      await AsyncStorage.setItem('tempWeight', weight);
-      await AsyncStorage.setItem('tempHeight', height);
-      router.push('/auth/activity-level' as any);
+      await AsyncStorage.setItem("tempWeight", weight);
+      await AsyncStorage.setItem("tempHeight", height);
+      router.push("/auth/activity-level" as any);
     } finally {
       setLoading(false);
     }
@@ -45,32 +61,42 @@ export default function ProfileSetupScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* Logo */}
-        <View style={styles.logoContainer}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
           <Image
-            source={require('@/assets/images/balance-logo.png')}
-            style={styles.logo}
+            source={require("@/assets/images/balance-logo.png")}
+            style={styles.headerLogo}
             resizeMode="contain"
           />
+          <LanguageSwitcher light />
         </View>
 
         {/* Title */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>Your Profile</Text>
+          <Text style={styles.title}>{t("profile_setup.title")}</Text>
         </View>
 
         {/* Weight Input */}
         <View style={styles.inputSection}>
-          <Text style={styles.label}>Tell us your current weight</Text>
+          <Text style={styles.label}>{t("profile_setup.weight_label")}</Text>
           <View style={styles.inputRow}>
             <View style={styles.inputWrapper}>
               <TouchableOpacity
                 style={styles.controlButton}
-                onPress={() => setWeight((prev) => (Number(prev) - 1 > 0 ? String(Number(prev) - 1) : prev))}
+                onPress={() =>
+                  setWeight((prev: string) =>
+                    Number(prev) - 1 > 0 ? String(Number(prev) - 1) : prev,
+                  )
+                }
               >
                 <Text style={styles.controlButtonText}>-</Text>
               </TouchableOpacity>
@@ -84,7 +110,9 @@ export default function ProfileSetupScreen() {
               />
               <TouchableOpacity
                 style={styles.controlButton}
-                onPress={() => setWeight((prev) => String(Number(prev || 0) + 1))}
+                onPress={() =>
+                  setWeight((prev: string) => String(Number(prev || 0) + 1))
+                }
               >
                 <Text style={styles.controlButtonText}>+</Text>
               </TouchableOpacity>
@@ -97,12 +125,16 @@ export default function ProfileSetupScreen() {
 
         {/* Height Input */}
         <View style={styles.inputSection}>
-          <Text style={styles.label}>And your height?</Text>
+          <Text style={styles.label}>{t("profile_setup.height_label")}</Text>
           <View style={styles.inputRow}>
             <View style={styles.inputWrapper}>
               <TouchableOpacity
                 style={styles.controlButton}
-                onPress={() => setHeight((prev) => (Number(prev) - 1 > 0 ? String(Number(prev) - 1) : prev))}
+                onPress={() =>
+                  setHeight((prev: string) =>
+                    Number(prev) - 1 > 0 ? String(Number(prev) - 1) : prev,
+                  )
+                }
               >
                 <Text style={styles.controlButtonText}>-</Text>
               </TouchableOpacity>
@@ -116,7 +148,9 @@ export default function ProfileSetupScreen() {
               />
               <TouchableOpacity
                 style={styles.controlButton}
-                onPress={() => setHeight((prev) => String(Number(prev || 0) + 1))}
+                onPress={() =>
+                  setHeight((prev: string) => String(Number(prev || 0) + 1))
+                }
               >
                 <Text style={styles.controlButtonText}>+</Text>
               </TouchableOpacity>
@@ -132,7 +166,11 @@ export default function ProfileSetupScreen() {
 
         {/* Bottom Section */}
         <View style={styles.bottomSection}>
-          <AuthButtonGreen title={loading ? "Registering..." : "Continue"} onPress={handleContinue} disabled={loading} />
+          <AuthButtonGreen
+            title={loading ? t("profile_setup.registering") : t("profile_setup.continue")}
+            onPress={handleContinue}
+            disabled={loading}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -142,18 +180,31 @@ export default function ProfileSetupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 10,
+    paddingBottom: 20,
   },
-  logo: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
+  headerLogo: {
     width: 80,
     height: 80,
   },
@@ -162,64 +213,64 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   inputSection: {
     marginBottom: 30,
   },
   label: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#344225',
+    fontWeight: "500",
+    color: "#344225",
     marginBottom: 12,
   },
   inputRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   inputWrapper: {
     flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 8,
   },
   controlButton: {
     width: 40,
     height: 40,
-    backgroundColor: '#344225',
+    backgroundColor: "#344225",
     borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   controlButtonText: {
-    color: '#FAD979',
+    color: "#FAD979",
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   input: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 18,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
     paddingVertical: 12,
   },
   unitSelector: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     minWidth: 60,
   },
   unitText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   spacer: {
     flex: 1,

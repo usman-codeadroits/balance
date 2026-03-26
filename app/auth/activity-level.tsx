@@ -1,41 +1,60 @@
-import AuthButtonGreen from '@/components/auth/auth-button-green';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import AuthButtonGreen from "@/components/auth/auth-button-green";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
 
-type ActivityLevel = 'sedentary' | 'lightly-active' | 'very-active' | 'highly-active' | null;
-
-const activityLevels = [
-  { 
-    id: 'sedentary' as ActivityLevel, 
-    title: 'Sedentary', 
-    subtitle: 'You spend most of the day sitting (e.g. desk job, little to no exercise)' 
-  },
-  { 
-    id: 'lightly-active' as ActivityLevel, 
-    title: 'Lightly Active', 
-    subtitle: 'You spend a good part of the day on your feet (e.g. teacher, salesperson)' 
-  },
-  { 
-    id: 'very-active' as ActivityLevel, 
-    title: 'Very active', 
-    subtitle: 'You spend most of the day do you (normally strenuous) activity' 
-  },
-  { 
-    id: 'highly-active' as ActivityLevel, 
-    title: 'Highly active', 
-    subtitle: 'Physically demanding job or intense exercise or (e.g. construction work, fitness trainer)' 
-  },
-];
+type ActivityLevel =
+  | "sedentary"
+  | "lightly-active"
+  | "very-active"
+  | "highly-active"
+  | null;
 
 export default function ActivityLevelScreen() {
+  const { t } = useTranslation();
+
+  const activityLevels_list = [
+    {
+      id: "sedentary" as ActivityLevel,
+      title: t("activity_levels.sedentary.title"),
+      subtitle: t("activity_levels.sedentary.subtitle"),
+    },
+    {
+      id: "lightly-active" as ActivityLevel,
+      title: t("activity_levels.lightly-active.title"),
+      subtitle: t("activity_levels.lightly-active.subtitle"),
+    },
+    {
+      id: "very-active" as ActivityLevel,
+      title: t("activity_levels.very-active.title"),
+      subtitle: t("activity_levels.very-active.subtitle"),
+    },
+    {
+      id: "highly-active" as ActivityLevel,
+      title: t("activity_levels.highly-active.title"),
+      subtitle: t("activity_levels.highly-active.subtitle"),
+    },
+  ];
+
   const [selectedLevel, setSelectedLevel] = useState<ActivityLevel>(null);
   const [loading, setLoading] = useState(false);
+  useStaticScreen();
 
   useEffect(() => {
     const loadLevel = async () => {
-      const storedLevel = await AsyncStorage.getItem('tempActivityLevel');
+      const storedLevel = await AsyncStorage.getItem("tempActivityLevel");
       if (storedLevel) {
         setSelectedLevel(storedLevel as ActivityLevel);
       }
@@ -45,14 +64,14 @@ export default function ActivityLevelScreen() {
 
   const handleContinue = async () => {
     if (!selectedLevel) {
-      alert('Please select your activity level');
+      alert(t("activity_level.select_error"));
       return;
     }
 
     setLoading(true);
     try {
-      await AsyncStorage.setItem('tempActivityLevel', selectedLevel);
-      router.push('/auth/allergies' as any);
+      await AsyncStorage.setItem("tempActivityLevel", selectedLevel);
+      router.push("/auth/allergies" as any);
     } finally {
       setLoading(false);
     }
@@ -61,27 +80,32 @@ export default function ActivityLevelScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo */}
-          <View style={styles.logoContainer}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
             <Image
-              source={require('@/assets/images/balance-logo.png')}
-              style={styles.logo}
+              source={require("@/assets/images/balance-logo.png")}
+              style={styles.headerLogo}
               resizeMode="contain"
             />
           </View>
 
           {/* Title */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>How active are you?</Text>
+            <Text style={styles.title}>{t("activity_level.title")}</Text>
           </View>
 
           {/* Activity Level Options */}
           <View style={styles.optionsContainer}>
-            {activityLevels.map((level) => (
+            {activityLevels_list.map((level) => (
               <TouchableOpacity
                 key={level.id}
                 style={[
@@ -102,7 +126,11 @@ export default function ActivityLevelScreen() {
 
         {/* Bottom Section */}
         <View style={styles.bottomSection}>
-          <AuthButtonGreen title={loading ? "Saving..." : "Continue"} onPress={handleContinue} disabled={loading} />
+          <AuthButtonGreen
+            title={loading ? t("activity_level.saving") : t("activity_level.continue")}
+            onPress={handleContinue}
+            disabled={loading}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -112,21 +140,34 @@ export default function ActivityLevelScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 10,
     paddingBottom: 20,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  logo: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
+  headerLogo: {
     width: 80,
     height: 80,
   },
@@ -135,34 +176,34 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   optionsContainer: {
     gap: 12,
   },
   optionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   optionCardSelected: {
-    borderColor: '#344225',
-    backgroundColor: '#F0F7F4',
+    borderColor: "#344225",
+    backgroundColor: "#F0F7F4",
   },
   optionContent: {
     gap: 4,
   },
   optionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   optionSubtitle: {
     fontSize: 13,
-    color: '#6B7F75',
+    color: "#6B7F75",
     lineHeight: 18,
   },
   bottomSection: {

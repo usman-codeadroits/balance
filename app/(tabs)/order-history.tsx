@@ -1,90 +1,125 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-interface Subscription {
-  id: string;
-  plan: any;
-  duration: any;
-  days: number[];
-  startDate: string;
-  endDate: string;
-  dayMeals: any;
-  address: any;
-  planPrice: number;
-  vat: number;
-  totalPrice: number;
-  status: 'Active' | 'Completed' | 'Cancelled';
-  createdAt: string;
-}
+import BottomTabNav from "@/components/bottom-tab-nav";
+import {
+  DEMO_SUBSCRIPTION_FLAG,
+  DUMMY_MEAL_HISTORY,
+  USE_DUMMY_SUBSCRIPTION,
+} from "@/constants/dummy-subscription";
+
+import { getMySubscriptions, type UserSubscriptionSummary } from "@/api/services/subscriptions";
+import type { Subscription } from "@/types/subscription";
 
 export default function OrderHistoryScreen() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [activeSubscriptions, setActiveSubscriptions] = useState<Subscription[]>([]);
-  const [completedSubscriptions, setCompletedSubscriptions] = useState<Subscription[]>([]);
+  const { t } = useTranslation();
+  const [activeSubscriptions, setActiveSubscriptions] = useState<UserSubscriptionSummary[]>([]);
+  const [recentSubscriptions, setRecentSubscriptions] = useState<UserSubscriptionSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       loadSubscriptions();
-    }, [])
+    }, []),
   );
 
   const loadSubscriptions = async () => {
     try {
-      const subscriptionsData = await AsyncStorage.getItem('subscriptions');
-      if (subscriptionsData) {
-        const allSubscriptions: Subscription[] = JSON.parse(subscriptionsData);
-        setSubscriptions(allSubscriptions);
-        
-        // Separate active and completed
-        const active = allSubscriptions.filter(sub => {
-          const endDate = new Date(sub.endDate);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          return sub.status === 'Active' && endDate >= today;
-        });
-        
-        const completed = allSubscriptions.filter(sub => {
-          const endDate = new Date(sub.endDate);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          return sub.status === 'Completed' || (sub.status === 'Active' && endDate < today);
-        });
-        
-        setActiveSubscriptions(active);
-        setCompletedSubscriptions(completed);
+      setLoading(true);
+      setError(null);
+
+      // Check if using dummy data for demo
+      if (USE_DUMMY_SUBSCRIPTION) {
+        const demoFlag = await AsyncStorage.getItem(DEMO_SUBSCRIPTION_FLAG);
+        if (demoFlag === "true") {
+          separateSubscriptions(DUMMY_MEAL_HISTORY);
+          setLoading(false);
+          return;
+        }
       }
-    } catch (error) {
-      console.error('Error loading subscriptions:', error);
+
+      // Fetch from API
+      const response = await getMySubscriptions();
+
+      if (response.success) {
+        setActiveSubscriptions(response.data.active || []);
+        setRecentSubscriptions(response.data.recent || []);
+      } else {
+        setError("Failed to load subscriptions");
+      }
+    } catch (err) {
+      console.error("Error loading subscriptions:", err);
+      setError("Failed to load subscriptions. Please try again.");
+      // Still show empty state rather than crashing
+      setActiveSubscriptions([]);
+      setRecentSubscriptions([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const formatDate = (dateString: string): string => {
+  // Helper function for dummy data compatibility
+  const separateSubscriptions = (list: Subscription[]) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const active = list.filter((sub) => {
+      const endDate = new Date(sub.endDate);
+      return sub.status === "Active" && endDate >= today;
+    });
+
+    const completed = list.filter((sub) => {
+      const endDate = new Date(sub.endDate);
+      return (
+        sub.status === "Completed" ||
+        (sub.status === "Active" && endDate < today)
+      );
+    });
+
+    // Map to new format
+    setActiveSubscriptions(active as any);
+    setRecentSubscriptions(completed as any);
+  };
+
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
+
     try {
+      // Handle date format like "20.03.2024"
+      const parts = dateString.split('.');
+      if (parts.length === 3) {
+        const [day, month, year] = parts;
+        return `${day} ${getMonthName(parseInt(month))} ${year}`;
+      }
+
+      // Fallback to standard date parsing
       const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+
       const day = date.getDate();
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const month = monthNames[date.getMonth()];
+      const monthName = getMonthName(date.getMonth() + 1);
       const year = date.getFullYear();
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      const ampm = hours >= 12 ? 'pm' : 'am';
-      const displayHours = hours % 12 || 12;
-      const displayMinutes = minutes < 10 ? `0${minutes}` : minutes;
-      return `${day} ${month} ${year}, ${displayHours}:${displayMinutes}${ampm}`;
+      return `${day} ${monthName} ${year}`;
     } catch (error) {
-      return '';
+      return dateString || '-';
     }
   };
 
-  const getOrderSummary = (subscription: Subscription): string => {
-    const mealCount = subscription.plan?.meal_count || 0;
-    const snackCount = subscription.plan?.snack_count || 0;
-    const daysCount = subscription.days.length;
-    const weeks = subscription.duration?.no_of_weeks || 0;
-    return `${mealCount} meal${mealCount > 1 ? 's' : ''} • ${daysCount} day${daysCount > 1 ? 's' : ''} • ${weeks} Week${weeks > 1 ? 's' : ''}`;
+  const getMonthName = (month: number): string => {
+    const monthNames = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+    return monthNames[month - 1] || "";
+  };
+
+  const getOrderSummary = (subscription: UserSubscriptionSummary): string => {
+    return `${subscription.subcrption_plans?.title || 'Meal Plan'} • ${subscription.duration?.title || 'Duration'}`;
   };
 
   return (
@@ -92,105 +127,110 @@ export default function OrderHistoryScreen() {
       <View style={styles.content}>
         {/* Title */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Order History</Text>
+          <Text style={styles.title}>{t("history.title")}</Text>
         </View>
 
-        <ScrollView
-          style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Active Subscriptions */}
-          {activeSubscriptions.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>Active Subscriptions</Text>
-              {activeSubscriptions.map((subscription) => (
-                <View 
-                  key={subscription.id} 
-                  style={styles.orderCard}
-                >
-                  <View style={styles.orderHeader}>
-                    <Text style={styles.orderTitle}>
-                      {getOrderSummary(subscription)}
-                    </Text>
-                    <Text style={styles.orderPrice}>KWD {subscription.totalPrice.toFixed(2)}</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#344225" />
+            <Text style={styles.emptyText}>{t("history.loading")}</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={loadSubscriptions} style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>{t("history.retry")}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Active Subscriptions */}
+            {activeSubscriptions.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>{t("history.active_subs")}</Text>
+                {activeSubscriptions.map((subscription) => (
+                  <View key={subscription.id} style={styles.orderCard}>
+                    <View style={styles.orderHeader}>
+                      <Text style={styles.orderTitle}>
+                        {getOrderSummary(subscription)}
+                      </Text>
+                      <Text style={styles.orderPrice}>
+                        {subscription.price}
+                      </Text>
+                    </View>
+                    <Text style={styles.orderStatus}>{subscription.status}</Text>
+                    <View style={styles.orderFooter}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color="#344225"
+                      />
+                      <Text style={styles.orderDate}>
+                        {formatDate(subscription.start_date)} - {formatDate(subscription.end_date)}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.orderStatus}>{subscription.status}</Text>
-                  <View style={styles.orderFooter}>
-                    <Ionicons name="calendar-outline" size={14} color="#344225" />
-                    <Text style={styles.orderDate}>{formatDate(subscription.createdAt)}</Text>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
+                ))}
+              </>
+            )}
 
-          {/* Recent/Completed Subscriptions */}
-          {completedSubscriptions.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>
-                {activeSubscriptions.length > 0 ? 'Recent Subscriptions' : 'Order History'}
-              </Text>
-              {completedSubscriptions.map((subscription) => (
-                <View 
-                  key={subscription.id} 
-                  style={[
-                    styles.orderCard,
-                    subscription.status === 'Completed' ? styles.orderCardCompleted : styles.orderCardCancelled
-                  ]}
-                >
-                  <View style={styles.orderHeader}>
-                    <Text style={styles.orderTitle}>
-                      {getOrderSummary(subscription)}
-                    </Text>
-                    <Text style={styles.orderPrice}>KWD {subscription.totalPrice.toFixed(2)}</Text>
+            {/* Recent/Completed Subscriptions */}
+            {recentSubscriptions.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>
+                  {activeSubscriptions.length > 0
+                    ? t("history.recent_subs")
+                    : t("history.title")}
+                </Text>
+                {recentSubscriptions.map((subscription) => (
+                  <View
+                    key={subscription.id}
+                    style={[
+                      styles.orderCard,
+                      styles.orderCardCompleted,
+                    ]}
+                  >
+                    <View style={styles.orderHeader}>
+                      <Text style={styles.orderTitle}>
+                        {getOrderSummary(subscription)}
+                      </Text>
+                      <Text style={styles.orderPrice}>
+                        {subscription.price}
+                      </Text>
+                    </View>
+                    <Text style={styles.orderStatus}>{subscription.status}</Text>
+                    <View style={styles.orderFooter}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color="#344225"
+                      />
+                      <Text style={styles.orderDate}>
+                        {formatDate(subscription.start_date)} - {formatDate(subscription.end_date)}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={styles.orderStatus}>
-                    {subscription.status === 'Cancelled' ? 'Cancelled' : 'Completed'}
-                  </Text>
-                  <View style={styles.orderFooter}>
-                    <Ionicons name="calendar-outline" size={14} color="#344225" />
-                    <Text style={styles.orderDate}>{formatDate(subscription.createdAt)}</Text>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
+                ))}
+              </>
+            )}
 
-          {subscriptions.length === 0 && (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No subscriptions found</Text>
-            </View>
-          )}
-        </ScrollView>
-
+            {activeSubscriptions.length === 0 && recentSubscriptions.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>{t("history.no_subs")}</Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
       </View>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => router.push('/(tabs)/')}
-        >
-          <Ionicons name="home" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="time" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Meals History</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="calendar" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Calendar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push('/(tabs)/profile')}
-        >
-          <Ionicons name="person" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Profile</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomTabNav
+        activeTab="history"
+        onHomePress={() => router.replace("/main-screen")}
+      />
     </SafeAreaView>
   );
 }
@@ -198,117 +238,127 @@ export default function OrderHistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   titleContainer: {
-    paddingHorizontal: '5%',
+    paddingHorizontal: "5%",
     paddingTop: 40,
     paddingBottom: 20,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#344225',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#344225",
+    textAlign: "center",
   },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: '5%',
-    paddingBottom: 120,
+    paddingHorizontal: "5%",
+    paddingBottom: 140,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#344225',
+    fontWeight: "700",
+    color: "#344225",
     marginTop: 20,
     marginBottom: 12,
   },
   emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 60,
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#6B7F75',
+    fontWeight: "500",
+    color: "#6B7F75",
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    paddingHorizontal: "10%",
+  },
+  errorText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#D64545",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: "#344225",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   orderCard: {
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E6EFE9",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
   },
   orderCardCompleted: {
-    backgroundColor: '#FAD979',
+    borderColor: "#FAD979",
   },
   orderCardCancelled: {
-    backgroundColor: '#FAD979',
+    borderColor: "#FFB3B3",
   },
   orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   orderTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
   },
   orderPrice: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#344225',
+    fontWeight: "700",
+    color: "#344225",
   },
   orderStatus: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#344225',
+    fontWeight: "500",
+    color: "#344225",
     marginBottom: 8,
   },
   orderFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   orderDate: {
     fontSize: 12,
-    fontWeight: '400',
-    color: '#344225',
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: '#344225',
-    borderRadius: 24,
-    flexDirection: 'row',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    marginTop: 4,
-    textAlign: 'center',
+    fontWeight: "400",
+    color: "#344225",
   },
 });

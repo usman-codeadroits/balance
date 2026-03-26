@@ -1,17 +1,52 @@
-import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import {
+    Animated,
+    BackHandler,
+    Image,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 export default function SplashScreen() {
   const [showSecondScreen, setShowSecondScreen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // After 5 seconds, show second screen with logo and button
+    // Check if user is authenticated (has userId)
+    const checkAuthentication = async () => {
+      try {
+        const userId = await AsyncStorage.getItem("userId");
+        const userData = await AsyncStorage.getItem("userData");
+        setIsAuthenticated(!!(userId && userData));
+      } catch (error) {
+        console.error("Error checking authentication:", error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkAuthentication();
+  }, []);
+
+  useEffect(() => {
+    // Prevent back navigation on Android
+    let backHandler: { remove: () => void } | null = null;
+    if (Platform.OS === "android" && BackHandler) {
+      backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+        return true; // Prevent default back behavior
+      });
+    }
+
+    // After 5 seconds, show second screen with logo and button (always show animation)
     const timer = setTimeout(() => {
       setShowSecondScreen(true);
-      
+
       Animated.parallel([
         Animated.timing(logoOpacity, {
           toValue: 1,
@@ -27,11 +62,17 @@ export default function SplashScreen() {
       ]).start();
     }, 5000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (backHandler) {
+        backHandler.remove();
+      }
+    };
   }, [logoOpacity, buttonOpacity]);
 
   const handleNext = () => {
-    router.push('/auth');
+    // Always redirect to welcome screen first
+    router.replace("/welcome");
   };
 
   // First screen - only "Balance" text
@@ -40,7 +81,7 @@ export default function SplashScreen() {
       <View style={styles.container}>
         <View style={styles.centerContent}>
           <Image
-            source={require('@/assets/images/balance-text.png')}
+            source={require("@/assets/images/balance-text.png")}
             style={styles.balanceTextLarge}
             resizeMode="contain"
           />
@@ -55,7 +96,7 @@ export default function SplashScreen() {
       {/* Logo at top */}
       <Animated.View style={[styles.logoContainer, { opacity: logoOpacity }]}>
         <Image
-          source={require('@/assets/images/balance-logo.png')}
+          source={require("@/assets/images/balance-logo.png")}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -64,15 +105,17 @@ export default function SplashScreen() {
       {/* Balance text in center */}
       <View style={styles.centerContent}>
         <Image
-          source={require('@/assets/images/balance-text.png')}
+          source={require("@/assets/images/balance-text.png")}
           style={styles.balanceText}
           resizeMode="contain"
         />
       </View>
 
       {/* Next button at bottom */}
-      <Animated.View style={[styles.buttonContainer, { opacity: buttonOpacity }]}>
-        <TouchableOpacity 
+      <Animated.View
+        style={[styles.buttonContainer, { opacity: buttonOpacity }]}
+      >
+        <TouchableOpacity
           style={styles.nextButton}
           onPress={handleNext}
           activeOpacity={0.8}
@@ -87,23 +130,23 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAD979',
+    backgroundColor: "#FAD979",
     paddingTop: 60,
     paddingBottom: 50,
     paddingHorizontal: 30,
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 40,
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: 150,
+    height: 150,
   },
   centerContent: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   balanceTextLarge: {
     width: 220,
@@ -114,20 +157,20 @@ const styles = StyleSheet.create({
     height: 50,
   },
   buttonContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   nextButton: {
-    backgroundColor: '#344225',
+    backgroundColor: "#344225",
     paddingVertical: 16,
     paddingHorizontal: 120,
     borderRadius: 8,
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
   buttonText: {
-    color: '#FAD979',
+    color: "#FAD979",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

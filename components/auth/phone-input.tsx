@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import * as RN from 'react-native';
 import CountryPicker, { Country } from './country-picker';
 
 interface PhoneInputProps {
@@ -10,23 +11,25 @@ interface PhoneInputProps {
   onSelectCountry: (country: Country) => void;
 }
 
-export default function PhoneInput({ 
-  value, 
-  onChangeText, 
+export default function PhoneInput({
+  value,
+  onChangeText,
   placeholder = 'Phone number',
   selectedCountry,
-  onSelectCountry 
+  onSelectCountry
 }: PhoneInputProps) {
+  const { t } = useTranslation();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Mobile</Text>
-      <View style={styles.inputWrapper}>
-        <CountryPicker 
+    <RN.View style={styles.container}>
+      <RN.Text style={styles.label}>{t('auth.mobile')}</RN.Text>
+      <RN.View style={styles.inputWrapper}>
+        <CountryPicker
           selectedCountry={selectedCountry}
           onSelectCountry={onSelectCountry}
         />
-        <View style={styles.separator} />
-        <TextInput
+        <RN.View style={styles.separator} />
+        <RN.TextInput
           style={styles.input}
           value={value}
           onChangeText={onChangeText}
@@ -34,12 +37,12 @@ export default function PhoneInput({
           placeholderTextColor="#8B9D94"
           keyboardType="phone-pad"
         />
-      </View>
-    </View>
+      </RN.View>
+    </RN.View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = RN.StyleSheet.create({
   container: {
     marginBottom: 20,
   },

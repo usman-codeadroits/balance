@@ -1,17 +1,31 @@
-import { finalizeOnboarding } from '@/app/auth/utils/finalize-onboarding';
-import AuthButtonGreen from '@/components/auth/auth-button-green';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { finalizeOnboarding } from "@/app/auth/utils/finalize-onboarding";
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import AuthButtonGreen from "@/components/auth/auth-button-green";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function AllergiesScreen() {
+  const { t } = useTranslation();
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
+  useStaticScreen();
 
   useEffect(() => {
     const loadPreference = async () => {
-      const stored = await AsyncStorage.getItem('tempHasAllergies');
+      const stored = await AsyncStorage.getItem("tempHasAllergies");
       if (stored) {
         setHasAllergies(JSON.parse(stored));
       }
@@ -21,29 +35,67 @@ export default function AllergiesScreen() {
 
   const handleContinue = async () => {
     if (hasAllergies === null) {
-      Alert.alert('Hold on', 'Please select whether you have any food allergies.');
+      Alert.alert(
+        t("allergies.select_error_title"),
+        t("allergies.select_error"),
+      );
       return;
     }
 
     setLoading(true);
     try {
-      await AsyncStorage.setItem('tempHasAllergies', JSON.stringify(hasAllergies));
+      await AsyncStorage.setItem(
+        "tempHasAllergies",
+        JSON.stringify(hasAllergies),
+      );
 
       if (hasAllergies) {
         setLoading(false);
-        router.push('/auth/allergies-preferences' as any);
+        router.push("/auth/allergies-preferences" as any);
         return;
       }
 
-      await AsyncStorage.setItem('tempAllergiesSelection', JSON.stringify([]));
-      await finalizeOnboarding({ hasAllergies: false, allergies: [] });
-      router.replace('/welcome' as any);
-    } catch (error) {
-      console.error('Error completing onboarding:', error);
-      Alert.alert(
-        'Unable to continue',
-        error instanceof Error ? error.message : 'Something went wrong while creating your account.'
+      console.log(
+        "📝 Allergies Screen: Starting registration (No allergies)...",
       );
+      await AsyncStorage.setItem("tempAllergiesSelection", JSON.stringify([]));
+
+      const registrationResponse = await finalizeOnboarding({
+        hasAllergies: false,
+        allergies: [],
+      });
+
+      console.log("✅ Allergies Screen: Registration completed");
+      console.log(
+        "📱 Allergies Screen: Showing success message and navigating to home",
+      );
+
+    } catch (error) {
+      console.error("========================================");
+      console.error("❌ REGISTRATION FAILED");
+      console.error("========================================");
+      console.error("Error completing onboarding:", error);
+      if (error instanceof Error) {
+        console.error("  - Error message:", error.message);
+        console.error("  - Error stack:", error.stack);
+      }
+      console.error("========================================\n");
+
+      let errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("allergies.unexpected_error");
+
+      if (error instanceof Error) {
+        const errorAny = error as any;
+        if (errorAny.isInvalidAffiliatedCode) {
+          errorMessage = t("allergies.invalid_affiliate");
+        }
+      }
+
+      Alert.alert(t("allergies.registration_failed"), errorMessage, [
+        { text: t("common.ok"), style: "default" },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -52,28 +104,32 @@ export default function AllergiesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo */}
-          <View style={styles.logoContainer}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
             <Image
-              source={require('@/assets/images/balance-logo.png')}
-              style={styles.logo}
+              source={require("@/assets/images/balance-logo.png")}
+              style={styles.headerLogo}
               resizeMode="contain"
             />
           </View>
 
-          {/* Title and Subtitle */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>Do you have any food allergies</Text>
-            <Text style={styles.subtitle}>We will use this to calculate your daily calorie needs</Text>
+            <Text style={styles.title}>{t("allergies.title")}</Text>
+            <Text style={styles.subtitle}>
+              {t("allergies.subtitle")}
+            </Text>
           </View>
 
-          {/* Options */}
           <View style={styles.optionsContainer}>
-            {/* Yes Option */}
             <TouchableOpacity
               style={[
                 styles.optionCard,
@@ -82,11 +138,10 @@ export default function AllergiesScreen() {
               onPress={() => setHasAllergies(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.optionText}>Yes</Text>
+              <Text style={styles.optionText}>{t("allergies.yes")}</Text>
               <Text style={styles.emoji}>👍</Text>
             </TouchableOpacity>
 
-            {/* No Option */}
             <TouchableOpacity
               style={[
                 styles.optionCard,
@@ -95,15 +150,18 @@ export default function AllergiesScreen() {
               onPress={() => setHasAllergies(false)}
               activeOpacity={0.7}
             >
-              <Text style={styles.optionText}>No</Text>
+              <Text style={styles.optionText}>{t("allergies.no")}</Text>
               <Text style={styles.emoji}>👎</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
 
-        {/* Bottom Section */}
         <View style={styles.bottomSection}>
-          <AuthButtonGreen title={loading ? "Please wait..." : "Continue"} onPress={handleContinue} disabled={loading} />
+          <AuthButtonGreen
+            title={loading ? t("allergies.wait") : t("allergies.continue")}
+            onPress={handleContinue}
+            disabled={loading}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -113,21 +171,31 @@ export default function AllergiesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 10,
     paddingBottom: 20,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  logo: {
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerLogo: {
     width: 80,
     height: 80,
   },
@@ -136,36 +204,36 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7F75',
+    color: "#6B7F75",
     lineHeight: 18,
   },
   optionsContainer: {
     gap: 12,
   },
   optionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 20,
     borderWidth: 2,
-    borderColor: 'transparent',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderColor: "transparent",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   optionCardSelected: {
-    borderColor: '#344225',
-    backgroundColor: '#F0F7F4',
+    borderColor: "#344225",
+    backgroundColor: "#F0F7F4",
   },
   optionText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#344225',
+    fontWeight: "500",
+    color: "#344225",
   },
   emoji: {
     fontSize: 32,

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface AuthTabsProps {
@@ -7,6 +8,8 @@ interface AuthTabsProps {
 }
 
 export default function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {
+  const { t } = useTranslation();
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
@@ -21,7 +24,7 @@ export default function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {
           styles.tabText,
           activeTab === 'login' && styles.activeTabText,
         ]}>
-          Login
+          {t('auth.login')}
         </Text>
       </TouchableOpacity>
 
@@ -37,7 +40,7 @@ export default function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {
           styles.tabText,
           activeTab === 'signup' && styles.activeTabText,
         ]}>
-          Create account
+          {t('auth.create_account')}
         </Text>
       </TouchableOpacity>
     </View>

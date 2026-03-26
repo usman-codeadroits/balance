@@ -1,9 +1,21 @@
-import type { Duration } from '@/api';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import type { Duration } from "@/api";
+import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import { LanguageSwitcher } from "@/components/auth/language-switcher";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type MealItem = {
   id: string;
@@ -22,18 +34,27 @@ type DayMeals = {
 };
 
 export default function SelectedMealsScreen() {
+  const { t } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [selectedDuration, setSelectedDuration] = useState<Duration | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<Duration | null>(
+    null,
+  );
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [dayMeals, setDayMeals] = useState<{ [key: number]: DayMeals }>({});
-  const [hasPersonalizedPlan, setHasPersonalizedPlan] = useState<boolean>(false);
+  const [hasPersonalizedPlan, setHasPersonalizedPlan] =
+    useState<boolean>(false);
   const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
   const [subscriptionMealsData, setSubscriptionMealsData] = useState<any[]>([]);
   const [subscriptionDaysData, setSubscriptionDaysData] = useState<any[]>([]);
-  const [userSubscriptionId, setUserSubscriptionId] = useState<string | null>(null);
-  const [subscriptionMealIds, setSubscriptionMealIds] = useState<{ [key: string]: number }>({}); // Key: "dayIndex-mealIndex-type"
+  const [userSubscriptionId, setUserSubscriptionId] = useState<string | null>(
+    null,
+  );
+  const [subscriptionMealIds, setSubscriptionMealIds] = useState<{
+    [key: string]: number;
+  }>({}); // Key: "dayIndex-mealIndex-type"
   const [updatingMeal, setUpdatingMeal] = useState<string | null>(null); // Track which meal is being updated
+  useStaticScreen();
 
   useEffect(() => {
     loadData();
@@ -42,10 +63,12 @@ export default function SelectedMealsScreen() {
 
   const checkPersonalizedPlan = async () => {
     try {
-      const personalizedPlan = await AsyncStorage.getItem('hasPersonalizedPlan');
-      setHasPersonalizedPlan(personalizedPlan === 'true');
+      const personalizedPlan = await AsyncStorage.getItem(
+        "hasPersonalizedPlan",
+      );
+      setHasPersonalizedPlan(personalizedPlan === "true");
     } catch (error) {
-      console.error('Error checking personalized plan:', error);
+      console.error("Error checking personalized plan:", error);
     }
   };
 
@@ -53,40 +76,65 @@ export default function SelectedMealsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+    }, []),
   );
 
   const loadData = async () => {
     try {
       // Check if we're in update mode (active subscription exists)
-      const activeSubscriptionData = await AsyncStorage.getItem('activeSubscription');
-      const subscriptionMealsDataStr = await AsyncStorage.getItem('subscriptionMealsData');
-      const subscriptionDaysDataStr = await AsyncStorage.getItem('subscriptionDaysData');
-      const userSubscriptionIdStr = await AsyncStorage.getItem('userSubscriptionId');
-      
-      if (activeSubscriptionData && subscriptionMealsDataStr && subscriptionDaysDataStr && userSubscriptionIdStr) {
+      const activeSubscriptionData =
+        await AsyncStorage.getItem("activeSubscription");
+      const subscriptionMealsDataStr = await AsyncStorage.getItem(
+        "subscriptionMealsData",
+      );
+      const subscriptionDaysDataStr = await AsyncStorage.getItem(
+        "subscriptionDaysData",
+      );
+      const userSubscriptionIdStr =
+        await AsyncStorage.getItem("userSubscriptionId");
+
+      if (
+        activeSubscriptionData &&
+        subscriptionMealsDataStr &&
+        subscriptionDaysDataStr &&
+        userSubscriptionIdStr
+      ) {
         // We're in update mode
         setIsUpdateMode(true);
         const activeSubscription = JSON.parse(activeSubscriptionData);
         const mealsData = JSON.parse(subscriptionMealsDataStr);
         const daysData = JSON.parse(subscriptionDaysDataStr);
-        
+
         setSubscriptionMealsData(mealsData);
         setSubscriptionDaysData(daysData);
         setUserSubscriptionId(userSubscriptionIdStr);
-        
+
         // Load plan from active subscription
         setSelectedPlan(activeSubscription.plan);
         setSelectedDuration(activeSubscription.duration);
         setSelectedDays(activeSubscription.days);
-        
+
         // Build meal IDs map and load existing meals
         const mealIdsMap: { [key: string]: number } = {};
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayNamesLookup = [
+          "sunday",
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+        ];
         const initialDayMeals: { [key: number]: DayMeals } = {};
-        const mealCount = activeSubscription.plan?.meal_count ?? activeSubscription.plan?.mealCount ?? 0;
-        const snackCount = activeSubscription.plan?.snack_count ?? activeSubscription.plan?.snackCount ?? 0;
-        
+        const mealCount =
+          activeSubscription.plan?.meal_count ??
+          activeSubscription.plan?.mealCount ??
+          0;
+        const snackCount =
+          activeSubscription.plan?.snack_count ??
+          activeSubscription.plan?.snackCount ??
+          0;
+
         // Initialize all days with empty arrays
         activeSubscription.days.forEach((dayIndex: number) => {
           initialDayMeals[dayIndex] = {
@@ -94,22 +142,23 @@ export default function SelectedMealsScreen() {
             snacks: new Array(snackCount).fill(null),
           };
         });
-        
+
         // Map subscription meals to day meals
         mealsData.forEach((meal: any) => {
           const dayName = meal.day?.toLowerCase();
-          const dayIndex = dayNames.indexOf(dayName);
-          
+          const dayIndex = dayNamesLookup.indexOf(dayName);
+
           if (dayIndex !== -1 && activeSubscription.days.includes(dayIndex)) {
-            const mealType = meal.type === 'is meal' ? 'meals' : 'snacks';
-            const mealIndex = mealType === 'meals' 
-              ? initialDayMeals[dayIndex].meals.findIndex(m => m === null)
-              : initialDayMeals[dayIndex].snacks.findIndex(s => s === null);
-            
+            const mealType = meal.type === "is meal" ? "meals" : "snacks";
+            const mealIndex =
+              mealType === "meals"
+                ? initialDayMeals[dayIndex].meals.findIndex((m) => m === null)
+                : initialDayMeals[dayIndex].snacks.findIndex((s) => s === null);
+
             if (mealIndex !== -1) {
               initialDayMeals[dayIndex][mealType][mealIndex] = {
-                id: meal.meal?.id?.toString() || meal.meal_id?.toString() || '',
-                name: meal.meal?.title || '',
+                id: meal.meal?.id?.toString() || meal.meal_id?.toString() || "",
+                name: meal.meal?.title || "",
                 calories: meal.meal?.calories || 0,
                 protein: meal.meal?.protein_g || 0,
                 carbs: meal.meal?.carbs_g || 0,
@@ -117,33 +166,37 @@ export default function SelectedMealsScreen() {
                 imageUrl: meal.meal?.image_url || meal.meal?.image_thumb_url,
                 subscriptionMealId: meal.id, // Store subscription meal ID with the meal
               };
-              
+
               // Store subscription meal ID for updates
               const key = `${dayIndex}-${mealIndex}-${mealType}`;
               mealIdsMap[key] = meal.id;
             }
           }
         });
-        
+
         setSubscriptionMealIds(mealIdsMap);
         setDayMeals(initialDayMeals);
         return;
       }
-      
+
       // Normal flow (new subscription)
       setIsUpdateMode(false);
-      const planData = await AsyncStorage.getItem('selectedPlan');
+      const planData = await AsyncStorage.getItem("selectedPlan");
       if (planData) {
         let plan = JSON.parse(planData);
-        
+
         // If plan doesn't have meal_count/snack_count, try to fetch from API
-        if ((!plan.meal_count && !plan.mealCount) || (!plan.snack_count && !plan.snackCount)) {
+        if (
+          (!plan.meal_count && !plan.mealCount) ||
+          (!plan.snack_count && !plan.snackCount)
+        ) {
           try {
-            const { getSubscriptionPlans } = await import('@/api');
+            const { getSubscriptionPlans } = await import("@/api");
             const plans = await getSubscriptionPlans();
-            const matchingPlan = plans.find(p => 
-              p.id.toString() === plan.id?.toString() || 
-              p.title === plan.title
+            const matchingPlan = plans.find(
+              (p) =>
+                p.id.toString() === plan.id?.toString() ||
+                p.title === plan.title,
             );
             if (matchingPlan) {
               plan = {
@@ -154,56 +207,62 @@ export default function SelectedMealsScreen() {
               };
             }
           } catch (e) {
-            console.error('Error fetching plan from API:', e);
+            console.error("Error fetching plan from API:", e);
           }
         }
-        
+
         setSelectedPlan(plan);
-        
+
         // Load selected duration
-        const durationData = await AsyncStorage.getItem('selectedDuration');
+        const durationData = await AsyncStorage.getItem("selectedDuration");
         if (durationData) {
           setSelectedDuration(JSON.parse(durationData));
         }
-        
+
         // Initialize day meals structure
-        const daysData = await AsyncStorage.getItem('selectedDays');
+        const daysData = await AsyncStorage.getItem("selectedDays");
         if (daysData) {
           const days = JSON.parse(daysData);
           setSelectedDays(days);
-          
+
           // Load existing meal selections if available (from current session)
-          const savedMeals = await AsyncStorage.getItem('selectedDayMeals');
+          const savedMeals = await AsyncStorage.getItem("selectedDayMeals");
           let existingMeals: { [key: number]: DayMeals } = {};
-          
+
           if (savedMeals) {
             try {
               existingMeals = JSON.parse(savedMeals);
             } catch (e) {
-              console.error('Error parsing saved meals:', e);
+              console.error("Error parsing saved meals:", e);
               // Clear corrupted data
-              await AsyncStorage.removeItem('selectedDayMeals');
+              await AsyncStorage.removeItem("selectedDayMeals");
             }
           }
-          
+
           // Initialize structure - use existing data if valid, otherwise start fresh
           const initialDayMeals: { [key: number]: DayMeals } = {};
           const mealCount = plan.meal_count ?? plan.mealCount ?? 0;
           const snackCount = plan.snack_count ?? plan.snackCount ?? 0;
-          
+
           days.forEach((dayIndex: number) => {
             // Check if existing data matches current plan structure
-            if (existingMeals[dayIndex] && 
-                existingMeals[dayIndex].meals?.length === mealCount &&
-                existingMeals[dayIndex].snacks?.length === snackCount) {
+            if (
+              existingMeals[dayIndex] &&
+              existingMeals[dayIndex].meals?.length === mealCount &&
+              existingMeals[dayIndex].snacks?.length === snackCount
+            ) {
               // Use existing valid data
               initialDayMeals[dayIndex] = existingMeals[dayIndex];
             } else {
               // Start fresh with empty meals/snacks, but preserve any existing meals
               const existingDayData = existingMeals[dayIndex];
               initialDayMeals[dayIndex] = {
-                meals: existingDayData?.meals?.slice(0, mealCount) || new Array(mealCount).fill(null),
-                snacks: existingDayData?.snacks?.slice(0, snackCount) || new Array(snackCount).fill(null),
+                meals:
+                  existingDayData?.meals?.slice(0, mealCount) ||
+                  new Array(mealCount).fill(null),
+                snacks:
+                  existingDayData?.snacks?.slice(0, snackCount) ||
+                  new Array(snackCount).fill(null),
               };
               // Pad arrays if needed
               while (initialDayMeals[dayIndex].meals.length < mealCount) {
@@ -218,11 +277,11 @@ export default function SelectedMealsScreen() {
         }
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error("Error loading data:", error);
     }
   };
 
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayNames = t("calendar.weekdays", { returnObjects: true }) as string[];
 
   const getDayName = (dayIndex: number) => {
     return dayNames[dayIndex];
@@ -235,12 +294,12 @@ export default function SelectedMealsScreen() {
   const handleMealBoxClick = (dayIndex: number, mealIndex: number) => {
     const meal = dayMeals[dayIndex]?.meals[mealIndex];
     router.push({
-      pathname: '/auth/select-meals-browse',
+      pathname: "/auth/select-meals-browse",
       params: {
         dayIndex: dayIndex.toString(),
         mealIndex: mealIndex.toString(),
-        type: 'meal',
-        subscriptionMealId: meal?.subscriptionMealId?.toString() || '',
+        type: "meal",
+        subscriptionMealId: meal?.subscriptionMealId?.toString() || "",
       },
     } as any);
   };
@@ -248,21 +307,20 @@ export default function SelectedMealsScreen() {
   const handleSnackBoxClick = (dayIndex: number, snackIndex: number) => {
     const snack = dayMeals[dayIndex]?.snacks[snackIndex];
     router.push({
-      pathname: '/auth/select-meals-browse',
+      pathname: "/auth/select-meals-browse",
       params: {
         dayIndex: dayIndex.toString(),
         mealIndex: snackIndex.toString(),
-        type: 'snack',
-        subscriptionMealId: snack?.subscriptionMealId?.toString() || '',
+        type: "snack",
+        subscriptionMealId: snack?.subscriptionMealId?.toString() || "",
       },
     } as any);
   };
 
-
   const handleContinue = async () => {
     // If in update mode, just go back (meals are updated via API when selected)
     if (isUpdateMode) {
-      Alert.alert('Success', 'Meals updated successfully!');
+      Alert.alert(t("common.ok"), t("selected_meals.success_update"));
       router.back();
       return;
     }
@@ -271,68 +329,83 @@ export default function SelectedMealsScreen() {
     // Day 1 is the first day in selectedDays array (sorted)
     const mealCount = selectedPlan?.meal_count || 0;
     const snackCount = selectedPlan?.snack_count || 0;
-    
+
     // Get the first selected day (Day 1)
     const firstDayIndex = selectedDays.length > 0 ? selectedDays[0] : null;
-    
+
     if (firstDayIndex === null) {
-      Alert.alert('Validation Error', 'Please select at least one day');
+      Alert.alert(t("common.error"), t("selected_meals.error_select_day"));
       return;
     }
-    
+
     const firstDayData = dayMeals[firstDayIndex];
     if (!firstDayData) {
-      Alert.alert('Validation Error', `Please select at least one meal for ${getDayName(firstDayIndex)} (Day 1)`);
+      Alert.alert(
+        t("common.error"),
+        t("selected_meals.error_select_meal_day1", { day: getDayName(firstDayIndex) }),
+      );
       return;
     }
-    
+
     // Check if at least one meal or snack is selected for Day 1
-    const hasMeal = firstDayData.meals.some(meal => meal !== null);
-    const hasSnack = firstDayData.snacks.some(snack => snack !== null);
-    
+    const hasMeal = firstDayData.meals.some((meal) => meal !== null);
+    const hasSnack = firstDayData.snacks.some((snack) => snack !== null);
+
     if (!hasMeal && !hasSnack) {
-      Alert.alert('Validation Error', `Please select at least one meal or snack for ${getDayName(firstDayIndex)} (Day 1)`);
+      Alert.alert(
+        t("common.error"),
+        t("selected_meals.error_select_meal_day1", { day: getDayName(firstDayIndex) }),
+      );
       return;
     }
 
     // Save selected meals to AsyncStorage (can have empty days for remaining days)
-    AsyncStorage.setItem('selectedDayMeals', JSON.stringify(dayMeals))
+    AsyncStorage.setItem("selectedDayMeals", JSON.stringify(dayMeals))
       .then(() => {
-        router.push('/auth/checkout' as any);
+        router.push("/auth/checkout" as any);
       })
       .catch((error) => {
-        console.error('Error saving meals:', error);
-        Alert.alert('Error', 'Failed to save meal selections');
+        console.error("Error saving meals:", error);
+        Alert.alert(t("common.error"), t("select_meals.error_save_failed"));
       });
   };
 
   const getPlanSummaryText = () => {
-    if (!selectedPlan) return '';
+    if (!selectedPlan) return "";
     const mealCount = selectedPlan.meal_count ?? selectedPlan.mealCount ?? 0;
     const snackCount = selectedPlan.snack_count ?? selectedPlan.snackCount ?? 0;
     const daysCount = selectedDays.length || 0;
-    // Format: "2 day meal, 2 Meals, 3 snacks, 6 days/ week"
-    return `${daysCount} day meal, ${mealCount} Meal${mealCount > 1 ? 's' : ''}, ${snackCount} snack${snackCount > 1 ? 's' : ''}, ${daysCount} days/ week`;
+
+    return t("selected_meals.summary_desc", {
+      days: daysCount,
+      meals: mealCount,
+      snacks: snackCount
+    });
   };
 
   const calculateTotalPrice = (): number => {
     if (!selectedPlan || !selectedDuration) return 0;
-    
-    const pricePerDay = selectedPlan.pricePerDay || selectedPlan.price || 0;
-    const selectedDaysCount = selectedDays.length || 0;
-    const noOfWeeks = selectedDuration.no_of_weeks || selectedDuration.weeks || 0;
-    
-    // Total price for the entire duration: price per day * selected days per week * number of weeks
-    const totalPrice = pricePerDay * selectedDaysCount * noOfWeeks;
-    
-    // Return 0 if calculation results in NaN
-    return isNaN(totalPrice) ? 0 : totalPrice;
+
+    const basePrice =
+      typeof selectedPlan.pricePerDay === "number"
+        ? selectedPlan.pricePerDay
+        : typeof selectedPlan.price === "number"
+          ? selectedPlan.price
+          : parseFloat(
+            String(selectedPlan.price || "").replace(/[^0-9.]/g, ""),
+          ) || 0;
+
+    const noOfWeeks =
+      selectedDuration.no_of_weeks || selectedDuration.weeks || 0;
+    const totalPrice = basePrice * noOfWeeks;
+
+    return Number.isNaN(totalPrice) ? 0 : totalPrice;
   };
 
   const calculateTotalCalories = (dayIndex: number) => {
     const dayData = dayMeals[dayIndex];
     if (!dayData) return 0;
-    
+
     let total = 0;
     dayData.meals.forEach((meal) => {
       if (meal) total += meal.calories;
@@ -351,13 +424,16 @@ export default function SelectedMealsScreen() {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isUpdateMode ? 'Update Meals' : 'Select Meals'}
+            {isUpdateMode ? t("selected_meals.title_update") : t("selected_meals.title_select")}
           </Text>
-          <View style={styles.placeholder} />
+          <LanguageSwitcher light />
         </View>
 
         <ScrollView
@@ -369,23 +445,30 @@ export default function SelectedMealsScreen() {
           <View style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
               <View style={styles.summaryTextContainer}>
-                <Text style={styles.summaryTitle}>Your plan, your rules</Text>
-                <Text style={styles.summarySubtitle}>{getPlanSummaryText()}</Text>
+                <Text style={styles.summaryTitle}>{t("selected_meals.summary_title")}</Text>
+                <Text style={styles.summarySubtitle}>
+                  {getPlanSummaryText()}
+                </Text>
               </View>
               <Image
-                source={require('@/assets/images/bag.png')}
+                source={require("@/assets/images/bag.png")}
                 style={styles.summaryIcon}
                 resizeMode="contain"
               />
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryDetails}>
-              <Text style={styles.summaryLabel}>Total</Text>
-              <Text style={styles.summaryPrice}>KWD {calculateTotalPrice().toFixed(2)}</Text>
+              <Text style={styles.summaryLabel}>{t("selected_meals.total")}</Text>
+              <Text style={styles.summaryPrice}>
+                KWD {calculateTotalPrice().toFixed(2)}
+              </Text>
             </View>
-            <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+            <TouchableOpacity
+              style={styles.continueButton}
+              onPress={handleContinue}
+            >
               <Text style={styles.continueButtonText}>
-                {isUpdateMode ? 'Done' : 'Continue'}
+                {isUpdateMode ? t("selected_meals.done") : t("selected_meals.continue")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -407,9 +490,11 @@ export default function SelectedMealsScreen() {
                     activeOpacity={0.7}
                     onPress={() => toggleDay(dayIndex)}
                   >
-                    <Text style={styles.mealLabel}>Select {dayName} meal</Text>
+                    <Text style={styles.mealLabel}>
+                      {t("selected_meals.select_day_meal", { day: dayName })}
+                    </Text>
                     <Ionicons
-                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      name={isExpanded ? "chevron-up" : "chevron-down"}
                       size={20}
                       color="#FFFFFF"
                     />
@@ -421,20 +506,42 @@ export default function SelectedMealsScreen() {
                       {!hasPersonalizedPlan && (
                         <View style={styles.nutritionBar}>
                           <View style={styles.nutritionItem}>
-                            <View style={[styles.nutritionDot, { backgroundColor: '#4A90E2' }]} />
-                            <Text style={styles.nutritionText}>Cal {calculateTotalCalories(dayIndex)}</Text>
+                            <View
+                              style={[
+                                styles.nutritionDot,
+                                { backgroundColor: "#4A90E2" },
+                              ]}
+                            />
+                            <Text style={styles.nutritionText}>
+                              {t("selected_meals.cal_label")} {calculateTotalCalories(dayIndex)}
+                            </Text>
                           </View>
                           <View style={styles.nutritionItem}>
-                            <View style={[styles.nutritionDot, { backgroundColor: '#7ED321' }]} />
-                            <Text style={styles.nutritionText}>Carbs 40g</Text>
+                            <View
+                              style={[
+                                styles.nutritionDot,
+                                { backgroundColor: "#7ED321" },
+                              ]}
+                            />
+                            <Text style={styles.nutritionText}>{t("selected_meals.carbs_label")} 40g</Text>
                           </View>
                           <View style={styles.nutritionItem}>
-                            <View style={[styles.nutritionDot, { backgroundColor: '#D0021B' }]} />
-                            <Text style={styles.nutritionText}>Prote 150g</Text>
+                            <View
+                              style={[
+                                styles.nutritionDot,
+                                { backgroundColor: "#D0021B" },
+                              ]}
+                            />
+                            <Text style={styles.nutritionText}>{t("selected_meals.protein_label")} 150g</Text>
                           </View>
                           <View style={styles.nutritionItem}>
-                            <View style={[styles.nutritionDot, { backgroundColor: '#F5A623' }]} />
-                            <Text style={styles.nutritionText}>Fat 20g</Text>
+                            <View
+                              style={[
+                                styles.nutritionDot,
+                                { backgroundColor: "#F5A623" },
+                              ]}
+                            />
+                            <Text style={styles.nutritionText}>{t("selected_meals.fat_label")} 20g</Text>
                           </View>
                         </View>
                       )}
@@ -442,36 +549,58 @@ export default function SelectedMealsScreen() {
                       {/* Meal Boxes */}
                       {Array.from({ length: mealCount }).map((_, mealIndex) => {
                         const meal = dayData?.meals?.[mealIndex] || null;
-                        const mealNumber = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][mealIndex] || `${mealIndex + 1}`;
+                        const ordinalKeys = ["first", "second", "third", "fourth", "fifth", "sixth"];
+                        const mealNumber = t(`selected_meals.ordinals.${ordinalKeys[mealIndex] || "first"}`);
+
                         return (
                           <TouchableOpacity
                             key={`meal-${mealIndex}`}
                             style={styles.mealBox}
-                            onPress={() => handleMealBoxClick(dayIndex, mealIndex)}
+                            onPress={() =>
+                              handleMealBoxClick(dayIndex, mealIndex)
+                            }
                           >
                             {meal ? (
                               <View style={styles.mealBoxContent}>
                                 <Image
-                                  source={meal.imageUrl ? { uri: meal.imageUrl } : require('@/assets/images/meal.jpg')}
+                                  source={
+                                    meal.imageUrl
+                                      ? { uri: meal.imageUrl }
+                                      : require("@/assets/images/meal.jpg")
+                                  }
                                   style={styles.mealBoxImage}
                                   resizeMode="cover"
                                 />
                                 <View style={styles.mealBoxInfo}>
-                                  <Text style={styles.mealBoxName}>{meal.name}</Text>
+                                  <Text style={styles.mealBoxName}>
+                                    {meal.name}
+                                  </Text>
                                   {!hasPersonalizedPlan && (
                                     <View style={styles.mealBoxNutrition}>
-                                      <Text style={styles.mealBoxNutritionText}>Cal {meal.calories}</Text>
-                                      <Text style={styles.mealBoxNutritionText}>Protein {meal.protein}g</Text>
-                                      <Text style={styles.mealBoxNutritionText}>Carbs {meal.carbs}g</Text>
-                                      <Text style={styles.mealBoxNutritionText}>Fat {meal.fat}g</Text>
+                                      <Text style={styles.mealBoxNutritionText}>
+                                        {t("selected_meals.cal_label")} {meal.calories}
+                                      </Text>
+                                      <Text style={styles.mealBoxNutritionText}>
+                                        {t("selected_meals.protein_label")} {meal.protein}g
+                                      </Text>
+                                      <Text style={styles.mealBoxNutritionText}>
+                                        {t("selected_meals.carbs_label")} {meal.carbs}g
+                                      </Text>
+                                      <Text style={styles.mealBoxNutritionText}>
+                                        {t("selected_meals.fat_label")} {meal.fat}g
+                                      </Text>
                                     </View>
                                   )}
                                 </View>
                               </View>
                             ) : (
                               <View style={styles.mealBoxEmpty}>
-                                <Text style={styles.mealBoxTitle}>Select {mealNumber} meal</Text>
-                                <Text style={styles.mealBoxPlaceholder}>Tap to select meal</Text>
+                                <Text style={styles.mealBoxTitle}>
+                                  {t("selected_meals.select_meal_prompt", { number: mealNumber })}
+                                </Text>
+                                <Text style={styles.mealBoxPlaceholder}>
+                                  {t("selected_meals.tap_select_meal")}
+                                </Text>
                               </View>
                             )}
                           </TouchableOpacity>
@@ -479,43 +608,75 @@ export default function SelectedMealsScreen() {
                       })}
 
                       {/* Snack Boxes */}
-                      {Array.from({ length: snackCount }).map((_, snackIndex) => {
-                        const snack = dayData?.snacks[snackIndex];
-                        const snackNumber = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'][snackIndex] || `${snackIndex + 1}`;
-                        return (
-                          <TouchableOpacity
-                            key={`snack-${snackIndex}`}
-                            style={styles.mealBox}
-                            onPress={() => handleSnackBoxClick(dayIndex, snackIndex)}
-                          >
-                            {snack ? (
-                              <View style={styles.mealBoxContent}>
-                                <Image
-                                  source={snack.imageUrl ? { uri: snack.imageUrl } : require('@/assets/images/meal.jpg')}
-                                  style={styles.mealBoxImage}
-                                  resizeMode="cover"
-                                />
-                                <View style={styles.mealBoxInfo}>
-                                  <Text style={styles.mealBoxName}>{snack.name}</Text>
-                                  {!hasPersonalizedPlan && (
-                                    <View style={styles.mealBoxNutrition}>
-                                      <Text style={styles.mealBoxNutritionText}>Cal {snack.calories}</Text>
-                                      <Text style={styles.mealBoxNutritionText}>Protein {snack.protein}g</Text>
-                                      <Text style={styles.mealBoxNutritionText}>Carbs {snack.carbs}g</Text>
-                                      <Text style={styles.mealBoxNutritionText}>Fat {snack.fat}g</Text>
-                                    </View>
-                                  )}
+                      {Array.from({ length: snackCount }).map(
+                        (_, snackIndex) => {
+                          const snack = dayData?.snacks[snackIndex];
+                          const ordinalKeys = ["first", "second", "third", "fourth", "fifth", "sixth"];
+                          const snackNumber = t(`selected_meals.ordinals.${ordinalKeys[snackIndex] || "first"}`);
+
+                          return (
+                            <TouchableOpacity
+                              key={`snack-${snackIndex}`}
+                              style={styles.mealBox}
+                              onPress={() =>
+                                handleSnackBoxClick(dayIndex, snackIndex)
+                              }
+                            >
+                              {snack ? (
+                                <View style={styles.mealBoxContent}>
+                                  <Image
+                                    source={
+                                      snack.imageUrl
+                                        ? { uri: snack.imageUrl }
+                                        : require("@/assets/images/meal.jpg")
+                                    }
+                                    style={styles.mealBoxImage}
+                                    resizeMode="cover"
+                                  />
+                                  <View style={styles.mealBoxInfo}>
+                                    <Text style={styles.mealBoxName}>
+                                      {snack.name}
+                                    </Text>
+                                    {!hasPersonalizedPlan && (
+                                      <View style={styles.mealBoxNutrition}>
+                                        <Text
+                                          style={styles.mealBoxNutritionText}
+                                        >
+                                          {t("selected_meals.cal_label")} {snack.calories}
+                                        </Text>
+                                        <Text
+                                          style={styles.mealBoxNutritionText}
+                                        >
+                                          {t("selected_meals.protein_label")} {snack.protein}g
+                                        </Text>
+                                        <Text
+                                          style={styles.mealBoxNutritionText}
+                                        >
+                                          {t("selected_meals.carbs_label")} {snack.carbs}g
+                                        </Text>
+                                        <Text
+                                          style={styles.mealBoxNutritionText}
+                                        >
+                                          {t("selected_meals.fat_label")} {snack.fat}g
+                                        </Text>
+                                      </View>
+                                    )}
+                                  </View>
                                 </View>
-                              </View>
-                            ) : (
-                              <View style={styles.mealBoxEmpty}>
-                                <Text style={styles.mealBoxTitle}>Select {snackNumber} snack</Text>
-                                <Text style={styles.mealBoxPlaceholder}>Tap to select snack</Text>
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
+                              ) : (
+                                <View style={styles.mealBoxEmpty}>
+                                  <Text style={styles.mealBoxTitle}>
+                                    {t("selected_meals.select_snack_prompt", { number: snackNumber })}
+                                  </Text>
+                                  <Text style={styles.mealBoxPlaceholder}>
+                                    {t("selected_meals.tap_select_snack")}
+                                  </Text>
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        },
+                      )}
                     </View>
                   )}
                 </View>
@@ -527,21 +688,33 @@ export default function SelectedMealsScreen() {
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/" as any)}
+        >
           <Ionicons name="home" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Home</Text>
+          <Text style={styles.navLabel}>{t("nav.home")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/order-history" as any)}
+        >
           <Ionicons name="time" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Macros History</Text>
+          <Text style={styles.navLabel}>{t("nav.history")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/calendar" as any)}
+        >
           <Ionicons name="calendar" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Calendar</Text>
+          <Text style={styles.navLabel}>{t("nav.calendar")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/(tabs)/profile" as any)}
+        >
           <Ionicons name="person" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>Profile</Text>
+          <Text style={styles.navLabel}>{t("nav.profile")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -551,17 +724,17 @@ export default function SelectedMealsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4E8E0',
+    backgroundColor: "#D4E8E0",
   },
   content: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: '5%',
-    paddingTop: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: "5%",
+    paddingTop: 10,
     paddingBottom: 20,
   },
   placeholder: {
@@ -571,34 +744,34 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#344225',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#344225',
+    fontWeight: "600",
+    color: "#344225",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: '5%',
+    paddingHorizontal: "5%",
     paddingBottom: 100,
   },
   summaryCard: {
-    backgroundColor: '#344225',
+    backgroundColor: "#344225",
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
   },
   summaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   summaryTextContainer: {
@@ -607,13 +780,13 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   summarySubtitle: {
     fontSize: 12,
-    color: '#D4E8E0',
+    color: "#D4E8E0",
   },
   summaryIcon: {
     width: 80,
@@ -621,169 +794,159 @@ const styles = StyleSheet.create({
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: '#5A7C65',
+    backgroundColor: "#5A7C65",
     marginBottom: 16,
   },
   summaryDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   summaryLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    color: "#FFFFFF",
+    fontWeight: "500",
   },
   summaryPrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FAD979",
   },
   continueButton: {
-    backgroundColor: '#FAD979',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    backgroundColor: "#FAD979",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
   },
   continueButtonText: {
-    color: '#344225',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#344225",
   },
   mealsContainer: {
-    gap: 16,
+    gap: 12,
   },
   mealCard: {
-    backgroundColor: '#344225',
+    backgroundColor: "#344225",
     borderRadius: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 56,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   mealLabel: {
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    flex: 1,
+    fontWeight: "600",
   },
   dropdownContent: {
-    backgroundColor: '#5A7C65',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    marginTop: -12,
-    paddingTop: 12,
-    paddingBottom: 16,
-    paddingHorizontal: 18,
+    marginTop: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
   },
   nutritionBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#344225',
-    alignItems: 'center',
+    borderBottomColor: "#F0F0F0",
   },
   nutritionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   nutritionDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   nutritionText: {
     fontSize: 11,
-    fontWeight: '500',
-    color: '#FFFFFF',
+    color: "#6B7F75",
+    fontWeight: "500",
   },
   mealBox: {
-    backgroundColor: '#344225',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    minHeight: 80,
-    justifyContent: 'center',
+    backgroundColor: "#F4F7F5",
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E8F0EB",
   },
   mealBoxContent: {
-    flexDirection: 'row',
-    gap: 12,
+    flexDirection: "row",
+    alignItems: "center",
   },
   mealBoxImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+    width: 80,
+    height: 80,
   },
   mealBoxInfo: {
     flex: 1,
-    justifyContent: 'center',
+    padding: 12,
   },
   mealBoxName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 6,
+    fontWeight: "600",
+    color: "#344225",
+    marginBottom: 4,
   },
   mealBoxNutrition: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   mealBoxNutritionText: {
     fontSize: 10,
-    color: '#D4E8E0',
+    color: "#6B7F75",
   },
   mealBoxEmpty: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   mealBoxTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#344225",
     marginBottom: 4,
   },
   mealBoxPlaceholder: {
-    fontSize: 13,
-    color: '#D4E8E0',
-    textAlign: 'center',
+    fontSize: 12,
+    color: "#6B7F75",
   },
   bottomNav: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: '#344225',
-    flexDirection: 'row',
+    backgroundColor: "#344225",
+    borderRadius: 24,
+    flexDirection: "row",
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 24,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    justifyContent: "space-around",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 10,
   },
   navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flex: 1,
-    paddingVertical: 4,
   },
   navLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#FFFFFF",
     marginTop: 4,
   },
 });
- 
