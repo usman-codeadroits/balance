@@ -1,12 +1,7 @@
 import { getMySubscriptions } from "@/api/services/subscriptions";
 import BottomTabNav from "@/components/bottom-tab-nav";
-import {
-  DUMMY_SUBSCRIPTION,
-  USE_DUMMY_SUBSCRIPTION,
-} from "@/constants/dummy-subscription";
 import i18n from "@/constants/i18n";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -122,77 +117,54 @@ export default function CalendarScreen() {
   const loadSubscription = useCallback(async () => {
     try {
       setLoading(true);
-
-      if (USE_DUMMY_SUBSCRIPTION) {
-        const storedFlag = await AsyncStorage.getItem(
-          "demoSubscriptionUnlocked",
-        );
-        if (storedFlag === "true") {
-          setRange({
-            startDate: DUMMY_SUBSCRIPTION.startDate,
-            endDate: DUMMY_SUBSCRIPTION.endDate,
-          });
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Fetch from new API
       const response = await getMySubscriptions();
 
       if (response.success && response.data.active && response.data.active.length > 0) {
-        // Get the first active subscription
-        const activeSubscription = response.data.active[0];
-
-        // Parse dates from format "20.03.2024" to "YYYY-MM-DD"
-        const parseDate = (dateStr: string): string => {
-          const parts = dateStr.split('.');
+        const parseDate = (dateStr: string): Date | null => {
+          if (!dateStr) return null;
+          const parts = dateStr.split(".");
           if (parts.length === 3) {
             const [day, month, year] = parts;
-            // Return in ISO format YYYY-MM-DD
-            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            const parsed = new Date(
+              Number(year),
+              Number(month) - 1,
+              Number(day),
+            );
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
           }
-          return dateStr;
+          const fallback = new Date(dateStr);
+          return Number.isNaN(fallback.getTime()) ? null : fallback;
         };
 
-        const startDate = parseDate(activeSubscription.start_date);
-        const endDate = parseDate(activeSubscription.end_date);
-
-        // Verify dates are valid
-        const endDateObj = new Date(endDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Only show if subscription is active and not expired
-        if (activeSubscription.status === "active" && endDateObj >= today) {
-          setRange({ startDate, endDate });
+        // Pick the current valid active subscription for this user.
+        const validActive = response.data.active
+          .map((sub) => ({
+            sub,
+            start: parseDate(sub.start_date),
+            end: parseDate(sub.end_date),
+          }))
+          .filter(
+            ({ sub, start, end }) =>
+              sub.status === "active" &&
+              start !== null &&
+              end !== null &&
+              end >= today,
+          )
+          .sort((a, b) => a.end!.getTime() - b.end!.getTime());
+
+        if (validActive.length > 0) {
+          setRange({
+            startDate: validActive[0].start!.toISOString(),
+            endDate: validActive[0].end!.toISOString(),
+          });
         } else {
           setRange(null);
         }
       } else {
-        // Fallback to AsyncStorage for backward compatibility
-        const stored = await AsyncStorage.getItem("activeSubscription");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-
-          // Check if subscription is still active (not expired)
-          if (parsed?.startDate && parsed?.endDate) {
-            const endDate = new Date(parsed.endDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            // Only show if subscription is Active and not expired
-            if (parsed.status === "Active" && endDate >= today) {
-              setRange({ startDate: parsed.startDate, endDate: parsed.endDate });
-            } else {
-              setRange(null);
-            }
-          } else {
-            setRange(null);
-          }
-        } else {
-          setRange(null);
-        }
+        setRange(null);
       }
     } catch (error) {
       console.error("Failed to load subscription for calendar:", error);

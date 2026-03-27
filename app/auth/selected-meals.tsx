@@ -1,6 +1,5 @@
 import type { Duration } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
-import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -433,7 +432,7 @@ export default function SelectedMealsScreen() {
           <Text style={styles.headerTitle}>
             {isUpdateMode ? t("selected_meals.title_update") : t("selected_meals.title_select")}
           </Text>
-          <LanguageSwitcher light />
+          <View style={styles.placeholder} />
         </View>
 
         <ScrollView

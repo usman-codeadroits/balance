@@ -1,19 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import BottomTabNav from "@/components/bottom-tab-nav";
-import {
-  DEMO_SUBSCRIPTION_FLAG,
-  DUMMY_MEAL_HISTORY,
-  USE_DUMMY_SUBSCRIPTION,
-} from "@/constants/dummy-subscription";
-
 import { getMySubscriptions, type UserSubscriptionSummary } from "@/api/services/subscriptions";
-import type { Subscription } from "@/types/subscription";
 
 export default function OrderHistoryScreen() {
   const { t } = useTranslation();
@@ -33,17 +25,7 @@ export default function OrderHistoryScreen() {
       setLoading(true);
       setError(null);
 
-      // Check if using dummy data for demo
-      if (USE_DUMMY_SUBSCRIPTION) {
-        const demoFlag = await AsyncStorage.getItem(DEMO_SUBSCRIPTION_FLAG);
-        if (demoFlag === "true") {
-          separateSubscriptions(DUMMY_MEAL_HISTORY);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Fetch from API
+      // Always fetch latest history from API for current authenticated user.
       const response = await getMySubscriptions();
 
       if (response.success) {
@@ -61,29 +43,6 @@ export default function OrderHistoryScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Helper function for dummy data compatibility
-  const separateSubscriptions = (list: Subscription[]) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const active = list.filter((sub) => {
-      const endDate = new Date(sub.endDate);
-      return sub.status === "Active" && endDate >= today;
-    });
-
-    const completed = list.filter((sub) => {
-      const endDate = new Date(sub.endDate);
-      return (
-        sub.status === "Completed" ||
-        (sub.status === "Active" && endDate < today)
-      );
-    });
-
-    // Map to new format
-    setActiveSubscriptions(active as any);
-    setRecentSubscriptions(completed as any);
   };
 
   const formatDate = (dateString: string | undefined): string => {

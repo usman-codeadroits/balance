@@ -3,6 +3,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+import * as SplashScreen from "expo-splash-screen";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
@@ -10,6 +11,9 @@ import "react-native-reanimated";
 import { initI18n } from "@/constants/i18n";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useEffect, useState } from "react";
+
+// Keep native splash visible only until JS/app initialization finishes.
+void SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -22,6 +26,12 @@ export default function RootLayout() {
   useEffect(() => {
     initI18n().then(() => setInitialized(true));
   }, []);
+
+  useEffect(() => {
+    if (initialized) {
+      void SplashScreen.hideAsync();
+    }
+  }, [initialized]);
 
   if (!initialized) {
     return null; // Or a loading spinner / splash screen

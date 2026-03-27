@@ -1,6 +1,5 @@
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AuthButtonGreen from "@/components/auth/auth-button-green";
-import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -77,7 +76,6 @@ export default function ProfileSetupScreen() {
             style={styles.headerLogo}
             resizeMode="contain"
           />
-          <LanguageSwitcher light />
         </View>
 
         {/* Title */}
@@ -189,9 +187,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 10,
-    paddingBottom: 20,
+    justifyContent: "flex-start",
+    height: 96,
+    marginBottom: 16,
   },
   backButton: {
     width: 40,
@@ -205,11 +203,15 @@ const styles = StyleSheet.create({
     width: 40,
   },
   headerLogo: {
-    width: 80,
-    height: 80,
+    position: "absolute",
+    left: "50%",
+    top: 4,
+    marginLeft: -36,
+    width: 72,
+    height: 72,
   },
   headerContainer: {
-    marginBottom: 30,
+    marginBottom: 16,
   },
   title: {
     fontSize: 20,

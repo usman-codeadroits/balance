@@ -1,5 +1,4 @@
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
-import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -127,7 +126,7 @@ export default function ReviewsScreen() {
           <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("reviews.title")}</Text>
-        <LanguageSwitcher light />
+        <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.content}>
@@ -224,6 +223,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#344225",
+  },
+  headerSpacer: {
+    width: 40,
   },
   content: {
     flex: 1,

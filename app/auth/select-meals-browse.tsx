@@ -6,7 +6,6 @@ import {
   updateSubscriptionMeal,
 } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
-import { LanguageSwitcher } from "@/components/auth/language-switcher";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
@@ -38,6 +37,16 @@ type MealItem = {
 type DayMeals = {
   meals: (MealItem | null)[];
   snacks: (MealItem | null)[];
+};
+
+const normalizeCategoryName = (category: unknown) => {
+  if (typeof category === "string") return category;
+  if (category && typeof category === "object") {
+    const categoryObj = category as { name?: unknown; title?: unknown };
+    if (typeof categoryObj.name === "string") return categoryObj.name;
+    if (typeof categoryObj.title === "string") return categoryObj.title;
+  }
+  return "";
 };
 
 export default function SelectMealsScreen() {
@@ -249,9 +258,12 @@ export default function SelectMealsScreen() {
   // Get unique categories from filtered items only
   const categories = Array.from(
     new Map(
-      filteredByType.map((meal) => [meal.category_id, { id: meal.category_id, name: meal.category }]),
+      filteredByType.map((meal) => [
+        meal.category_id,
+        { id: meal.category_id, name: normalizeCategoryName(meal.category) },
+      ]),
     ).values(),
-  );
+  ).filter((category) => category.name.length > 0);
 
   // Filter by category
   const filteredByCategory = selectedCategory
@@ -527,7 +539,7 @@ export default function SelectMealsScreen() {
           <Text style={styles.headerTitle}>
             {type === "snack" ? t("select_meals.title_snacks") : t("select_meals.title_meals")}
           </Text>
-          <LanguageSwitcher light />
+          <View style={styles.placeholder} />
         </View>
 
         {/* Search Bar */}

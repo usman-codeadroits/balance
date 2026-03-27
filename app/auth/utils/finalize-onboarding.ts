@@ -374,17 +374,27 @@ export const finalizeOnboarding = async ({
 
   // Step 7: Extract and save user data
   console.log("💾 Step 7: Extracting and saving user data...");
-  const userData = response.data;
+  const responseData = response.data as any;
+  const userData = responseData?.user ?? responseData;
 
   // If ID is 0 or phone already registered, use existing user ID or generate temp ID
-  let userId = userData.id;
-  if (userId === 0 || isPhoneAlreadyRegistered) {
+  let userId =
+    typeof userData.id === "number"
+      ? userData.id
+      : Number.parseInt(String(userData.id ?? ""), 10);
+
+  if (!Number.isFinite(userId) || userId <= 0 || isPhoneAlreadyRegistered) {
     // Try to get existing user ID from AsyncStorage
     const existingUserId = await AsyncStorage.getItem("userId");
     if (existingUserId) {
-      userId = parseInt(existingUserId, 10);
-      console.log("⚠️ Using existing user ID from AsyncStorage:", userId);
-    } else {
+      const parsedExistingUserId = Number.parseInt(existingUserId, 10);
+      if (Number.isFinite(parsedExistingUserId) && parsedExistingUserId > 0) {
+        userId = parsedExistingUserId;
+        console.log("⚠️ Using existing user ID from AsyncStorage:", userId);
+      }
+    }
+
+    if (!Number.isFinite(userId) || userId <= 0) {
       // Generate a temporary ID based on timestamp (will be updated when user logs in properly)
       userId = Math.floor(Date.now() / 1000);
       console.log("⚠️ Generated temporary user ID:", userId);
@@ -418,9 +428,8 @@ export const finalizeOnboarding = async ({
   await AsyncStorage.setItem("userData", JSON.stringify(normalizedUser));
 
   // Save auth token from data object
-  if (response.data && typeof response.data === "object") {
-    const dataObj = response.data as any;
-    const token = dataObj?.token;
+  if (responseData && typeof responseData === "object") {
+    const token = responseData?.token || response?.token;
 
     if (token) {
       await AsyncStorage.setItem("authToken", token);
@@ -434,7 +443,11 @@ export const finalizeOnboarding = async ({
 
   // Store welcome status and user name for welcome screen
   await AsyncStorage.setItem("showWelcome", "true");
-  await AsyncStorage.setItem("welcomeUserName", normalizedUser.name);
+  if (normalizedUser.name) {
+    await AsyncStorage.setItem("welcomeUserName", normalizedUser.name);
+  } else {
+    await AsyncStorage.removeItem("welcomeUserName");
+  }
 
   console.log("  ✅ userId saved:", normalizedUser.id);
   console.log("  ✅ userData saved");

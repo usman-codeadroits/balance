@@ -93,22 +93,22 @@ export default function SplashScreen() {
   // Second screen - logo, "Balance" text, and Next button
   return (
     <View style={styles.container}>
-      {/* Logo at top */}
-      <Animated.View style={[styles.logoContainer, { opacity: logoOpacity }]}>
-        <Image
-          source={require("@/assets/images/balance-logo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </Animated.View>
-
-      {/* Balance text in center */}
-      <View style={styles.centerContent}>
-        <Image
-          source={require("@/assets/images/balance-text.png")}
-          style={styles.balanceText}
-          resizeMode="contain"
-        />
+      {/* Keep logo + text close together */}
+      <View style={styles.secondScreenContent}>
+        <Animated.View style={[styles.logoContainer, { opacity: logoOpacity }]}>
+          <Image
+            source={require("@/assets/images/balance-logo.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </Animated.View>
+        <View style={styles.secondTextContainer}>
+          <Image
+            source={require("@/assets/images/balance-text.png")}
+            style={styles.balanceText}
+            resizeMode="contain"
+          />
+        </View>
       </View>
 
       {/* Next button at bottom */}
@@ -137,13 +137,18 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginTop: 40,
+    marginBottom: 8,
   },
   logo: {
     width: 150,
     height: 150,
   },
   centerContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  secondScreenContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -155,6 +160,9 @@ const styles = StyleSheet.create({
   balanceText: {
     width: 180,
     height: 50,
+  },
+  secondTextContainer: {
+    marginTop: 8,
   },
   buttonContainer: {
     alignItems: "center",
