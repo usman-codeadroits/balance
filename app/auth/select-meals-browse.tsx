@@ -109,10 +109,14 @@ export default function SelectMealsScreen() {
         setSelectedDays(JSON.parse(daysData));
       }
 
-      // Only fetch existing subscription meals when updating (has active subscription)
-      const activeSubscription =
-        await AsyncStorage.getItem("activeSubscription");
-      if (activeSubscription || subscriptionMealId) {
+      // Only fetch existing subscription meals in update mode:
+      // when we have a known user subscription id or an explicit subscriptionMealId param
+      const userSubscriptionId =
+        await AsyncStorage.getItem("userSubscriptionId");
+      if (
+        (userSubscriptionId && userSubscriptionId.trim() !== "") ||
+        subscriptionMealId
+      ) {
         await fetchExistingSubscriptionMeals();
       }
     } catch (error) {
@@ -227,6 +231,13 @@ export default function SelectMealsScreen() {
         return;
       }
 
+      // Ensure userId is a valid positive integer before calling API
+      const parsedUserId = parseInt(userId, 10);
+      if (!Number.isFinite(parsedUserId) || parsedUserId <= 0) {
+        setLoadingExisting(false);
+        return;
+      }
+
       const existing = await AsyncStorage.getItem("subscriptionDaysData");
       if (existing) {
         // Use cached data but still refresh in background
@@ -237,7 +248,7 @@ export default function SelectMealsScreen() {
         });
       }
 
-      const response = await getSubscriptionMeals(parseInt(userId, 10));
+      const response = await getSubscriptionMeals(parsedUserId);
       await normalizeExistingMeals(response);
     } catch (error) {
       console.error("Error loading existing subscription meals:", error);

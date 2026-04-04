@@ -60,7 +60,7 @@ export default function SplashScreen() {
           useNativeDriver: true,
         }),
       ]).start();
-    }, 5000);
+    }, 3000);
 
     return () => {
       clearTimeout(timer);
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom:  60,
   },
   logo: {
     width: 150,

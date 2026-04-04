@@ -117,8 +117,9 @@ export default function MainScreen() {
       <View style={styles.content}>
         <View style={styles.headerRow}>
           <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
+            style={[styles.backButton, styles.backButtonDisabled]}
+            onPress={() => {}}
+            disabled
           >
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -306,6 +307,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#344225",
     alignItems: "center",
     justifyContent: "center",
+  },
+  backButtonDisabled: {
+    opacity: 0.45,
   },
   headerTitle: {
     fontSize: 18,
