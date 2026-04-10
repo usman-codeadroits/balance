@@ -1,6 +1,7 @@
 import { registerUser, type RegisterUserRequest } from "@/api/services/users";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { Alert } from "react-native";
 
 const MONTHS = [
   "January",
@@ -90,12 +91,6 @@ export const finalizeOnboarding = async ({
   hasAllergies,
   allergies,
 }: FinalizeOptions) => {
-  console.log("========================================");
-  console.log("🚀 STARTING REGISTRATION PROCESS");
-  console.log("========================================");
-
-  // Step 1: Load data from AsyncStorage
-  console.log("📥 Step 1: Loading data from AsyncStorage...");
   const [
     phoneNumber,
     countryCode,
@@ -124,24 +119,7 @@ export const finalizeOnboarding = async ({
     AsyncStorage.getItem("tempAffiliatedCode"),
   ]);
 
-  console.log("📋 Loaded Data:");
-  console.log("  - Phone Number:", phoneNumber);
-  console.log("  - Country Code:", countryCode);
-  console.log("  - Email:", email);
-  console.log("  - Name:", name);
-  console.log("  - Birthday:", birthday);
-  console.log("  - Gender:", gender);
-  console.log("  - Weight:", weight);
-  console.log("  - Height:", height);
-  console.log("  - Goal:", goal);
-  console.log("  - Activity Level:", activityLevel);
-  console.log("  - OTP Code:", otpCode ? "***" : "MISSING");
-  console.log("  - Affiliated Code:", affiliatedCode || "None");
-  console.log("  - Has Allergies:", hasAllergies);
-  console.log("  - Allergies:", allergies.length > 0 ? allergies : "None");
-
   // Step 2: Validate required fields
-  console.log("🔍 Step 2: Validating required fields...");
   if (
     !email ||
     !name ||
@@ -163,8 +141,6 @@ export const finalizeOnboarding = async ({
     if (!goal) missing.push("goal");
     if (!activityLevel) missing.push("activityLevel");
     if (!otpCode) missing.push("otpCode");
-
-    console.error("❌ VALIDATION FAILED: Missing fields:", missing.join(", "));
     throw new Error(
       `Missing required information: ${missing.join(", ")}. Please complete all onboarding steps again.`,
     );
@@ -172,24 +148,15 @@ export const finalizeOnboarding = async ({
 
   // Validate allergies if has_food_allergies is true
   if (hasAllergies && (!allergies || allergies.length === 0)) {
-    console.error(
-      "❌ VALIDATION FAILED: Allergies required when has_food_allergies is true",
-    );
-    throw new Error("Please select at least one allergy option.");
+    Alert.alert("Please select at least one allergy option.");
+    return;
   }
 
-  console.log("✅ Step 2 Complete: All required fields present");
-
   // Step 3: Sanitize and convert data
-  console.log("🔧 Step 3: Converting and validating data types...");
   const sanitizedPhoneNumber = sanitizePhone(phoneNumber);
   const numericOtp = Number(otpCode);
   const convertedHeight = Number(height);
   const convertedWeight = Number(weight);
-
-  console.log("  - Height:", height, "→", convertedHeight);
-  console.log("  - Weight:", weight, "→", convertedWeight);
-  console.log("  - OTP:", otpCode, "→", numericOtp);
 
   // Validate OTP (4-6 digits, min 1000, max 999999)
   if (
@@ -197,26 +164,22 @@ export const finalizeOnboarding = async ({
     numericOtp < 1000 ||
     numericOtp > 999999
   ) {
-    console.error("❌ VALIDATION FAILED: Invalid OTP");
     throw new Error(
       "Invalid OTP code. Please request a new verification code.",
     );
   }
 
   if (!Number.isFinite(convertedHeight) || convertedHeight < 0) {
-    console.error("❌ VALIDATION FAILED: Invalid height");
     throw new Error("Invalid height. Please re-enter your height.");
   }
 
   if (!Number.isFinite(convertedWeight) || convertedWeight < 0) {
-    console.error("❌ VALIDATION FAILED: Invalid weight");
     throw new Error("Invalid weight. Please re-enter your weight.");
   }
 
   // Validate gender
   const normalizedGender = gender.toLowerCase();
   if (!["male", "female", "other"].includes(normalizedGender)) {
-    console.error("❌ VALIDATION FAILED: Invalid gender");
     throw new Error("Invalid gender. Please select a valid gender.");
   }
 
@@ -230,7 +193,6 @@ export const finalizeOnboarding = async ({
     "maintain_weight",
   ];
   if (!validGoals.includes(normalizedGoal)) {
-    console.error("❌ VALIDATION FAILED: Invalid goal");
     throw new Error("Invalid goal. Please select a valid goal.");
   }
 
@@ -244,20 +206,14 @@ export const finalizeOnboarding = async ({
     "highly_active",
   ];
   if (!validActivityLevels.includes(normalizedActivityLevel)) {
-    console.error("❌ VALIDATION FAILED: Invalid activity level");
     throw new Error(
       "Invalid activity level. Please select a valid activity level.",
     );
   }
 
-  console.log("✅ Step 3 Complete: Data types validated");
-
   // Step 4: Build registration payload according to API specification
-  console.log("📤 Step 4: Preparing API request payload...");
-
   // Validate phone number format (should be digits only)
   if (!/^\d+$/.test(sanitizedPhoneNumber)) {
-    console.error("❌ VALIDATION FAILED: Invalid phone number format");
     throw new Error("Phone number must contain only digits.");
   }
 
@@ -302,31 +258,17 @@ export const finalizeOnboarding = async ({
   }
   // If no affiliated code, don't include it in the payload (optional field)
 
-  console.log("📦 Registration Payload:");
-  console.log(JSON.stringify(payload, null, 2));
-  console.log("✅ Step 4 Complete: Payload prepared");
-
   // Step 5: Call registration API
-  console.log("🌐 Step 5: Calling Registration API...");
-  console.log("  - Endpoint: /register");
-  console.log("  - Method: POST");
-
   let response;
   let isPhoneAlreadyRegistered = false;
   try {
     response = await registerUser(payload);
-    console.log("✅ Step 5 Complete: API call successful");
   } catch (error: any) {
-    console.error("❌ REGISTRATION API ERROR:", error);
-
     // Check if this is a "phone number already registered" error
     isPhoneAlreadyRegistered = error?.isPhoneAlreadyRegistered || false;
 
     if (isPhoneAlreadyRegistered) {
       // Phone number already registered - proceed with local data
-      console.log(
-        "⚠️ Phone number already registered - proceeding with local data",
-      );
       // Create a mock response from the payload data
       response = {
         success: true,
@@ -359,21 +301,13 @@ export const finalizeOnboarding = async ({
   }
 
   // Step 6: Process API response
-  console.log("📥 Step 6: Processing API response...");
-  console.log("📦 API Response:");
-  console.log(JSON.stringify(response, null, 2));
-
   if (!response || !response.success || !response.data) {
-    console.error("❌ ERROR: Invalid response from server");
     throw new Error(
       response?.message || "Registration failed. Please try again.",
     );
   }
 
-  console.log("✅ Step 6 Complete: Response validated");
-
   // Step 7: Extract and save user data
-  console.log("💾 Step 7: Extracting and saving user data...");
   const responseData = response.data as any;
   const userData = responseData?.user ?? responseData;
 
@@ -390,14 +324,12 @@ export const finalizeOnboarding = async ({
       const parsedExistingUserId = Number.parseInt(existingUserId, 10);
       if (Number.isFinite(parsedExistingUserId) && parsedExistingUserId > 0) {
         userId = parsedExistingUserId;
-        console.log("⚠️ Using existing user ID from AsyncStorage:", userId);
       }
     }
 
     if (!Number.isFinite(userId) || userId <= 0) {
       // Generate a temporary ID based on timestamp (will be updated when user logs in properly)
       userId = Math.floor(Date.now() / 1000);
-      console.log("⚠️ Generated temporary user ID:", userId);
     }
   }
 
@@ -420,9 +352,6 @@ export const finalizeOnboarding = async ({
     updated_at: userData.updated_at,
   };
 
-  console.log("👤 User Data to Save:");
-  console.log(JSON.stringify(normalizedUser, null, 2));
-
   // Save user data to AsyncStorage
   await AsyncStorage.setItem("userId", normalizedUser.id.toString());
   await AsyncStorage.setItem("userData", JSON.stringify(normalizedUser));
@@ -433,12 +362,7 @@ export const finalizeOnboarding = async ({
 
     if (token) {
       await AsyncStorage.setItem("authToken", token);
-      console.log("  ✅ authToken saved from registration response");
-    } else {
-      console.warn("  ⚠️ No auth token in registration data");
     }
-  } else {
-    console.warn("  ⚠️ Invalid response data structure - token not found");
   }
 
   // Store welcome status and user name for welcome screen
@@ -449,29 +373,10 @@ export const finalizeOnboarding = async ({
     await AsyncStorage.removeItem("welcomeUserName");
   }
 
-  console.log("  ✅ userId saved:", normalizedUser.id);
-  console.log("  ✅ userData saved");
-  console.log("✅ Step 7 Complete: User data saved to AsyncStorage");
-
   // Step 8: Clean up temporary data
-  console.log("🧹 Step 8: Cleaning up temporary data...");
   await AsyncStorage.multiRemove(ONBOARDING_TEMP_KEYS);
-  console.log("  ✅ Temporary onboarding data removed");
-  console.log("✅ Step 8 Complete: Cleanup completed");
-
-  console.log("========================================");
-  console.log("🎉 REGISTRATION PROCESS COMPLETED SUCCESSFULLY!");
-  console.log("========================================");
-  console.log("📊 Summary:");
-  console.log("  - User ID:", normalizedUser.id);
-  console.log("  - Name:", normalizedUser.name);
-  console.log("  - Email:", normalizedUser.email);
-  console.log("  - Phone:", normalizedUser.mobile);
-  console.log("  - Registration Status: SUCCESS");
-  console.log("========================================\n");
 
   // Step 9: Navigate directly to authenticated home
-  console.log("🚀 Step 9: Navigating to Main screen...");
   router.replace("/main-screen");
 
   return response;

@@ -88,7 +88,6 @@ export default function MyInformationScreen() {
           // Save to local storage for offline access
           await AsyncStorage.setItem('userData', JSON.stringify(userData));
         } catch (apiError) {
-          console.error('Error fetching from API, falling back to local storage:', apiError);
         }
       }
       
@@ -133,7 +132,6 @@ export default function MyInformationScreen() {
         }
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
     } finally {
       setLoading(false);
     }
@@ -153,7 +151,6 @@ export default function MyInformationScreen() {
             phone: mobileNumber,
           });
         } catch (apiError) {
-          console.error('Error updating user via API:', apiError);
         }
       }
       
@@ -179,8 +176,7 @@ export default function MyInformationScreen() {
 
       Alert.alert('Success', 'Your information has been updated successfully');
     } catch (error) {
-      console.error('Error saving user data:', error);
-      Alert.alert('Error', 'Failed to update information');
+      Alert.alert('Update failed', 'Failed to update information');
     }
   };
 

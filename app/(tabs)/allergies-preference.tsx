@@ -21,7 +21,6 @@ export default function AllergiesPreferenceScreen() {
         router.back();
       }
     } catch (error) {
-      console.error('Error saving allergies preference:', error);
     }
   };
 

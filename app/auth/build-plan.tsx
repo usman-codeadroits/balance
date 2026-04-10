@@ -58,7 +58,6 @@ export default function BuildPlanScreen() {
       // Return to subscription screen to select meals per day
       router.back();
     } catch (error) {
-      console.error("Error saving personalized plan:", error);
       alert(t("build_plan.error_saving"));
     }
   };

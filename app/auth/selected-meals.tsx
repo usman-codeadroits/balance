@@ -1,5 +1,6 @@
 import type { Duration } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -15,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type MealItem = {
   id: string;
@@ -54,6 +56,7 @@ export default function SelectedMealsScreen() {
   }>({}); // Key: "dayIndex-mealIndex-type"
   const [updatingMeal, setUpdatingMeal] = useState<string | null>(null); // Track which meal is being updated
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadData();
@@ -67,7 +70,6 @@ export default function SelectedMealsScreen() {
       );
       setHasPersonalizedPlan(personalizedPlan === "true");
     } catch (error) {
-      console.error("Error checking personalized plan:", error);
     }
   };
 
@@ -206,7 +208,6 @@ export default function SelectedMealsScreen() {
               };
             }
           } catch (e) {
-            console.error("Error fetching plan from API:", e);
           }
         }
 
@@ -232,7 +233,6 @@ export default function SelectedMealsScreen() {
             try {
               existingMeals = JSON.parse(savedMeals);
             } catch (e) {
-              console.error("Error parsing saved meals:", e);
               // Clear corrupted data
               await AsyncStorage.removeItem("selectedDayMeals");
             }
@@ -276,7 +276,6 @@ export default function SelectedMealsScreen() {
         }
       }
     } catch (error) {
-      console.error("Error loading data:", error);
     }
   };
 
@@ -340,7 +339,6 @@ export default function SelectedMealsScreen() {
     const firstDayData = dayMeals[firstDayIndex];
     if (!firstDayData) {
       Alert.alert(
-        t("common.error"),
         t("selected_meals.error_select_meal_day1", { day: getDayName(firstDayIndex) }),
       );
       return;
@@ -352,7 +350,6 @@ export default function SelectedMealsScreen() {
 
     if (!hasMeal && !hasSnack) {
       Alert.alert(
-        t("common.error"),
         t("selected_meals.error_select_meal_day1", { day: getDayName(firstDayIndex) }),
       );
       return;
@@ -364,7 +361,6 @@ export default function SelectedMealsScreen() {
         router.push("/auth/checkout" as any);
       })
       .catch((error) => {
-        console.error("Error saving meals:", error);
         Alert.alert(t("common.error"), t("select_meals.error_save_failed"));
       });
   };
@@ -422,7 +418,7 @@ export default function SelectedMealsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
@@ -685,37 +681,10 @@ export default function SelectedMealsScreen() {
         </ScrollView>
       </View>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/" as any)}
-        >
-          <Ionicons name="home" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.home")}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/order-history" as any)}
-        >
-          <Ionicons name="time" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.history")}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/calendar" as any)}
-        >
-          <Ionicons name="calendar" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.calendar")}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/profile" as any)}
-        >
-          <Ionicons name="person" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.profile")}</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomTabNav
+        activeTab="home"
+        onHomePress={() => router.replace("/main-screen")}
+      />
     </SafeAreaView>
   );
 }
@@ -733,7 +702,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: "5%",
-    paddingTop: 10,
     paddingBottom: 20,
   },
   placeholder: {
@@ -918,34 +886,5 @@ const styles = StyleSheet.create({
   mealBoxPlaceholder: {
     fontSize: 12,
     color: "#6B7F75",
-  },
-  bottomNav: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: "#344225",
-    borderRadius: 24,
-    flexDirection: "row",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    justifyContent: "space-around",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: "500",
-    color: "#FFFFFF",
-    marginTop: 4,
   },
 });

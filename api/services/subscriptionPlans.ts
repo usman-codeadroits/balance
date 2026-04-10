@@ -27,12 +27,6 @@ export const getSubscriptionPlans = async (): Promise<MealPlan[]> => {
       API_ENDPOINTS.SUBSCRIPTION_PLANS
     );
 
-    // Log response for debugging
-    console.log('Subscription plans API response:', JSON.stringify(response, null, 2));
-    console.log('Response type:', typeof response);
-    console.log('Response.data:', response.data);
-    console.log('Response.data type:', Array.isArray(response.data));
-
     // Handle different response structures
     let plansData: SubscriptionPlan[] = [];
     
@@ -42,12 +36,8 @@ export const getSubscriptionPlans = async (): Promise<MealPlan[]> => {
       // If response is directly an array
       plansData = response as unknown as SubscriptionPlan[];
     } else {
-      console.error('Unexpected response structure:', response);
       throw new Error('Invalid response: expected data array');
     }
-
-    console.log('Total plans from API:', plansData.length);
-    console.log('Plans data:', JSON.stringify(plansData, null, 2));
 
     // Filter and map API data to MealPlan format
     // Only filter by is_active, since deleted_at might not be in the response
@@ -56,17 +46,13 @@ export const getSubscriptionPlans = async (): Promise<MealPlan[]> => {
       // Only check deleted_at if it exists in the response
       const notDeleted = plan.deleted_at === undefined || plan.deleted_at === null || plan.deleted_at === '';
       const result = isActive && notDeleted;
-      console.log(`Plan ${plan.id} (${plan.title}): is_active=${plan.is_active} (type: ${typeof plan.is_active}), deleted_at=${plan.deleted_at}, included=${result}`);
       return result;
     });
-
-    console.log('Filtered active plans:', filteredPlans.length);
 
     const mappedPlans: MealPlan[] = filteredPlans
       .map((plan: SubscriptionPlan) => {
         // Validate required fields
         if (!plan.id || !plan.title || plan.price === undefined) {
-          console.warn('Invalid plan data (missing required fields):', plan);
           return null;
         }
 
@@ -81,15 +67,11 @@ export const getSubscriptionPlans = async (): Promise<MealPlan[]> => {
           isPersonalized: false,
         };
         
-        console.log('Mapped plan:', mapped);
         return mapped;
       })
       .filter((plan): plan is MealPlan => plan !== null); // Remove null values
-
-    console.log('Final mapped subscription plans count:', mappedPlans.length);
     return mappedPlans;
   } catch (error) {
-    console.error('Error fetching subscription plans:', error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch subscription plans: ${error.message}`);
     }
@@ -113,7 +95,6 @@ export const getSubscriptionPlanById = async (id: number): Promise<SubscriptionP
     const plan = response.data.find((p: SubscriptionPlan) => p.id === id);
     return plan || null;
   } catch (error) {
-    console.error(`Error fetching subscription plan with id ${id}:`, error);
     throw error;
   }
 };

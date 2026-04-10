@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  I18nManager,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -10,15 +11,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { resetAppCache } from "@/utils/reset-app-cache";
 
 import { useTranslation } from "react-i18next";
-import { I18nManager } from "react-native";
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const menuItems = [
@@ -32,7 +34,7 @@ export default function ProfileScreen() {
       id: 2,
       title: t("profile.allergies"),
       icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
-      route: "/allergies-preference",
+     route: null
     },
     {
       id: 3,
@@ -70,12 +72,12 @@ export default function ProfileScreen() {
       icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
       route: "/contact-us",
     },
-    {
-      id: 9,
-      title: t("profile.change_language"),
-      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
-      route: "/change-language",
-    },
+    // {
+    //   id: 9,
+    //   title: t("profile.change_language"),
+    //   icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+    //   route: "/change-language",
+    // },
   ];
 
   const handleLogout = async () => {
@@ -92,7 +94,6 @@ export default function ProfileScreen() {
           try {
             await resetAppCache();
           } catch (error) {
-            console.error("Error during logout:", error);
             Alert.alert(t("profile.error"), t("profile.logout_error"));
           } finally {
             setIsLoggingOut(false);
@@ -108,13 +109,13 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Title */}
-        <View style={styles.titleContainer}>
+        <View style={[styles.titleContainer, { paddingTop: Math.max(insets.top, 16) }]}>
           <Text style={styles.title}>{t("profile.title")}</Text>
         </View>
 
         <ScrollView
           style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Menu Items */}
@@ -161,7 +162,6 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     paddingHorizontal: "5%",
-    paddingTop: 40,
     paddingBottom: 20,
     backgroundColor: "#D4E8E0",
   },
@@ -176,7 +176,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: "5%",
-    paddingBottom: 140,
   },
   menuContainer: {
     gap: 12,

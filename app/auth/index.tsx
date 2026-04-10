@@ -45,15 +45,9 @@ export default function AuthScreen() {
         country_code: countryCodeDigits || undefined,
       });
 
-      // Log success for debugging
-      if (otpResponse.success) {
-        console.log('OTP sent successfully:', otpResponse.message);
-      }
-
       // Navigate to OTP screen
       router.push('/auth/otp');
     } catch (error) {
-      console.error('Send OTP error:', error);
       Alert.alert(
         t('auth.error'),
         error instanceof Error ? error.message : t('auth.otp_failed')
@@ -71,7 +65,8 @@ export default function AuthScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
         style={styles.keyboardView}
       >
         <View style={styles.content}>

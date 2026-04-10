@@ -49,7 +49,6 @@ export const initI18n = async () => {
 };
 
 export const changeLanguage = async (lang: 'en' | 'ar') => {
-  console.log(`[i18n] Switching to: ${lang}`);
   try {
     await AsyncStorage.setItem(LANGUAGE_KEY, lang);
     await i18n.changeLanguage(lang);
@@ -57,10 +56,8 @@ export const changeLanguage = async (lang: 'en' | 'ar') => {
     const isRTL = lang === 'ar';
     I18nManager.allowRTL(isRTL);
     I18nManager.forceRTL(isRTL);
-
-    console.log(`[i18n] Language switched to ${lang}. RTL set to ${isRTL}. No reload triggered.`);
   } catch (error) {
-    console.error('[i18n] Language switch failed:', error);
+    // Intentionally no console logging in production builds.
   }
 };
 

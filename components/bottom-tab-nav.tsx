@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ComponentProps } from "react";
 
@@ -21,6 +22,7 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
   onHomePress,
 }) => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   const NAV_ITEMS = [
     { key: "home", label: t("nav.home"), icon: "home", route: "/main-screen" },
@@ -55,7 +57,7 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
   };
 
   return (
-    <View style={styles.bottomNav}>
+    <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
       {NAV_ITEMS.map((item) => {
         const isActive = item.key === activeTab;
 
@@ -83,9 +85,8 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
 const styles = StyleSheet.create({
   bottomNav: {
     position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     backgroundColor: "#344225",
     borderRadius: 24,
     flexDirection: "row",

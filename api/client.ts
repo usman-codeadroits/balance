@@ -32,14 +32,6 @@ export class ApiClient {
       ...(token && { Authorization: `Bearer ${token}` }),
     };
 
-    if (token) {
-      console.log("🔐 Auth token found and added to headers");
-    } else {
-      console.log(
-        "⚠️ No auth token found in AsyncStorage - requests will be unauthenticated",
-      );
-    }
-
     return headers;
   }
 
@@ -78,11 +70,6 @@ export class ApiClient {
       const headers = await this.getHeaders(customHeaders);
       const url = `${this.baseURL}${endpoint}`;
 
-      console.log("🌐 API Client GET Request:");
-      console.log("  URL:", url);
-      console.log("  Method: GET");
-      console.log("  Headers:", JSON.stringify(headers, null, 2));
-
       const response = await fetch(url, {
         method: "GET",
         headers: headers,
@@ -90,11 +77,6 @@ export class ApiClient {
       });
 
       clearTimeout(timeoutId);
-
-      console.log("📥 API Client Response:");
-      console.log("  Status:", response.status);
-      console.log("  Status Text:", response.statusText);
-      console.log("  OK:", response.ok);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -125,12 +107,6 @@ export class ApiClient {
       const headers = await this.getHeaders(customHeaders);
       const body = JSON.stringify(data);
 
-      console.log("🌐 API Client POST Request:");
-      console.log("  URL:", url);
-      console.log("  Method: POST");
-      console.log("  Headers:", JSON.stringify(headers, null, 2));
-      console.log("  Body:", body);
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
@@ -140,11 +116,6 @@ export class ApiClient {
         body: body,
         signal: controller.signal,
       });
-
-      console.log("📥 API Client Response:");
-      console.log("  Status:", response.status);
-      console.log("  Status Text:", response.statusText);
-      console.log("  OK:", response.ok);
 
       clearTimeout(timeoutId);
 

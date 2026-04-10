@@ -74,9 +74,6 @@ export default function AllergiesPreferencesScreen() {
 
     setLoading(true);
     try {
-      console.log("📝 Allergies Preferences Screen: Starting registration...");
-      console.log("  - Selected Allergies:", selectedAllergies);
-
       await AsyncStorage.setItem(
         "tempAllergiesSelection",
         JSON.stringify(selectedAllergies),
@@ -91,24 +88,9 @@ export default function AllergiesPreferencesScreen() {
         allergies: selectedAllergies,
       });
 
-      console.log("✅ Allergies Preferences Screen: Registration completed");
-      console.log(
-        "📱 Allergies Preferences Screen: Showing success message and navigating to home",
-      );
-
       // Registration successful - finalizeOnboarding will navigate to welcome screen
       // No need to show alert or navigate here as finalizeOnboarding handles it
     } catch (error) {
-      console.error("========================================");
-      console.error("❌ REGISTRATION FAILED");
-      console.error("========================================");
-      console.error("Error saving allergies:", error);
-      if (error instanceof Error) {
-        console.error("  - Error message:", error.message);
-        console.error("  - Error stack:", error.stack);
-      }
-      console.error("========================================\n");
-
       // Format error message for better display
       let errorMessage =
         error instanceof Error

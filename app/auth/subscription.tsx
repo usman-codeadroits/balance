@@ -1,6 +1,7 @@
 import { getSubscriptionPlans, type MealPlan } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AuthButtonGreen from "@/components/auth/auth-button-green";
+import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -16,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ActiveSubscription {
   id: string;
@@ -39,9 +41,9 @@ export default function SubscriptionScreen() {
   const [showPersonalizedPlanCard, setShowPersonalizedPlanCard] =
     useState<boolean>(true);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    console.log("Selected plan:", selectedPlan);
   }, [selectedPlan]);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -79,7 +81,6 @@ export default function SubscriptionScreen() {
         "personalizedPlanOwner",
       ]);
     } catch (error) {
-      console.error("Error clearing personalized plan cache:", error);
     }
   };
 
@@ -104,7 +105,6 @@ export default function SubscriptionScreen() {
       setHasPersonalizedPlan(personalizedPlan === "true");
       setShowPersonalizedPlanCard(hideFlag !== "true");
     } catch (error) {
-      console.error("Error checking personalized plan:", error);
       setHasPersonalizedPlan(false);
       setShowPersonalizedPlanCard(true);
     }
@@ -132,7 +132,6 @@ export default function SubscriptionScreen() {
         setActiveSubscription(null);
       }
     } catch (error) {
-      console.error("Error checking active subscription:", error);
       setActiveSubscription(null);
     } finally {
       setCheckingSubscription(false);
@@ -146,7 +145,6 @@ export default function SubscriptionScreen() {
       const plans = await getSubscriptionPlans();
       setMealPlans(plans);
     } catch (err) {
-      console.error("Error fetching subscription plans:", err);
       const errorMessage =
         err instanceof Error
           ? err.message
@@ -167,10 +165,6 @@ export default function SubscriptionScreen() {
       // Find the selected plan object
       const plan = mealPlans.find((p) => String(p.id) === String(selectedPlan));
       if (!plan) {
-        console.error(
-          "Plan not found in mealPlans. Selected plan ID:",
-          selectedPlan,
-        );
         alert(t("subscription_screen.error"));
         return;
       }
@@ -191,24 +185,12 @@ export default function SubscriptionScreen() {
         isNaN(Number(planToSave.id)) ||
         Number(planToSave.id) <= 0
       ) {
-        console.error(
-          "Invalid plan ID after processing:",
-          planToSave.id,
-          "Original plan:",
-          plan,
-        );
         alert(t("subscription_screen.error"));
         return;
       }
-
-      console.log(
-        "Saving plan to AsyncStorage:",
-        JSON.stringify(planToSave, null, 2),
-      );
       await AsyncStorage.setItem("selectedPlan", JSON.stringify(planToSave));
       router.push("/auth/plan-page" as any);
     } catch (error) {
-      console.error("Error saving plan:", error);
       alert(t("subscription_screen.error"));
     }
   };
@@ -229,7 +211,7 @@ export default function SubscriptionScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Fixed Title Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
@@ -310,12 +292,6 @@ export default function SubscriptionScreen() {
                     ]}
                     onPress={() => {
                       const newSelectedPlan = String(plan.id);
-                      console.log(
-                        "Button clicked for plan:",
-                        plan.id,
-                        "Setting selected to:",
-                        newSelectedPlan,
-                      );
                       setSelectedPlan(newSelectedPlan);
                     }}
                   >
@@ -380,42 +356,15 @@ export default function SubscriptionScreen() {
         </ScrollView>
 
         {/* Fixed Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 80 }]}>
           <AuthButtonGreen title={t("subscription_screen.continue")} onPress={handleSelectPlan} />
         </View>
-
-        {/* Bottom Navigation */}
-        <View style={styles.bottomNav}>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => router.push("/(tabs)/" as any)}
-          >
-            <Ionicons name="home" size={26} color="#FFFFFF" />
-            <Text style={styles.navLabel}>{t("nav.home")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => router.push("/(tabs)/order-history" as any)}
-          >
-            <Ionicons name="time" size={26} color="#FFFFFF" />
-            <Text style={styles.navLabel}>{t("nav.history")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => router.push("/(tabs)/calendar" as any)}
-          >
-            <Ionicons name="calendar" size={26} color="#FFFFFF" />
-            <Text style={styles.navLabel}>{t("nav.calendar")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => router.push("/(tabs)/profile" as any)}
-          >
-            <Ionicons name="person" size={26} color="#FFFFFF" />
-            <Text style={styles.navLabel}>{t("nav.profile")}</Text>
-          </TouchableOpacity>
-        </View>
       </View>
+
+      <BottomTabNav
+        activeTab="home"
+        onHomePress={() => router.replace("/main-screen")}
+      />
     </SafeAreaView>
   );
 }
@@ -433,7 +382,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingTop: 10,
     paddingBottom: 20,
   },
   backButton: {
@@ -507,7 +455,6 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     paddingHorizontal: 24,
-    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
@@ -628,34 +575,5 @@ const styles = StyleSheet.create({
   personalizedPlanIcon: {
     width: 60,
     height: 60,
-  },
-  bottomNav: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: "#344225",
-    borderRadius: 24,
-    flexDirection: "row",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    justifyContent: "space-around",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: "500",
-    color: "#FFFFFF",
-    marginTop: 4,
   },
 });

@@ -59,7 +59,6 @@ export const getMeals = async (): Promise<Meal[]> => {
     
     return [];
   } catch (error) {
-    console.error('Error fetching meals:', error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch meals: ${error.message}`);
     }

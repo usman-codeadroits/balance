@@ -18,8 +18,16 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.usman_2901.BalanceAppV2"
+      "package": "com.usman_2901.BalanceAppV2",
+      "targetSdkVersion": 35,
+      "minSdkVersion": 26,
+      "compileSdkVersion": 35,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
+    "category": "FOOD_AND_DRINK",
     "web": {
       "output": "static",
       "favicon": "./assets/images/appstore.png"

@@ -20,9 +20,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function MainScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState("");
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,6 @@ export default function MainScreen() {
         const data = await getMeals();
         setMeals(data);
       } catch (error) {
-        console.error("Error loading meals:", error);
         Alert.alert(t("common.error"), t("main.error_load_meals"));
       } finally {
         setLoading(false);
@@ -75,18 +76,6 @@ export default function MainScreen() {
 
     load();
   }, [t]);
-
-  const filteredMeals = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return meals;
-    return meals.filter((m) => {
-      const haystack = [m.title, (m as any).description, (m as any).category]
-        .filter(Boolean)
-        .map((v) => String(v).toLowerCase())
-        .join(" ");
-      return haystack.includes(q);
-    });
-  }, [meals, searchQuery]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -100,8 +89,6 @@ export default function MainScreen() {
           onPress: async () => {
             try {
               await resetAppCache();
-            } catch (error) {
-              console.error("Error during logout:", error);
             } finally {
               router.replace("/auth");
             }
@@ -112,17 +99,24 @@ export default function MainScreen() {
     );
   };
 
+  const filteredMeals = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return meals;
+    return meals.filter((m) => {
+      const haystack = [m.title, (m as any).description, (m as any).category]
+        .filter(Boolean)
+        .map((v) => String(v).toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
+  }, [meals, searchQuery]);
+
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            style={[styles.backButton, styles.backButtonDisabled]}
-            onPress={() => {}}
-            disabled
-          >
-            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
+        <View style={[styles.titleContainer, { paddingTop: Math.max(insets.top, 16) }]}>
+          <View style={styles.headerSpacer} />
           <Text style={styles.headerTitle}>Balance</Text>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
@@ -182,7 +176,7 @@ export default function MainScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/auth/reviews")}
+            onPress={() => Alert.alert("Coming Soon", "This feature is coming soon!")}
           >
             <Text style={styles.actionButtonText}>{t("main.user_reviews")}</Text>
           </TouchableOpacity>
@@ -190,7 +184,10 @@ export default function MainScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 120 + insets.bottom },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
@@ -292,34 +289,22 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  headerRow: {
+  titleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: "5%",
+    paddingBottom: 20,
+    backgroundColor: "#DCE6E0",
   },
-  backButton: {
+  headerSpacer: {
     width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#344225",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backButtonDisabled: {
-    opacity: 0.45,
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    fontSize: 24,
     fontWeight: "700",
     color: "#344225",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    textAlign: "center",
   },
   logoutButton: {
     width: 36,

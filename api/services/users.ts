@@ -142,36 +142,17 @@ export const registerUser = async (
       payload.affiliated_code = userData.affiliated_code.trim().toUpperCase();
     }
 
-    console.log(
-      "📤 Registration API Request:",
-      JSON.stringify(payload, null, 2),
-    );
-    console.log("📤 Registration API Endpoint:", API_ENDPOINTS.REGISTER);
-    console.log("📤 Sending POST request to backend...");
-
     const response = await apiClient.post<RegisterUserResponse>(
       API_ENDPOINTS.REGISTER,
       payload,
-    );
-
-    console.log(
-      "📥 Registration API Response received:",
-      JSON.stringify(response, null, 2),
     );
 
     // Validate response structure (201 success)
     if (!response.success || !response.data) {
       throw new Error(response.message || "Registration failed");
     }
-
-    console.log(
-      "✅ Registration API Success:",
-      JSON.stringify(response, null, 2),
-    );
     return response;
   } catch (error: any) {
-    console.error("❌ Registration API Error:", error);
-
     // Handle validation errors (422)
     if (error?.status === 422) {
       const errorData = error?.response || {};
@@ -219,14 +200,6 @@ export const registerUser = async (
         }
       }
 
-      // Log the full error response for debugging
-      console.error(
-        "Full API error response:",
-        JSON.stringify(errorData, null, 2),
-      );
-      console.error("Request payload sent:", JSON.stringify(userData, null, 2));
-      console.error("Request was sent to:", `${API_ENDPOINTS.REGISTER}`);
-
       // Check if this is a "phone number already registered" error - try to update existing user
       const isPhoneAlreadyRegistered =
         errorMessage.toLowerCase().includes("phone number") &&
@@ -234,10 +207,6 @@ export const registerUser = async (
           errorMessage.toLowerCase().includes("already exists"));
 
       if (isPhoneAlreadyRegistered) {
-        console.log(
-          "⚠️ Phone number already registered - attempting to update existing user...",
-        );
-
         // Try to get user ID from AsyncStorage (should be set during OTP verification)
         try {
           const AsyncStorage =
@@ -246,8 +215,6 @@ export const registerUser = async (
 
           if (userIdStr) {
             const userId = parseInt(userIdStr, 10);
-            console.log("📝 Found existing user ID:", userId);
-            console.log("📝 Attempting to update user via PUT endpoint...");
 
             // Prepare update payload (convert registration format to update format)
             const updatePayload: any = {
@@ -274,18 +241,9 @@ export const registerUser = async (
                 .toUpperCase();
             }
 
-            console.log(
-              "📤 Update User Payload:",
-              JSON.stringify(updatePayload, null, 2),
-            );
-
             // Try to update the existing user
             try {
               const updatedUser = await updateUser(userId, updatePayload);
-              console.log(
-                "✅ User updated successfully:",
-                JSON.stringify(updatedUser, null, 2),
-              );
 
               // Return response in registration format
               const updateResponse: RegisterUserResponse = {
@@ -312,21 +270,13 @@ export const registerUser = async (
                   updated_at: updatedUser.updated_at,
                 },
               };
-
-              console.log("✅ Registration via update completed successfully");
               return updateResponse;
             } catch (updateError: any) {
-              console.error("❌ Failed to update existing user:", updateError);
-              console.log("⚠️ Falling back to local data storage");
               // Fall through to throw the original error
             }
           } else {
-            console.log(
-              "⚠️ No user ID found in AsyncStorage - cannot update existing user",
-            );
           }
         } catch (storageError) {
-          console.error("❌ Error accessing AsyncStorage:", storageError);
         }
 
         // If update failed or user ID not found, throw error but mark it for graceful handling
@@ -374,7 +324,6 @@ export const checkUserExists = async (
 
     return response;
   } catch (error) {
-    console.error("Error checking user:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to check user: ${error.message}`);
     }
@@ -405,16 +354,11 @@ export const loginUser = async (
     );
 
     if (!response || !response.data) {
-      console.error(
-        "Unexpected API response structure for user login:",
-        response,
-      );
       throw new Error("Invalid response: expected data object for user login");
     }
 
     return response.data as LoginResponse;
   } catch (error) {
-    console.error("Error logging in user:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to login: ${error.message}`);
     }
@@ -432,13 +376,11 @@ export const getUserById = async (userId: number): Promise<User> => {
     );
 
     if (!response || !response.data) {
-      console.error("Unexpected API response structure for user:", response);
       throw new Error("Invalid response: expected data object for user");
     }
 
     return response.data;
   } catch (error) {
-    console.error("Error fetching user:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch user: ${error.message}`);
     }
@@ -460,16 +402,11 @@ export const updateUser = async (
     );
 
     if (!response || !response.data) {
-      console.error(
-        "Unexpected API response structure for user update:",
-        response,
-      );
       throw new Error("Invalid response: expected data object for user update");
     }
 
     return response.data;
   } catch (error) {
-    console.error("Error updating user:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to update user: ${error.message}`);
     }

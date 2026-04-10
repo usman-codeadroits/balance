@@ -44,7 +44,8 @@ export default function NameScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
       >
         {/* Header with back button and logo */}
         <View style={styles.header}>
@@ -54,11 +55,14 @@ export default function NameScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Image
-            source={require("@/assets/images/balance-logo.png")}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
+          <View style={styles.headerCenter}>
+            <Image
+              source={require("@/assets/images/balance-logo.png")}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.headerSpacer} />
         </View>
 
         {/* Title */}
@@ -107,8 +111,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
-    height: 96,
+    justifyContent: "space-between",
+    paddingVertical: 12,
     marginBottom: 16,
   },
   backButton: {
@@ -119,14 +123,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerPlaceholder: {
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerSpacer: {
     width: 40,
   },
   headerLogo: {
-    position: "absolute",
-    left: "50%",
-    top: 4,
-    marginLeft: -36,
     width: 72,
     height: 72,
   },

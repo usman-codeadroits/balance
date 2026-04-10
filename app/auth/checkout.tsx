@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type MealItem = {
   id: string;
@@ -46,6 +47,7 @@ export default function CheckoutScreen() {
   const [couponMessage, setCouponMessage] = useState<string>("");
   const [validating, setValidating] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadData();
@@ -84,7 +86,6 @@ export default function CheckoutScreen() {
         setPromoCode(parsed?.code ?? "");
       }
     } catch (error) {
-      console.error("Error loading data:", error);
     }
   };
 
@@ -173,7 +174,6 @@ export default function CheckoutScreen() {
         setCouponMessage(response.message || t("checkout.error_invalid_coupon"));
       }
     } catch (error: any) {
-      console.error("Coupon validation error:", error);
       setAppliedCoupon(null);
       await AsyncStorage.removeItem("appliedCoupon");
       const message =
@@ -260,7 +260,7 @@ export default function CheckoutScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Fixed Header */}
-        <View style={styles.headerSection}>
+        <View style={[styles.headerSection, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
@@ -338,7 +338,7 @@ export default function CheckoutScreen() {
         </ScrollView>
 
         {/* Fixed Payment Summary Section */}
-        <View style={styles.fixedSection}>
+        <View style={[styles.fixedSection, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           {/* Promo Code Section */}
           <View style={styles.promoSection}>
             <TextInput
@@ -435,7 +435,6 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     paddingHorizontal: "5%",
-    paddingTop: 10,
     paddingBottom: 20,
     flexDirection: "row",
     alignItems: "flex-start",
@@ -468,7 +467,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#D4E8E0",
     paddingHorizontal: "5%",
     paddingTop: 16,
-    paddingBottom: 40,
   },
   title: {
     fontSize: 24,

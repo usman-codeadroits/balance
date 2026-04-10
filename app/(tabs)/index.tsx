@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { Subscription } from "@/types/subscription";
 
@@ -333,6 +334,7 @@ const persistDummySubscriptionLocally = async () => {
 
 function LegacyHomeScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [activeSubscription, setActiveSubscription] =
     useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -397,7 +399,6 @@ function LegacyHomeScreen() {
 
       return await persistApiSubscriptionLocally(subscriptionFromApi);
     } catch (error) {
-      console.error("Error syncing active subscription:", error);
       return null;
     }
   };
@@ -431,7 +432,6 @@ function LegacyHomeScreen() {
             await clearSubscriptionCache();
           }
         } catch (error) {
-          console.error("Error parsing cached subscription:", error);
           await clearSubscriptionCache();
         }
       }
@@ -451,7 +451,6 @@ function LegacyHomeScreen() {
 
       setActiveSubscription(subscription);
     } catch (error) {
-      console.error("Error loading active subscription:", error);
       setActiveSubscription(null);
     } finally {
       setLoading(false);
@@ -508,7 +507,6 @@ function LegacyHomeScreen() {
       }
       router.push("/auth/selected-meals");
     } catch (error) {
-      console.error("Error preparing meal update:", error);
       Alert.alert(t("home.error"), t("home.unable_open_updater"));
     } finally {
       setSyncingMeals(false);
@@ -555,13 +553,13 @@ function LegacyHomeScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <Text style={styles.headerTitle}>{t("home.title")}</Text>
         </View>
 
         <ScrollView
           style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
@@ -718,7 +716,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: "5%",
-    paddingTop: 40,
     paddingBottom: 20,
   },
   headerTitle: {
@@ -731,7 +728,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: "5%",
-    paddingBottom: 120,
   },
   subscriptionCard: {
     backgroundColor: "#FFFFFF",

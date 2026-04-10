@@ -3,12 +3,14 @@ import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { getMySubscriptions, type UserSubscriptionSummary } from "@/api/services/subscriptions";
 
 export default function OrderHistoryScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [activeSubscriptions, setActiveSubscriptions] = useState<UserSubscriptionSummary[]>([]);
   const [recentSubscriptions, setRecentSubscriptions] = useState<UserSubscriptionSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,7 +37,6 @@ export default function OrderHistoryScreen() {
         setError("Failed to load subscriptions");
       }
     } catch (err) {
-      console.error("Error loading subscriptions:", err);
       setError("Failed to load subscriptions. Please try again.");
       // Still show empty state rather than crashing
       setActiveSubscriptions([]);
@@ -85,7 +86,7 @@ export default function OrderHistoryScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Title */}
-        <View style={styles.titleContainer}>
+        <View style={[styles.titleContainer, { paddingTop: Math.max(insets.top, 16) }]}>
           <Text style={styles.title}>{t("history.title")}</Text>
         </View>
 
@@ -104,7 +105,10 @@ export default function OrderHistoryScreen() {
         ) : (
           <ScrollView
             style={styles.scrollContainer}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: 120 + insets.bottom },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {/* Active Subscriptions */}
@@ -204,7 +208,6 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     paddingHorizontal: "5%",
-    paddingTop: 40,
     paddingBottom: 20,
     backgroundColor: "#D4E8E0",
   },
@@ -219,7 +222,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: "5%",
-    paddingBottom: 140,
   },
   sectionTitle: {
     fontSize: 18,

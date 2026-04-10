@@ -13,6 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const getWeekdayLabels = () => {
   return i18n.t("calendar.weekdays", { returnObjects: true }) as string[];
@@ -111,6 +112,7 @@ const generateMonthsBetween = (startDate: Date, endDate: Date, locale: string = 
 
 export default function CalendarScreen() {
   const { t, i18n } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [range, setRange] = useState<SubscriptionRange | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -167,7 +169,6 @@ export default function CalendarScreen() {
         setRange(null);
       }
     } catch (error) {
-      console.error("Failed to load subscription for calendar:", error);
       setRange(null);
     } finally {
       setLoading(false);
@@ -214,7 +215,10 @@ export default function CalendarScreen() {
     return (
       <ScrollView
         style={styles.calendarScroll}
-        contentContainerStyle={styles.calendarScrollContent}
+        contentContainerStyle={[
+          styles.calendarScrollContent,
+          { paddingBottom: 120 + insets.bottom },
+        ]}
       >
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>{t("calendar.sub_window")}</Text>
@@ -271,7 +275,7 @@ export default function CalendarScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
         <Text style={styles.headerTitle}>
           {t("calendar.header")}
         </Text>
@@ -305,7 +309,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: "5%",
-    paddingTop: 40,
     paddingBottom: 16,
   },
   backButton: {
@@ -341,7 +344,6 @@ const styles = StyleSheet.create({
   },
   calendarScrollContent: {
     paddingHorizontal: "5%",
-    paddingBottom: 140,
   },
   summaryCard: {
     backgroundColor: "#FFFFFF",

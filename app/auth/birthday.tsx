@@ -3,9 +3,10 @@ import AuthButtonGreen from "@/components/auth/auth-button-green";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Alert,
   Image,
   SafeAreaView,
   ScrollView,
@@ -41,9 +42,28 @@ export default function BirthdayScreen() {
   const years = generateYears();
   const days = generateDays(selectedMonth, selectedYear);
 
+  useEffect(() => {
+    if (selectedDay && selectedDay > days.length) {
+      setSelectedDay(null);
+    }
+  }, [days.length, selectedDay]);
+
   const handleContinue = async () => {
     if (!selectedDay) {
-      alert(t("birthday.enter_birthday"));
+      Alert.alert(t("common.error"), t("birthday.enter_birthday"));
+      return;
+    }
+
+    const birthDate = new Date(selectedYear, selectedMonth, selectedDay);
+    if (Number.isNaN(birthDate.getTime())) {
+      Alert.alert(t("common.error"), t("birthday.enter_birthday"));
+      return;
+    }
+
+    const today = new Date();
+    const cutoff = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
+    if (birthDate > cutoff) {
+      Alert.alert(t("common.error"), "You must be at least 16 years old to continue.");
       return;
     }
 
@@ -66,11 +86,14 @@ export default function BirthdayScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Image
-            source={require("@/assets/images/balance-logo.png")}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
+          <View style={styles.headerCenter}>
+            <Image
+              source={require("@/assets/images/balance-logo.png")}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.headerSpacer} />
         </View>
 
         {/* Title */}
@@ -195,8 +218,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
-    height: 96,
+    justifyContent: "space-between",
+    paddingVertical: 12,
     marginBottom: 16,
   },
   backButton: {
@@ -207,14 +230,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerPlaceholder: {
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerSpacer: {
     width: 40,
   },
   headerLogo: {
-    position: "absolute",
-    left: "50%",
-    top: 4,
-    marginLeft: -36,
     width: 72,
     height: 72,
   },

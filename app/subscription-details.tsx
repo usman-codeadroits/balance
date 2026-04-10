@@ -40,7 +40,6 @@ export default function SubscriptionDetailsScreen() {
         setSubscription(null);
       }
     } catch (e) {
-      console.error("Error loading subscription details:", e);
       setError("Failed to load subscription details. Please try again.");
       setSubscription(null);
     } finally {

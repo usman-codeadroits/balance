@@ -53,7 +53,6 @@ export const resetAppCache = async () => {
     const uniqueKeys = Array.from(new Set(APP_CACHE_KEYS));
     await AsyncStorage.multiRemove(uniqueKeys);
   } catch (error) {
-    console.error('Failed to reset app cache', error);
     throw error;
   }
 };

@@ -10,7 +10,7 @@ export default function ContactUsScreen() {
 
   const handleSendMessage = () => {
     if (!fullName.trim() || !subject.trim() || !message.trim()) {
-      Alert.alert('Validation Error', 'Please fill in all fields');
+      Alert.alert('Missing information', 'Please fill in all fields');
       return;
     }
 

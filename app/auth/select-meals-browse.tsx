@@ -87,7 +87,6 @@ export default function SelectMealsScreen() {
       );
       setHasPersonalizedPlan(personalizedPlan === "true");
     } catch (error) {
-      console.error("Error checking personalized plan:", error);
     }
   };
 
@@ -120,7 +119,6 @@ export default function SelectMealsScreen() {
         await fetchExistingSubscriptionMeals();
       }
     } catch (error) {
-      console.error("Error loading plan:", error);
     }
   };
 
@@ -130,7 +128,6 @@ export default function SelectMealsScreen() {
       const mealsData = await getMeals();
       setMeals(mealsData);
     } catch (error) {
-      console.error("Error fetching meals:", error);
       Alert.alert(t("common.error"), t("plan_page.error"));
     } finally {
       setLoading(false);
@@ -251,7 +248,6 @@ export default function SelectMealsScreen() {
       const response = await getSubscriptionMeals(parsedUserId);
       await normalizeExistingMeals(response);
     } catch (error) {
-      console.error("Error loading existing subscription meals:", error);
     } finally {
       setLoadingExisting(false);
     }
@@ -381,10 +377,6 @@ export default function SelectMealsScreen() {
               }
             }
           } catch (err) {
-            console.warn(
-              "Failed to read cached day meals for subscriptionMealId",
-              err,
-            );
           }
         }
 
@@ -460,7 +452,6 @@ export default function SelectMealsScreen() {
         Alert.alert(t("common.ok"), t("select_meals.success_updated"));
         router.back();
       } catch (error) {
-        console.error("Error updating meal:", error);
         Alert.alert(
           t("common.error"),
           error instanceof Error ? error.message : t("select_meals.error_update_failed"),
@@ -500,7 +491,6 @@ export default function SelectMealsScreen() {
       // Navigate back
       router.back();
     } catch (error) {
-      console.error("Error saving meal:", error);
       Alert.alert(t("common.error"), t("select_meals.error_save_failed"));
     }
   };

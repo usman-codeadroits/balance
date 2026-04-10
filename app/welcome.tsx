@@ -9,7 +9,6 @@ import {
   Image,
   ImageBackground,
   SafeAreaView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -40,7 +39,6 @@ const WelcomeScreen = () => {
       const name = await AsyncStorage.getItem("welcomeUserName");
       if (name) setUserName(name);
     } catch (error) {
-      console.error("Error loading user name:", error);
     }
   };
 
@@ -59,7 +57,6 @@ const WelcomeScreen = () => {
         router.replace("/auth");
       }
     } catch (error) {
-      console.error("Error checking authentication:", error);
       router.replace("/auth");
     }
   };
@@ -70,7 +67,6 @@ const WelcomeScreen = () => {
       style={styles.background}
       resizeMode="cover"
     >
-      <StatusBar barStyle="light-content" />
 
       {/* ── Black overlay 65% ── */}
       <View style={styles.overlay} />

@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AddAddressScreen() {
   const { t } = useTranslation();
@@ -36,6 +37,7 @@ export default function AddAddressScreen() {
   );
   const [loading, setLoading] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   // Pre-fill with dummy data
   useEffect(() => {
@@ -314,7 +316,6 @@ export default function AddAddressScreen() {
         { cancelable: false },
       );
     } catch (error) {
-      console.error("Error preparing checkout:", error);
       Alert.alert(
         t("common.error"),
         error instanceof Error
@@ -330,7 +331,7 @@ export default function AddAddressScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header with Title */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
@@ -503,7 +504,7 @@ export default function AddAddressScreen() {
         </ScrollView>
 
         {/* Checkout Button */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TouchableOpacity
             style={[
               styles.checkoutButton,
@@ -535,7 +536,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: "5%",
-    paddingTop: 10,
     paddingBottom: 20,
   },
   backButton: {
@@ -674,7 +674,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#D4E8E0",
     paddingHorizontal: "5%",
     paddingVertical: 20,
-    paddingBottom: 40,
   },
   checkoutButton: {
     backgroundColor: "#344225",

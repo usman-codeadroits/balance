@@ -88,7 +88,6 @@ export default function UpdateSubscriptionMealsScreen() {
       const mealsData = await getMeals();
       setAllMeals(mealsData);
     } catch (e) {
-      console.error("Error loading data:", e);
       setError("Failed to load data. Please try again.");
     } finally {
       setLoading(false);
@@ -153,8 +152,7 @@ export default function UpdateSubscriptionMealsScreen() {
       setPickerVisible(false);
       setPickerContext(null);
     } catch (err) {
-      console.error("Error saving meal selection:", err);
-      Alert.alert("Error", "Could not update meal. Please try again.");
+      Alert.alert("Update failed", "Could not update meal. Please try again.");
     } finally {
       setSavingSlot(false);
     }
@@ -216,8 +214,7 @@ export default function UpdateSubscriptionMealsScreen() {
         },
       ]);
     } catch (e) {
-      console.error("Error updating meals:", e);
-      Alert.alert("Error", "Failed to update meals. Please try again.");
+      Alert.alert("Update failed", "Failed to update meals. Please try again.");
     } finally {
       setUpdating(false);
     }

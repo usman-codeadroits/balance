@@ -43,7 +43,6 @@ export default function AllergiesListScreen() {
         setSelectedAllergies(normalizeAllergies(JSON.parse(stored)));
       }
     } catch (error) {
-      console.error("Error loading allergies:", error);
     }
   };
 
@@ -65,7 +64,6 @@ export default function AllergiesListScreen() {
       );
       router.back();
     } catch (error) {
-      console.error("Error saving allergies:", error);
     }
   };
 

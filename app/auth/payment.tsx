@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type DurationSummary = {
   id?: number | string;
@@ -62,6 +63,7 @@ export default function PaymentScreen() {
     null,
   );
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const loadDraft = async () => {
@@ -71,7 +73,6 @@ export default function PaymentScreen() {
           setCheckoutDraft(JSON.parse(stored));
         }
       } catch (error) {
-        console.error("Failed to load checkout draft:", error);
       } finally {
         setDraftLoading(false);
       }
@@ -347,7 +348,6 @@ export default function PaymentScreen() {
       const responseData = response?.data || response;
       await handlePaymentSuccess(responseData, paymentCheckoutPayload);
     } catch (error) {
-      console.error("Payment failed:", error);
       Alert.alert(
         t("payment.alerts.error_title"),
         error instanceof Error
@@ -382,7 +382,6 @@ export default function PaymentScreen() {
         },
       ]);
     } catch (error) {
-      console.error("Failed to process payment response:", error);
       Alert.alert(
         t("common.error"),
         error instanceof Error ? error.message : t("selected_meals.error_save_failed"),
@@ -443,7 +442,7 @@ export default function PaymentScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
@@ -617,7 +616,7 @@ export default function PaymentScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TouchableOpacity
             style={[
               styles.payButton,
@@ -649,7 +648,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: "5%",
-    paddingTop: 10,
     paddingBottom: 20,
   },
   backButton: {
@@ -895,7 +893,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: "5%",
-    paddingBottom: 40,
     paddingTop: 10,
   },
   payButton: {

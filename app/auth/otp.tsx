@@ -270,9 +270,6 @@ export default function OTPScreen() {
 
         if (token) {
           await AsyncStorage.setItem("authToken", token);
-          console.log("✅ Auth token saved successfully from OTP verification");
-        } else {
-          console.warn("⚠️ No auth token in OTP verification data - this may cause authentication issues");
         }
       }
 
@@ -430,8 +427,6 @@ export default function OTPScreen() {
       );
       await AsyncStorage.removeItem("otpVerified");
     } catch (error: any) {
-      console.error("OTP verification error:", error);
-
       // Handle validation errors (HTTP 422)
       if (error?.status === 422) {
         const errorData = error?.response || {};
@@ -487,7 +482,6 @@ export default function OTPScreen() {
       });
       Alert.alert(t("common.ok"), t("otp.resent_success", { phone: formattedPhone }));
     } catch (error) {
-      console.error("Resend OTP error:", error);
       Alert.alert(
         t("otp.error"),
         error instanceof Error
@@ -511,7 +505,6 @@ export default function OTPScreen() {
         "otpVerified",
       ]);
     } catch (error) {
-      console.error("Error clearing phone data:", error);
     } finally {
       router.replace("/auth");
     }
@@ -521,7 +514,8 @@ export default function OTPScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}>
         <View style={styles.header}>
         </View>
         {/* Logo */}
@@ -641,8 +635,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   otpBox: {
-    width: 60,
-    height: 60,
+    width: "20%",
+    aspectRatio: 1,
     backgroundColor: "#FFFFFF",
     borderRadius: 8,
     textAlign: "center",

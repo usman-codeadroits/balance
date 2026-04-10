@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function PlanPageScreen() {
   const { t } = useTranslation();
@@ -29,6 +30,7 @@ export default function PlanPageScreen() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   const dayLabels = t("plan_page.day_labels", { returnObjects: true }) as string[];
 
@@ -44,7 +46,6 @@ export default function PlanPageScreen() {
         setSelectedPlan(JSON.parse(planData));
       }
     } catch (error) {
-      console.error("Error loading plan:", error);
     }
   };
 
@@ -59,7 +60,6 @@ export default function PlanPageScreen() {
         setSelectedDuration(durationsData[0]);
       }
     } catch (err) {
-      console.error("Error fetching durations:", err);
       const errorMessage =
         err instanceof Error
           ? err.message
@@ -101,7 +101,6 @@ export default function PlanPageScreen() {
       );
       router.push("/auth/start-date" as any);
     } catch (error) {
-      console.error("Error saving data:", error);
     }
   };
 
@@ -140,7 +139,7 @@ export default function PlanPageScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Title with Back Button */}
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 16) }]}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
@@ -283,7 +282,7 @@ export default function PlanPageScreen() {
         </ScrollView>
 
         {/* Fixed Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("plan_page.continue")} onPress={handleContinue} />
         </View>
       </View>
@@ -312,7 +311,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingTop: 10,
     paddingBottom: 24,
     gap: 12,
   },
@@ -448,7 +446,6 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     paddingHorizontal: 24,
-    paddingBottom: 30,
   },
   loadingContainer: {
     alignItems: "center",

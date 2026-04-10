@@ -43,7 +43,6 @@ export default function ReviewsScreen() {
         setReviews(JSON.parse(stored));
       }
     } catch (error) {
-      console.error("Failed to load reviews:", error);
     }
   };
 
@@ -77,7 +76,6 @@ export default function ReviewsScreen() {
       setComment("");
       Alert.alert(t("reviews.alerts.success_title"), t("reviews.alerts.success_msg"));
     } catch (error) {
-      console.error("Failed to save review:", error);
       Alert.alert(t("reviews.alerts.error_title"), t("reviews.alerts.error_msg"));
     } finally {
       setSubmitting(false);

@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function StartDateScreen() {
   const { t } = useTranslation();
@@ -21,6 +22,7 @@ export default function StartDateScreen() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   const handleContinue = async () => {
     if (!selectedDate) {
@@ -36,7 +38,6 @@ export default function StartDateScreen() {
       await AsyncStorage.removeItem("selectedDayMeals");
       router.push("/auth/selected-meals" as any);
     } catch (error) {
-      console.error("Error saving date:", error);
     }
   };
 
@@ -158,7 +159,7 @@ export default function StartDateScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Title with Back Button */}
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 16) }]}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
@@ -224,7 +225,7 @@ export default function StartDateScreen() {
         </ScrollView>
 
         {/* Fixed Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("start_date_screen.continue")} onPress={handleContinue} />
         </View>
       </View>
@@ -245,7 +246,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingTop: 10,
     paddingBottom: 20,
     gap: 12,
   },
@@ -393,6 +393,5 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     paddingHorizontal: 24,
-    paddingBottom: 30,
   },
 });

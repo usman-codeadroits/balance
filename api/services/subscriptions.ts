@@ -81,23 +81,14 @@ export const checkoutSubscription = async (
   checkoutData: CheckoutRequest,
 ): Promise<CheckoutResponse> => {
   try {
-    console.log(
-      "Checkout request data:",
-      JSON.stringify(checkoutData, null, 2),
-    );
-
     const response = await apiClient.post<CheckoutResponse>(
       API_ENDPOINTS.SUBSCRIPTION_CHECKOUT,
       checkoutData,
     );
 
-    console.log("Checkout response:", JSON.stringify(response, null, 2));
-
     // API returns the subscription data directly or wrapped
     return response;
   } catch (error) {
-    console.error("Error creating subscription checkout:", error);
-
     // Extract error message from API response if available
     let errorMessage = "Failed to create subscription";
     if (error instanceof Error) {
@@ -135,10 +126,6 @@ export const getUserSubscriptions = async (
     );
 
     if (!response || !response.data) {
-      console.error(
-        "Unexpected API response structure for subscriptions:",
-        response,
-      );
       throw new Error(
         "Invalid response: expected data array for subscriptions",
       );
@@ -146,7 +133,6 @@ export const getUserSubscriptions = async (
 
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
-    console.error("Error fetching user subscriptions:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch subscriptions: ${error.message}`);
     }
@@ -167,7 +153,6 @@ export const getActiveSubscription = async (
     );
     return active || null;
   } catch (error) {
-    console.error("Error fetching active subscription:", error);
     return null;
   }
 };
@@ -247,11 +232,6 @@ export const updateSubscriptionMeal = async (
   updateData: UpdateMealRequest,
 ): Promise<UpdateMealResponse> => {
   try {
-    console.log(
-      "Update/Create meal request data:",
-      JSON.stringify(updateData, null, 2),
-    );
-
     // Build request payload - only include subscription_meal_id if provided
     const requestPayload: any = {
       user_id: updateData.user_id,
@@ -270,15 +250,8 @@ export const updateSubscriptionMeal = async (
       requestPayload,
     );
 
-    console.log(
-      "Update/Create meal response:",
-      JSON.stringify(response, null, 2),
-    );
-
     return response;
   } catch (error) {
-    console.error("Error updating/creating subscription meal:", error);
-
     // Extract error message from API response if available
     let errorMessage =
       updateData.subscription_meal_id !== undefined
@@ -323,7 +296,6 @@ export const getSubscriptionMeals = async (
 
     return response;
   } catch (error) {
-    console.error("Error fetching subscription meals:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch subscription meals: ${error.message}`);
     }
@@ -418,7 +390,6 @@ export const getMySubscriptions =
       );
       return response;
     } catch (error) {
-      console.error("Error fetching my subscriptions:", error);
       if (error instanceof Error) {
         throw new Error(`Failed to fetch subscriptions: ${error.message}`);
       }
@@ -440,7 +411,6 @@ export const getSubscriptionDetails = async (
     );
     return response;
   } catch (error) {
-    console.error("Error fetching subscription details:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch subscription details: ${error.message}`);
     }

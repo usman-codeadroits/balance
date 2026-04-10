@@ -22,7 +22,6 @@ export const getDurations = async (): Promise<Duration[]> => {
 
     return response.data;
   } catch (error) {
-    console.error('Error fetching durations:', error);
     throw error;
   }
 };
@@ -43,7 +42,6 @@ export const getDurationById = async (id: number): Promise<Duration | null> => {
     const duration = response.data.find((d: Duration) => d.id === id);
     return duration || null;
   } catch (error) {
-    console.error(`Error fetching duration with id ${id}:`, error);
     throw error;
   }
 };

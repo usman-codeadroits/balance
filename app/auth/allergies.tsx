@@ -55,9 +55,6 @@ export default function AllergiesScreen() {
         return;
       }
 
-      console.log(
-        "📝 Allergies Screen: Starting registration (No allergies)...",
-      );
       await AsyncStorage.setItem("tempAllergiesSelection", JSON.stringify([]));
 
       const registrationResponse = await finalizeOnboarding({
@@ -65,22 +62,7 @@ export default function AllergiesScreen() {
         allergies: [],
       });
 
-      console.log("✅ Allergies Screen: Registration completed");
-      console.log(
-        "📱 Allergies Screen: Showing success message and navigating to home",
-      );
-
     } catch (error) {
-      console.error("========================================");
-      console.error("❌ REGISTRATION FAILED");
-      console.error("========================================");
-      console.error("Error completing onboarding:", error);
-      if (error instanceof Error) {
-        console.error("  - Error message:", error.message);
-        console.error("  - Error stack:", error.stack);
-      }
-      console.error("========================================\n");
-
       let errorMessage =
         error instanceof Error
           ? error.message
@@ -115,11 +97,14 @@ export default function AllergiesScreen() {
             >
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <Image
-              source={require("@/assets/images/balance-logo.png")}
-              style={styles.headerLogo}
-              resizeMode="contain"
-            />
+            <View style={styles.headerCenter}>
+              <Image
+                source={require("@/assets/images/balance-logo.png")}
+                style={styles.headerLogo}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={styles.headerSpacer} />
           </View>
 
           <View style={styles.headerContainer}>
@@ -184,8 +169,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
-    height: 96,
+    justifyContent: "space-between",
+    paddingVertical: 12,
     marginBottom: 16,
   },
   backButton: {
@@ -196,11 +181,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerSpacer: {
+    width: 40,
+  },
   headerLogo: {
-    position: "absolute",
-    left: "50%",
-    top: 4,
-    marginLeft: -36,
     width: 72,
     height: 72,
   },

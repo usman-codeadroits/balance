@@ -61,7 +61,6 @@ export default function HasAffiliatedCodeScreen() {
       setLoading(false);
       router.push("/auth/email" as any);
     } catch (error) {
-      console.error("Error:", error);
       Alert.alert(
         t("has_affiliated.error_title"),
         error instanceof Error ? error.message : t("has_affiliated.unexpected_error"),
