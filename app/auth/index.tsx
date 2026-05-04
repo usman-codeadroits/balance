@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Image, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
 export default function AuthScreen() {
   const { t } = useTranslation();
@@ -70,55 +70,35 @@ export default function AuthScreen() {
         style={styles.keyboardView}
       >
         <View style={styles.content}>
+          {/* Logo */}
           <View style={styles.header}>
+            <Image
+              source={require('@/assets/images/authlogo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Logo */}
-            <View style={styles.logoContainer}>
-              <Image
-                source={require('@/assets/images/authlogo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
 
-            {/* Auth Form */}
-            <View style={styles.formContainer}>
-              {/* Tabs */}
-              <AuthTabs activeTab={activeTab} onTabChange={handleTabChange} />
+          {/* Tabs + Phone input — static, centred in remaining space */}
+          <View style={styles.formSection}>
+            <AuthTabs activeTab={activeTab} onTabChange={handleTabChange} />
+            <PhoneInput
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              placeholder={t('auth.phone_placeholder')}
+              selectedCountry={selectedCountry}
+              onSelectCountry={setSelectedCountry}
+            />
+          </View>
 
-              {/* Phone Input */}
-              <PhoneInput
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                placeholder={t('auth.phone_placeholder')}
-                selectedCountry={selectedCountry}
-                onSelectCountry={setSelectedCountry}
-              />
-            </View>
-          </ScrollView>
-
-          {/* Bottom Section - Always at bottom */}
+          {/* Bottom — button + links pinned to bottom */}
           <View style={styles.bottomSection}>
-            {activeTab === 'signup' && (
-              <View style={styles.dividerContainer}>
-
-
-              </View>
-            )}
-
-            {/* Sign In/Sign Up Button */}
             <AuthButton
               title={loading ? t('auth.sending_otp') : activeTab === 'login' ? t('auth.sign_in') : t('auth.signup')}
               onPress={handleAuth}
               disabled={loading}
             />
 
-            {/* Bottom Text */}
             <View style={styles.bottomTextContainer}>
               <Text style={styles.bottomText}>
                 {activeTab === 'login' ? t('auth.no_account') : t('auth.have_account')}
@@ -128,6 +108,13 @@ export default function AuthScreen() {
                 onPress={() => handleTabChange(activeTab === 'login' ? 'signup' : 'login')}
               >
                 {activeTab === 'login' ? t('auth.signup') : t('auth.sign_in')}
+              </Text>
+            </View>
+
+            <View style={styles.menuLinkContainer}>
+              <Text style={styles.menuLinkText}>Check menu? </Text>
+              <Text style={styles.menuLinkBtn} onPress={() => router.replace('/landing')}>
+                Click here
               </Text>
             </View>
           </View>
@@ -150,25 +137,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   header: {
-    paddingTop: 10,
-    alignItems: 'flex-end',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingTop: 40,
-  },
-  logoContainer: {
     alignItems: 'center',
-    marginBottom: 50,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   logo: {
     width: 80,
     height: 80,
   },
-  formContainer: {
-    marginBottom: 20,
+  formSection: {
+    marginTop: 8,
   },
   bottomSection: {
+    flex: 1,
+    justifyContent: 'flex-end',
     paddingBottom: 30,
   },
   bottomTextContainer: {
@@ -185,19 +167,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  dividerContainer: {
+  menuLinkContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
+    marginTop: 14,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#5A7365',
-  },
-  dividerText: {
+  menuLinkText: {
     color: '#C5D4CC',
-    fontSize: 12,
-    marginHorizontal: 12,
+    fontSize: 14,
+  },
+  menuLinkBtn: {
+    color: '#FAD979',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

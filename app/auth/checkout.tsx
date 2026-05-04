@@ -303,33 +303,67 @@ export default function CheckoutScreen() {
                     <Text style={styles.dayTitle}>{dayData.dayName}</Text>
                     <Text style={styles.dateText}>{dayData.date}</Text>
 
-                    {allMeals.map((meal, mealIdx) => {
-                      if (!meal) return null;
-                      // Count occurrences of the same meal
-                      const mealCount = allMeals.filter(
-                        (m) => m && m.id === meal.id && m.type === meal.type,
-                      ).length;
+                    {(() => {
+                      // Deduplicate meals and compute counts
+                      const uniqueMeals: typeof allMeals = [];
+                      const counts: { [key: string]: number } = {};
+                      allMeals.forEach((meal) => {
+                        if (!meal) return;
+                        const key = `${meal.id}-${meal.type}`;
+                        if (counts[key] === undefined) {
+                          uniqueMeals.push(meal);
+                          counts[key] = 1;
+                        } else {
+                          counts[key]++;
+                        }
+                      });
 
-                      // Only show first occurrence
-                      const isFirstOccurrence =
-                        allMeals.findIndex(
-                          (m) => m && m.id === meal.id && m.type === meal.type,
-                        ) === mealIdx;
-
-                      if (!isFirstOccurrence) return null;
+                      // Total macros across all meals (count-weighted)
+                      const totalCal = uniqueMeals.reduce((sum, m) => sum + (m?.calories ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
+                      const totalProtein = uniqueMeals.reduce((sum, m) => sum + (m?.protein ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
+                      const totalCarbs = uniqueMeals.reduce((sum, m) => sum + (m?.carbs ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
+                      const totalFat = uniqueMeals.reduce((sum, m) => sum + (m?.fat ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
 
                       return (
-                        <View
-                          key={`${meal.id}-${meal.type}-${mealIdx}`}
-                          style={styles.mealItem}
-                        >
-                          <Text style={styles.mealName}>{meal.name}</Text>
-                          <Text style={styles.mealMultiplier}>
-                            x{mealCount}
-                          </Text>
-                        </View>
+                        <>
+                          {uniqueMeals.map((meal, mealIdx) => {
+                            if (!meal) return null;
+                            const count = counts[`${meal.id}-${meal.type}`] ?? 1;
+                            return (
+                              <View key={`${meal.id}-${meal.type}-${mealIdx}`} style={styles.mealItem}>
+                                <View style={styles.mealRow}>
+                                  <Text style={styles.mealName}>{meal.name}</Text>
+                                  <Text style={styles.mealMultiplier}>{count}x</Text>
+                                </View>
+                                <View style={styles.macroRow}>
+                                  <Text style={styles.macroText}>{t("checkout.cal")}: {meal.calories ?? 0}</Text>
+                                  <Text style={styles.macroDot}>·</Text>
+                                  <Text style={styles.macroText}>{t("checkout.protein")}: {meal.protein ?? 0}g</Text>
+                                  <Text style={styles.macroDot}>·</Text>
+                                  <Text style={styles.macroText}>{t("checkout.carbs")}: {meal.carbs ?? 0}g</Text>
+                                  <Text style={styles.macroDot}>·</Text>
+                                  <Text style={styles.macroText}>{t("checkout.fat")}: {meal.fat ?? 0}g</Text>
+                                </View>
+                              </View>
+                            );
+                          })}
+
+                          {/* Total macros for the day */}
+                          <View style={styles.totalMacroContainer}>
+                            <Text style={styles.totalMacroTitle}>{t("checkout.total_macros")}</Text>
+                            <View style={styles.macroRow}>
+                              <Text style={styles.totalMacroText}>{t("checkout.cal")}: {totalCal}</Text>
+                              <Text style={styles.macroDot}>·</Text>
+                              <Text style={styles.totalMacroText}>{t("checkout.protein")}: {totalProtein}g</Text>
+                              <Text style={styles.macroDot}>·</Text>
+                              <Text style={styles.totalMacroText}>{t("checkout.carbs")}: {totalCarbs}g</Text>
+                              <Text style={styles.macroDot}>·</Text>
+                              <Text style={styles.totalMacroText}>{t("checkout.fat")}: {totalFat}g</Text>
+                            </View>
+                          </View>
+                        </>
                       );
-                    })}
+                    })()}
                   </View>
                 );
               })}
@@ -498,20 +532,64 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   mealItem: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#D4E8E0",
+  },
+  mealRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
+    marginBottom: 4,
   },
   mealName: {
     fontSize: 14,
-    fontWeight: "400",
-    color: "#344225",
-  },
-  mealMultiplier: {
-    fontSize: 14,
     fontWeight: "500",
     color: "#344225",
+    flex: 1,
+    marginRight: 8,
+  },
+  mealMultiplier: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1A6F46",
+    backgroundColor: "#D4E8E0",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  macroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  macroText: {
+    fontSize: 11,
+    color: "#5A7A6A",
+    fontWeight: "400",
+  },
+  macroDot: {
+    fontSize: 11,
+    color: "#9DB8AC",
+  },
+  totalMacroContainer: {
+    marginTop: 12,
+    paddingTop: 10,
+    backgroundColor: "#344225",
+    borderRadius: 8,
+    padding: 10,
+  },
+  totalMacroTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  totalMacroText: {
+    fontSize: 11,
+    color: "#B8D5C5",
+    fontWeight: "500",
   },
   promoSection: {
     flexDirection: "row",

@@ -389,6 +389,25 @@ export const getUserById = async (userId: number): Promise<User> => {
 };
 
 /**
+ * Logout user — invalidates the current Sanctum token on the server
+ * POST /api/v1/logout
+ * Auth: Required (Bearer token is auto-attached by apiClient)
+ */
+export const logoutUser = async (): Promise<void> => {
+  try {
+    await apiClient.post<{ success: boolean; message: string }>(
+      API_ENDPOINTS.LOGOUT,
+      {},
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to logout: ${error.message}`);
+    }
+    throw new Error("Failed to logout: Unknown error");
+  }
+};
+
+/**
  * Update user
  */
 export const updateUser = async (

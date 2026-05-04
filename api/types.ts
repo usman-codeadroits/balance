@@ -11,10 +11,27 @@ export type SubscriptionPlan = {
   price: number;
   meal_count: number;
   snack_count: number;
+  min_days?: number;
+  max_days?: number;
+  no_of_weeks?: number;
   is_active: number;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+};
+
+// Branch & Area Types
+export type Branch = {
+  id: number;
+  name: string;
+  status: string;
+};
+
+export type Area = {
+  id: number;
+  name: string;
+  delivery_charges: string;
+  status: string;
 };
 
 export type SubscriptionPlansResponse = {

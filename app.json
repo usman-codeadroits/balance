@@ -2,7 +2,7 @@
   "expo": {
     "name": "Balance",
     "slug": "BalanceApp",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/appstore.png",
     "scheme": "balanceapp",

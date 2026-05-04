@@ -1,4 +1,3 @@
-import { getDurations, type Duration } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AuthButtonGreen from "@/components/auth/auth-button-green";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,29 +5,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ActivityIndicator,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function PlanPageScreen() {
   const { t } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
-  const [selectedDays, setSelectedDays] = useState<number[]>([
-    0, 1, 2, 3, 4, 5,
-  ]); // Default: S, M, T, W, T, F (6 days)
-  const [selectedDuration, setSelectedDuration] = useState<Duration | null>(
-    null,
-  );
-  const [durations, setDurations] = useState<Duration[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedDaysByWeek, setSelectedDaysByWeek] = useState<number[][]>([]);
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
@@ -36,68 +19,81 @@ export default function PlanPageScreen() {
 
   useEffect(() => {
     loadSelectedPlan();
-    fetchDurations();
   }, []);
 
   const loadSelectedPlan = async () => {
     try {
       const planData = await AsyncStorage.getItem("selectedPlan");
       if (planData) {
-        setSelectedPlan(JSON.parse(planData));
+        const plan = JSON.parse(planData);
+        setSelectedPlan(plan);
+        const noOfWeeks = Math.max(1, Number(plan.no_of_weeks ?? 1));
+        // Start with no pre-selected days so users can freely choose their own combination.
+        setSelectedDaysByWeek(Array.from({ length: noOfWeeks }, () => []));
       }
     } catch (error) {
     }
   };
 
-  const fetchDurations = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const durationsData = await getDurations();
-      setDurations(durationsData);
-      // Auto-select first duration if available
-      if (durationsData.length > 0) {
-        setSelectedDuration(durationsData[0]);
-      }
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : t("plan_page.error");
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const planMinDays = selectedPlan?.min_days ?? 5;
+  const planMaxDays = selectedPlan?.max_days ?? 6;
+  const planWeeks = Math.max(
+    1,
+    Number(selectedPlan?.no_of_weeks ?? selectedDaysByWeek.length ?? 1),
+  );
 
-  const handleDayToggle = (dayIndex: number) => {
-    setSelectedDays((prev) => {
-      const isSelected = prev.includes(dayIndex);
-
+  const handleDayToggle = (weekIndex: number, dayIndex: number) => {
+    setSelectedDaysByWeek((prev) => {
+      const currentWeekDays = prev[weekIndex] ?? [];
+      const isSelected = currentWeekDays.includes(dayIndex);
       if (isSelected) {
-        // If unselecting, ensure at least 5 days remain
-        const newSelection = prev.filter((d) => d !== dayIndex);
-        return newSelection.length >= 5 ? newSelection : prev;
+        const next = [...prev];
+        next[weekIndex] = currentWeekDays.filter((d) => d !== dayIndex);
+        return next;
       } else {
-        // If selecting, ensure max 6 days
-        if (prev.length >= 6) {
-          return prev;
-        }
-        return [...prev, dayIndex].sort((a, b) => a - b);
+        if (currentWeekDays.length >= planMaxDays) return prev;
+        const next = [...prev];
+        next[weekIndex] = [...currentWeekDays, dayIndex].sort((a, b) => a - b);
+        return next;
       }
     });
   };
 
   const handleContinue = async () => {
-    if (!selectedDuration) {
-      alert(t("plan_page.select_duration_error"));
+    const invalidWeekIndex = selectedDaysByWeek.findIndex(
+      (weekDays) => weekDays.length < planMinDays || weekDays.length > planMaxDays,
+    );
+    if (invalidWeekIndex !== -1) {
+      const selectedCount = selectedDaysByWeek[invalidWeekIndex]?.length ?? 0;
+      Alert.alert(
+        t("plan_page.validation_title"),
+        selectedCount < planMinDays
+          ? t("plan_page.select_min_days_error", {
+              min: planMinDays,
+              week: invalidWeekIndex + 1,
+            })
+          : t("plan_page.select_max_days_error", {
+              max: planMaxDays,
+              week: invalidWeekIndex + 1,
+            }),
+      );
       return;
     }
+
+    const durationFromPlan = {
+      id: Number(selectedPlan?.no_of_weeks ?? 1),
+      title: `${selectedPlan?.no_of_weeks ?? 1} Week${Number(selectedPlan?.no_of_weeks ?? 1) > 1 ? "s" : ""}`,
+      description: selectedPlan?.description ?? "",
+      no_of_weeks: Number(selectedPlan?.no_of_weeks ?? 1),
+    };
+
     try {
-      await AsyncStorage.setItem("selectedDays", JSON.stringify(selectedDays));
+      // Keep legacy selectedDays for existing screens that still use one weekly pattern.
+      await AsyncStorage.setItem("selectedDays", JSON.stringify(selectedDaysByWeek[0] ?? []));
+      await AsyncStorage.setItem("selectedDaysByWeek", JSON.stringify(selectedDaysByWeek));
       await AsyncStorage.setItem(
         "selectedDuration",
-        JSON.stringify(selectedDuration),
+        JSON.stringify(durationFromPlan),
       );
       router.push("/auth/start-date" as any);
     } catch (error) {
@@ -118,12 +114,9 @@ export default function PlanPageScreen() {
     return 0;
   };
 
-  const calculateDurationPrice = (duration: Duration | null) => {
-    if (!duration || !duration.no_of_weeks)
-      return { total: 0, perWeek: 0, base: 0 };
-
+  const calculateDurationPrice = () => {
     const basePrice = getBasePlanPrice(); // Base plan price (for one week)
-    const totalPrice = basePrice * duration.no_of_weeks; // Scale only by weeks
+    const totalPrice = basePrice * planWeeks; // Scale only by weeks
 
     return { total: totalPrice, perWeek: basePrice, base: basePrice };
   };
@@ -156,128 +149,71 @@ export default function PlanPageScreen() {
             </View>
           </View>
 
-          {/* Days Selection - Show for all users */}
+          {/* Days Selection by Week */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {t("plan_page.days_question")}
-            </Text>
+            <Text style={styles.sectionTitle}>{t("plan_page.days_question")}</Text>
             <Text style={styles.sectionSubtitle}>
-              {t("plan_page.days_limit")}
+              {t("plan_page.days_limit_range", { min: planMinDays, max: planMaxDays })}
             </Text>
 
-            <View style={styles.daysContainer}>
-              {dayLabels.map((label, index) => {
-                const isSelected = selectedDays.includes(index);
-                // Disable if: trying to select when already at max (6), or trying to deselect when at min (5)
-                const isDisabled =
-                  (!isSelected && selectedDays.length >= 6) ||
-                  (isSelected && selectedDays.length <= 5);
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dayCircle,
-                      isSelected && styles.dayCircleSelected,
-                      isDisabled && !isSelected && styles.dayCircleDisabled,
-                    ]}
-                    onPress={() => handleDayToggle(index)}
-                    activeOpacity={0.7}
-                    disabled={isDisabled}
-                  >
-                    <Text
-                      style={[
-                        styles.dayText,
-                        isSelected && styles.dayTextSelected,
-                        isDisabled && !isSelected && styles.dayTextDisabled,
-                      ]}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.billingCard}>
+              <View style={styles.billingHeaderRow}>
+                <View style={{ flexDirection: "column" }}>
+                  <Text style={styles.billingTitle}>
+                    {`${planWeeks} Week${planWeeks > 1 ? "s" : ""}`}
+                  </Text>
+                  <Text style={styles.billingDaily}>
+                    KWD {calculateDurationPrice().perWeek.toFixed(2)}{t("plan_page.per_week")}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "column", alignItems: "flex-end" }}>
+                  <Text style={styles.billingPrice}>
+                    KWD {calculateDurationPrice().total.toFixed(2)}
+                  </Text>
+                  <Text style={styles.billingPeriod}>
+                    {t("plan_page.per_period", { period: `${planWeeks} weeks` })}
+                  </Text>
+                </View>
+              </View>
             </View>
-          </View>
 
-          {/* Durations Selection */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t("plan_page.billing_cycle")}</Text>
-
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#344225" />
-                <Text style={styles.loadingText}>{t("plan_page.loading")}</Text>
-              </View>
-            ) : error ? (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity
-                  onPress={fetchDurations}
-                  style={styles.retryButton}
-                >
-                  <Text style={styles.retryButtonText}>{t("plan_page.retry")}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              durations.map((duration) => {
-                const durationPrice = calculateDurationPrice(duration);
-                const isSelected = selectedDuration?.id === duration.id;
-
-                return (
-                  <TouchableOpacity
-                    key={duration.id}
-                    style={[
-                      styles.billingCard,
-                      isSelected && styles.billingCardSelected,
-                    ]}
-                    onPress={() => setSelectedDuration(duration)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.billingContent}>
-                      <View style={styles.billingHeaderRow}>
-                        <View style={{ flexDirection: "column" }}>
-                          <Text style={styles.billingTitle}>
-                            {duration.title}
-                          </Text>
-                          <Text style={styles.billingDaily}>
-                            KWD {durationPrice.perWeek.toFixed(2)}{t("plan_page.per_week")}
-                          </Text>
-                        </View>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
+            {Array.from({ length: planWeeks }).map((_, weekIndex) => {
+              const weekDays = selectedDaysByWeek[weekIndex] ?? [];
+              return (
+                <View key={weekIndex} style={styles.weekSection}>
+                  <Text style={styles.weekLabel}>{`Week ${weekIndex + 1}`}</Text>
+                  <View style={styles.daysContainer}>
+                    {dayLabels.map((label, dayIndex) => {
+                      const isSelected = weekDays.includes(dayIndex);
+                      const isDisabled = !isSelected && weekDays.length >= planMaxDays;
+                      return (
+                        <TouchableOpacity
+                          key={`${weekIndex}-${dayIndex}`}
+                          style={[
+                            styles.dayCircle,
+                            isSelected && styles.dayCircleSelected,
+                            isDisabled && !isSelected && styles.dayCircleDisabled,
+                          ]}
+                          onPress={() => handleDayToggle(weekIndex, dayIndex)}
+                          activeOpacity={0.7}
+                          disabled={isDisabled}
                         >
-                          <View
-                            style={{
-                              flexDirection: "column",
-                              alignItems: "flex-end",
-                            }}
-                          >
-                            <Text style={styles.billingPrice}>
-                              KWD {durationPrice.total.toFixed(2)}
-                            </Text>
-                            <Text style={styles.billingPeriod}>
-                              {t("plan_page.per_period", { period: duration.title.toLowerCase() })}
-                            </Text>
-                          </View>
-                          <View
+                          <Text
                             style={[
-                              styles.radioOuter,
-                              isSelected && styles.radioOuterSelected,
+                              styles.dayText,
+                              isSelected && styles.dayTextSelected,
+                              isDisabled && styles.dayTextDisabled,
                             ]}
                           >
-                            {isSelected && <View style={styles.radioInner} />}
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
-            )}
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
 
@@ -393,9 +329,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  billingCardSelected: {
-    borderColor: "#FAD979",
-    backgroundColor: "#344225",
+  weekSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#B8D5C5",
+  },
+  weekLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 12,
   },
   billingContent: {
     gap: 4,
@@ -409,25 +353,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
-  },
-  radioOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-  },
-  radioOuterSelected: {
-    borderColor: "#FFFFFF",
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#FFFFFF",
   },
   billingPrice: {
     fontSize: 14,
@@ -446,37 +371,5 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     paddingHorizontal: 24,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#6B7F75",
-  },
-  errorContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 40,
-  },
-  errorText: {
-    fontSize: 14,
-    color: "#D32F2F",
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: "#344225",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

@@ -1,4 +1,4 @@
-import { getMeals, type Meal } from "@/api";
+import { getMeals, logoutUser, type Meal } from "@/api";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { resetAppCache } from "@/utils/reset-app-cache";
 import { Ionicons } from "@expo/vector-icons";
@@ -88,9 +88,12 @@ export default function MainScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              // Invalidate the server-side token (best-effort — proceed even if API fails)
+              await logoutUser().catch(() => {});
               await resetAppCache();
-            } finally {
               router.replace("/auth");
+            } catch (error) {
+              Alert.alert(t("common.error"), t("profile.logout_error"));
             }
           },
         },
@@ -115,9 +118,15 @@ export default function MainScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.titleContainer, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={styles.titleContainer}>
           <View style={styles.headerSpacer} />
-          <Text style={styles.headerTitle}>Balance</Text>
+          <View style={styles.headerLogoWrap}>
+            <Image
+              source={require("@/assets/images/balance-text.png")}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+          </View>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -293,18 +302,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: "5%",
-    paddingBottom: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
     backgroundColor: "#DCE6E0",
   },
   headerSpacer: {
     width: 36,
   },
-  headerTitle: {
+  headerLogoWrap: {
     flex: 1,
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#344225",
-    textAlign: "center",
+    alignItems: "center",
+  },
+  headerLogo: {
+    width: "60%",
+    height: 32,
   },
   logoutButton: {
     width: 36,

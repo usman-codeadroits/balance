@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BottomTabNav from "@/components/bottom-tab-nav";
+import { logoutUser } from "@/api";
 import { resetAppCache } from "@/utils/reset-app-cache";
 
 import { useTranslation } from "react-i18next";
@@ -92,13 +93,14 @@ export default function ProfileScreen() {
         onPress: async () => {
           setIsLoggingOut(true);
           try {
+            // Invalidate the server-side token (best-effort — proceed even if API fails)
+            await logoutUser().catch(() => {});
             await resetAppCache();
+            router.replace("/auth");
           } catch (error) {
             Alert.alert(t("profile.error"), t("profile.logout_error"));
           } finally {
             setIsLoggingOut(false);
-            // Navigate to auth screen (login / sign up)
-            router.replace("/auth");
           }
         },
       },

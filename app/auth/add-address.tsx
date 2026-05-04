@@ -1,11 +1,15 @@
-import type { Duration } from "@/api";
+import type { Area, Branch, Duration } from "@/api";
+import { getBranchAreas, getBranches } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   Alert,
+  FlatList,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -21,29 +25,34 @@ export default function AddAddressScreen() {
   const { t } = useTranslation();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [areas, setAreas] = useState("");
   const [blockNumber, setBlockNumber] = useState("");
   const [street, setStreet] = useState("");
   const [houseBuliding, setHouseBuliding] = useState("");
   const [floorApartment, setFloorApartment] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [remarks, setRemarks] = useState("");
-  const [addressCategory, setAddressCategory] = useState<"home" | "office">(
-    "home",
-  );
+  const [addressCategory, setAddressCategory] = useState<"home" | "office">("home");
   const [isPrimary, setIsPrimary] = useState(true);
-  const [deliveryTime, setDeliveryTime] = useState<"4pm-8pm" | "8pm-12am">(
-    "4pm-8pm",
-  );
+  const [deliveryTime, setDeliveryTime] = useState<"4pm-8pm" | "8pm-12am">("4pm-8pm");
   const [loading, setLoading] = useState(false);
+
+  // Branch & Area state
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [areasLoading, setAreasLoading] = useState(false);
+  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [showAreaModal, setShowAreaModal] = useState(false);
+
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
-  // Pre-fill with dummy data
   useEffect(() => {
+    fetchBranches();
     setFirstName("John");
     setLastName("Doe");
-    setAreas("Kuwait City");
     setBlockNumber("5");
     setStreet("Salmiya Street");
     setHouseBuliding("Building 123");
@@ -52,8 +61,35 @@ export default function AddAddressScreen() {
     setRemarks("Please ring the doorbell");
   }, []);
 
+  const fetchBranches = async () => {
+    try {
+      setBranchesLoading(true);
+      const data = await getBranches();
+      setBranches(data);
+    } catch {
+      // silently fail — branch selection remains optional UI
+    } finally {
+      setBranchesLoading(false);
+    }
+  };
+
+  const handleSelectBranch = async (branch: Branch) => {
+    setSelectedBranch(branch);
+    setSelectedArea(null);
+    setAreas([]);
+    setShowBranchModal(false);
+    try {
+      setAreasLoading(true);
+      const data = await getBranchAreas(branch.id);
+      setAreas(data);
+    } catch {
+      // silently fail
+    } finally {
+      setAreasLoading(false);
+    }
+  };
+
   const handleCheckout = async () => {
-    // Validate all required fields
     if (!firstName.trim()) {
       Alert.alert(t("common.error"), t("address.validation.first_name"));
       return;
@@ -62,7 +98,7 @@ export default function AddAddressScreen() {
       Alert.alert(t("common.error"), t("address.validation.last_name"));
       return;
     }
-    if (!areas.trim()) {
+    if (!selectedArea) {
       Alert.alert(t("common.error"), t("address.validation.areas"));
       return;
     }
@@ -86,7 +122,6 @@ export default function AddAddressScreen() {
       Alert.alert(t("common.error"), t("address.validation.phone"));
       return;
     }
-    // Validate phone number format (basic validation)
     if (phoneNumber.length < 8) {
       Alert.alert(t("common.error"), t("address.validation.phone_invalid"));
       return;
@@ -114,10 +149,7 @@ export default function AddAddressScreen() {
       const appliedCoupon = couponData ? JSON.parse(couponData) : null;
 
       if (!selectedPlan || !selectedPlan.id) {
-        Alert.alert(
-          t("common.error"),
-          "Subscription plan data is invalid. Please select a plan again.",
-        );
+        Alert.alert(t("common.error"), "Subscription plan data is invalid. Please select a plan again.");
         return;
       }
 
@@ -137,9 +169,7 @@ export default function AddAddressScreen() {
           ? selectedPlan.pricePerDay
           : typeof selectedPlan.price === "number"
             ? selectedPlan.price
-            : parseFloat(
-              String(selectedPlan.price || "").replace(/[^0-9.]/g, ""),
-            ) || 0;
+            : parseFloat(String(selectedPlan.price || "").replace(/[^0-9.]/g, "")) || 0;
 
       const calculateDiscount = (price: number) => {
         if (!appliedCoupon?.data) return 0;
@@ -153,27 +183,12 @@ export default function AddAddressScreen() {
       const basePlanPrice = basePrice * selectedDuration.no_of_weeks;
       const discountAmount = calculateDiscount(basePlanPrice);
       const planPrice = Math.max(0, basePlanPrice - discountAmount);
-      const vat = 0;
       const totalPrice = planPrice;
 
-      const dayNames = [
-        "sunday",
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-      ];
-      const selectedDaysString = selectedDays
-        .map((dayIndex) => dayNames[dayIndex])
-        .join(",");
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const selectedDaysString = selectedDays.map((dayIndex) => dayNames[dayIndex]).join(",");
 
-      const mealsArray: {
-        day: string;
-        meal_id: number;
-        type: "is meal" | "is snack";
-      }[] = [];
+      const mealsArray: { day: string; meal_id: number; type: "is meal" | "is snack" }[] = [];
       Object.keys(dayMeals).forEach((dayIndexStr) => {
         const dayIndex = parseInt(dayIndexStr, 10);
         const dayName = dayNames[dayIndex];
@@ -182,73 +197,46 @@ export default function AddAddressScreen() {
         if (dayMealData?.meals) {
           dayMealData.meals.forEach((meal: any) => {
             if (meal?.id) {
-              mealsArray.push({
-                day: dayName,
-                meal_id: parseInt(meal.id, 10),
-                type: "is meal",
-              });
+              mealsArray.push({ day: dayName, meal_id: parseInt(meal.id, 10), type: "is meal" });
             }
           });
         }
-
         if (dayMealData?.snacks) {
           dayMealData.snacks.forEach((snack: any) => {
             if (snack?.id) {
-              mealsArray.push({
-                day: dayName,
-                meal_id: parseInt(snack.id, 10),
-                type: "is snack",
-              });
+              mealsArray.push({ day: dayName, meal_id: parseInt(snack.id, 10), type: "is snack" });
             }
           });
         }
       });
 
-      const formattedStartDate = new Date(startDate)
-        .toISOString()
-        .split("T")[0];
+      const formattedStartDate = new Date(startDate).toISOString().split("T")[0];
 
       let planId: number;
       if (typeof selectedPlan.id === "string") {
         const parsedId = parseInt(selectedPlan.id, 10);
         if (Number.isNaN(parsedId) || parsedId <= 0) {
-          Alert.alert(
-            t("common.error"),
-            "Invalid subscription plan ID. Please select a plan again.",
-          );
+          Alert.alert(t("common.error"), "Invalid subscription plan ID. Please select a plan again.");
           return;
         }
         planId = parsedId;
       } else if (typeof selectedPlan.id === "number") {
         planId = selectedPlan.id;
       } else {
-        Alert.alert(
-          t("common.error"),
-          "Invalid subscription plan ID format. Please select a plan again.",
-        );
+        Alert.alert(t("common.error"), "Invalid subscription plan ID format. Please select a plan again.");
         return;
       }
 
-      const hasPersonalizedPlan = await AsyncStorage.getItem(
-        "hasPersonalizedPlan",
-      );
-      const personalizedProtein = await AsyncStorage.getItem(
-        "personalizedProtein",
-      );
+      const hasPersonalizedPlan = await AsyncStorage.getItem("hasPersonalizedPlan");
+      const personalizedProtein = await AsyncStorage.getItem("personalizedProtein");
       const personalizedCarbs = await AsyncStorage.getItem("personalizedCarbs");
 
       const isPersonalized = hasPersonalizedPlan === "true";
-      const protein =
-        isPersonalized && personalizedProtein
-          ? parseFloat(personalizedProtein)
-          : 0;
-      const carbs =
-        isPersonalized && personalizedCarbs ? parseFloat(personalizedCarbs) : 0;
+      const protein = isPersonalized && personalizedProtein ? parseFloat(personalizedProtein) : 0;
+      const carbs = isPersonalized && personalizedCarbs ? parseFloat(personalizedCarbs) : 0;
 
       const preferredDeliverySlot =
-        deliveryTime === "4pm-8pm"
-          ? "four_pm_to_eight_pm"
-          : "eight_pm_to_midnight";
+        deliveryTime === "4pm-8pm" ? "four_pm_to_eight_pm" : "eight_pm_to_midnight";
 
       const checkoutPayload = {
         user_id: parseInt(userId, 10),
@@ -267,7 +255,7 @@ export default function AddAddressScreen() {
         address: {
           first_name: firstName,
           last_name: lastName,
-          area: areas,
+          area: selectedArea.name,
           block_number: blockNumber,
           street,
           house_building: houseBuliding,
@@ -293,34 +281,18 @@ export default function AddAddressScreen() {
           dayMeals,
           address: checkoutPayload.address,
           planPrice,
-          vat,
+          vat: 0,
           totalPrice,
           discount: discountAmount,
         },
       };
 
-      await AsyncStorage.setItem(
-        "pendingCheckoutData",
-        JSON.stringify(checkoutDraft),
-      );
-
-      Alert.alert(
-        t("address.payment_prompt_title"),
-        t("address.payment_prompt_msg"),
-        [
-          {
-            text: t("address.continue"),
-            onPress: () => router.push("/auth/payment" as any),
-          },
-        ],
-        { cancelable: false },
-      );
+      await AsyncStorage.setItem("pendingCheckoutData", JSON.stringify(checkoutDraft));
+      router.push("/auth/payment" as any);
     } catch (error) {
       Alert.alert(
         t("common.error"),
-        error instanceof Error
-          ? error.message
-          : t("checkout.error_validate_failed"),
+        error instanceof Error ? error.message : t("checkout.error_validate_failed"),
       );
     } finally {
       setLoading(false);
@@ -330,12 +302,8 @@ export default function AddAddressScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Header with Title */}
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
           <Text style={styles.title}>{t("address.title")}</Text>
@@ -346,7 +314,6 @@ export default function AddAddressScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Form Inputs */}
           <TextInput
             style={styles.input}
             placeholder={t("address.first_name")}
@@ -363,13 +330,37 @@ export default function AddAddressScreen() {
             onChangeText={setLastName}
           />
 
-          <TextInput
-            style={styles.input}
-            placeholder={t("address.areas")}
-            placeholderTextColor="#6B7F75"
-            value={areas}
-            onChangeText={setAreas}
-          />
+          {/* Branch Picker */}
+          <TouchableOpacity
+            style={styles.pickerButton}
+            onPress={() => setShowBranchModal(true)}
+            disabled={branchesLoading}
+          >
+            {branchesLoading ? (
+              <ActivityIndicator size="small" color="#6B7F75" />
+            ) : (
+              <Text style={[styles.pickerText, !selectedBranch && styles.pickerPlaceholder]}>
+                {selectedBranch ? selectedBranch.name : t("address.select_branch")}
+              </Text>
+            )}
+            <Text style={styles.pickerChevron}>▾</Text>
+          </TouchableOpacity>
+
+          {/* Area Picker */}
+          <TouchableOpacity
+            style={[styles.pickerButton, !selectedBranch && styles.pickerDisabled]}
+            onPress={() => selectedBranch && setShowAreaModal(true)}
+            disabled={!selectedBranch || areasLoading}
+          >
+            {areasLoading ? (
+              <ActivityIndicator size="small" color="#6B7F75" />
+            ) : (
+              <Text style={[styles.pickerText, !selectedArea && styles.pickerPlaceholder]}>
+                {selectedArea ? selectedArea.name : t("address.select_area")}
+              </Text>
+            )}
+            <Text style={styles.pickerChevron}>▾</Text>
+          </TouchableOpacity>
 
           <TextInput
             style={styles.input}
@@ -425,26 +416,16 @@ export default function AddAddressScreen() {
           {/* Address Category */}
           <Text style={styles.sectionLabel}>{t("address.category_title")}</Text>
           <View style={styles.radioGroup}>
-            <TouchableOpacity
-              style={styles.radioOption}
-              onPress={() => setAddressCategory("home")}
-            >
+            <TouchableOpacity style={styles.radioOption} onPress={() => setAddressCategory("home")}>
               <View style={styles.radioOuter}>
-                {addressCategory === "home" && (
-                  <View style={styles.radioInner} />
-                )}
+                {addressCategory === "home" && <View style={styles.radioInner} />}
               </View>
               <Text style={styles.radioLabel}>{t("address.home")}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.radioOption}
-              onPress={() => setAddressCategory("office")}
-            >
+            <TouchableOpacity style={styles.radioOption} onPress={() => setAddressCategory("office")}>
               <View style={styles.radioOuter}>
-                {addressCategory === "office" && (
-                  <View style={styles.radioInner} />
-                )}
+                {addressCategory === "office" && <View style={styles.radioInner} />}
               </View>
               <Text style={styles.radioLabel}>{t("address.office")}</Text>
             </TouchableOpacity>
@@ -462,41 +443,22 @@ export default function AddAddressScreen() {
           </View>
 
           {/* Delivery Time */}
-          <Text style={styles.sectionLabel}>
-            {t("address.delivery_time_title")}
-          </Text>
+          <Text style={styles.sectionLabel}>{t("address.delivery_time_title")}</Text>
           <View style={styles.timeButtonGroup}>
             <TouchableOpacity
-              style={[
-                styles.timeButton,
-                deliveryTime === "4pm-8pm" && styles.timeButtonActiveYellow,
-              ]}
+              style={[styles.timeButton, deliveryTime === "4pm-8pm" && styles.timeButtonActiveYellow]}
               onPress={() => setDeliveryTime("4pm-8pm")}
             >
-              <Text
-                style={[
-                  styles.timeButtonText,
-                  deliveryTime === "4pm-8pm" && styles.timeButtonTextActive,
-                ]}
-              >
+              <Text style={[styles.timeButtonText, deliveryTime === "4pm-8pm" && styles.timeButtonTextActive]}>
                 {t("address.time_4_8")}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.timeButton,
-                deliveryTime === "8pm-12am" && styles.timeButtonActiveGreen,
-              ]}
+              style={[styles.timeButton, deliveryTime === "8pm-12am" && styles.timeButtonActiveGreen]}
               onPress={() => setDeliveryTime("8pm-12am")}
             >
-              <Text
-                style={[
-                  styles.timeButtonTextGreen,
-                  deliveryTime === "8pm-12am" &&
-                  styles.timeButtonTextActiveWhite,
-                ]}
-              >
+              <Text style={[styles.timeButtonTextGreen, deliveryTime === "8pm-12am" && styles.timeButtonTextActiveWhite]}>
                 {t("address.time_8_12")}
               </Text>
             </TouchableOpacity>
@@ -506,10 +468,7 @@ export default function AddAddressScreen() {
         {/* Checkout Button */}
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TouchableOpacity
-            style={[
-              styles.checkoutButton,
-              loading && styles.checkoutButtonDisabled,
-            ]}
+            style={[styles.checkoutButton, loading && styles.checkoutButtonDisabled]}
             onPress={handleCheckout}
             disabled={loading}
           >
@@ -519,18 +478,71 @@ export default function AddAddressScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Branch Modal */}
+      <Modal visible={showBranchModal} transparent animationType="slide" onRequestClose={() => setShowBranchModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t("address.select_branch")}</Text>
+              <TouchableOpacity onPress={() => setShowBranchModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={branches}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.modalItem, selectedBranch?.id === item.id && styles.modalItemSelected]}
+                  onPress={() => handleSelectBranch(item)}
+                >
+                  <Text style={[styles.modalItemText, selectedBranch?.id === item.id && styles.modalItemTextSelected]}>
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.modalEmpty}>{t("address.no_branches")}</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Area Modal */}
+      <Modal visible={showAreaModal} transparent animationType="slide" onRequestClose={() => setShowAreaModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t("address.select_area")}</Text>
+              <TouchableOpacity onPress={() => setShowAreaModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={areas}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.modalItem, selectedArea?.id === item.id && styles.modalItemSelected]}
+                  onPress={() => { setSelectedArea(item); setShowAreaModal(false); }}
+                >
+                  <Text style={[styles.modalItemText, selectedArea?.id === item.id && styles.modalItemTextSelected]}>
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.modalEmpty}>{t("address.no_areas")}</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#D4E8E0",
-  },
-  content: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: "#D4E8E0" },
+  content: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -546,21 +558,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  backButtonText: {
-    fontSize: 20,
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  placeholder: {
-    width: 40,
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: "5%",
-    paddingBottom: 120,
-  },
+  backButtonText: { fontSize: 20, color: "#FFFFFF", fontWeight: "600" },
+  scrollContainer: { flex: 1 },
+  scrollContent: { paddingHorizontal: "5%", paddingBottom: 120 },
   title: {
     fontSize: 24,
     fontWeight: "700",
@@ -579,6 +579,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#B8D5C5",
   },
+  pickerButton: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#B8D5C5",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pickerDisabled: { opacity: 0.5 },
+  pickerText: { fontSize: 14, color: "#344225", flex: 1 },
+  pickerPlaceholder: { color: "#6B7F75" },
+  pickerChevron: { fontSize: 16, color: "#6B7F75", marginLeft: 8 },
   sectionLabel: {
     fontSize: 14,
     fontWeight: "600",
@@ -586,16 +602,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
   },
-  radioGroup: {
-    flexDirection: "row",
-    gap: 24,
-    marginBottom: 16,
-  },
-  radioOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  radioGroup: { flexDirection: "row", gap: 24, marginBottom: 16 },
+  radioOption: { flexDirection: "row", alignItems: "center", gap: 8 },
   radioOuter: {
     width: 20,
     height: 20,
@@ -605,17 +613,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#344225",
-  },
-  radioLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#344225",
-  },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#344225" },
+  radioLabel: { fontSize: 14, fontWeight: "500", color: "#344225" },
   switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -623,16 +622,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingVertical: 8,
   },
-  switchLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#344225",
-  },
-  timeButtonGroup: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
+  switchLabel: { fontSize: 14, fontWeight: "500", color: "#344225" },
+  timeButtonGroup: { flexDirection: "row", gap: 12, marginBottom: 20 },
   timeButton: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -642,30 +633,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#B8D5C5",
   },
-  timeButtonActiveYellow: {
-    backgroundColor: "#FAD979",
-    borderColor: "#FAD979",
-  },
-  timeButtonActiveGreen: {
-    backgroundColor: "#344225",
-    borderColor: "#344225",
-  },
-  timeButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#344225",
-  },
-  timeButtonTextGreen: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#344225",
-  },
-  timeButtonTextActive: {
-    color: "#344225",
-  },
-  timeButtonTextActiveWhite: {
-    color: "#FFFFFF",
-  },
+  timeButtonActiveYellow: { backgroundColor: "#FAD979", borderColor: "#FAD979" },
+  timeButtonActiveGreen: { backgroundColor: "#344225", borderColor: "#344225" },
+  timeButtonText: { fontSize: 14, fontWeight: "600", color: "#344225" },
+  timeButtonTextGreen: { fontSize: 14, fontWeight: "600", color: "#344225" },
+  timeButtonTextActive: { color: "#344225" },
+  timeButtonTextActiveWhite: { color: "#FFFFFF" },
   footer: {
     position: "absolute",
     bottom: 0,
@@ -686,12 +659,46 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  checkoutButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
+  checkoutButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
+  checkoutButtonDisabled: { opacity: 0.6 },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
   },
-  checkoutButtonDisabled: {
-    opacity: 0.6,
+  modalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "60%",
+    paddingBottom: 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0EDE6",
+  },
+  modalTitle: { fontSize: 16, fontWeight: "700", color: "#344225" },
+  modalClose: { fontSize: 18, color: "#6B7F75", fontWeight: "600" },
+  modalItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F7F3",
+  },
+  modalItemSelected: { backgroundColor: "#E8F4EC" },
+  modalItemText: { fontSize: 14, color: "#344225" },
+  modalItemTextSelected: { fontWeight: "700", color: "#344225" },
+  modalEmpty: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    fontSize: 14,
+    color: "#6B7F75",
+    textAlign: "center",
   },
 });

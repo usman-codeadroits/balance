@@ -11,10 +11,13 @@ export type MealPlan = {
   id: string;
   title: string;
   price: string;
-  pricePerDay: number; // Store numeric price for calculations
+  pricePerDay: number;
   description: string;
   meal_count: number;
   snack_count: number;
+  min_days?: number;
+  max_days?: number;
+  no_of_weeks?: number;
   isPersonalized?: boolean;
 };
 
@@ -64,6 +67,9 @@ export const getSubscriptionPlans = async (): Promise<MealPlan[]> => {
           description: plan.description || `Meal count: ${plan.meal_count}`,
           meal_count: plan.meal_count ?? 0,
           snack_count: plan.snack_count ?? 0,
+          min_days: plan.min_days,
+          max_days: plan.max_days,
+          no_of_weeks: plan.no_of_weeks,
           isPersonalized: false,
         };
         

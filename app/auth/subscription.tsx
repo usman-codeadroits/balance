@@ -275,11 +275,9 @@ export default function SubscriptionScreen() {
               {/* API Plans */}
               {mealPlans.map((plan) => (
                 <View key={plan.id} style={styles.planCard}>
-                  <View style={styles.planContentRow}>
+                  <View style={styles.planContentColumn}>
                     <Text style={styles.planTitle}>{plan.title}</Text>
-                    <Text style={styles.planPrice}>
-                      {formatPlanPrice(plan)}
-                    </Text>
+                    <Text style={styles.planPrice}>{formatPlanPrice(plan)}</Text>
                   </View>
                   <Text style={styles.planDescription}>
                     {t("subscription_screen.choose_prefix")} {plan.meal_count} {plan.meal_count > 1 ? t("subscription_screen.meals_label_plural") : t("subscription_screen.meals_label")} + {plan.snack_count} {plan.snack_count > 1 ? t("subscription_screen.snacks_label_plural") : t("subscription_screen.snacks_label")} {t("subscription_screen.per_day")}
@@ -380,9 +378,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     paddingHorizontal: 24,
     paddingBottom: 20,
+    gap: 12,
   },
   backButton: {
     width: 40,
@@ -396,6 +395,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#344225",
+    textAlign: "left",
   },
   scrollContainer: {
     flex: 1,
@@ -410,10 +410,9 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
   },
-  planContentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  planContentColumn: {
+    flexDirection: "column",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   planTitle: {

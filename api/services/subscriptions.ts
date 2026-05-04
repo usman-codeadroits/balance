@@ -326,6 +326,30 @@ export type UserSubscriptionSummary = {
   price: string;
   subcrption_plans: SubscriptionPlan;
   duration: Duration;
+  is_paused?: boolean;
+  paused_at?: string | null;
+  paused_until?: string | null;
+  total_paused_days?: number;
+};
+
+export type PauseLog = {
+  id: number;
+  action: "pause" | "resume";
+  action_timestamp: string;
+  paused_at: string | null;
+  resumed_at: string | null;
+  paused_days: number;
+  reason: string | null;
+  performed_by_type: "user" | "admin";
+  performed_by_name: string;
+  notes: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type PauseLogsResponse = {
+  success: boolean;
+  subscription_id: number;
+  pause_logs: PauseLog[];
 };
 
 export type MySubscriptionsResponse = {
@@ -369,6 +393,10 @@ export type UserSubscriptionDetails = {
   currency: string;
   status: string;
   is_personalized: boolean;
+  is_paused?: boolean;
+  paused_at?: string | null;
+  paused_until?: string | null;
+  total_paused_days?: number;
   address: SubscriptionAddress;
   subscription_days: SubscriptionDay[];
 };
@@ -415,5 +443,26 @@ export const getSubscriptionDetails = async (
       throw new Error(`Failed to fetch subscription details: ${error.message}`);
     }
     throw new Error("Failed to fetch subscription details: Unknown error");
+  }
+};
+
+/**
+ * Get pause logs for a subscription
+ * @param subscriptionId - The subscription ID
+ * @returns Promise with pause logs
+ */
+export const getSubscriptionPauseLogs = async (
+  subscriptionId: number,
+): Promise<PauseLogsResponse> => {
+  try {
+    const response = await apiClient.get<PauseLogsResponse>(
+      `${API_ENDPOINTS.SUBSCRIPTION_PAUSE_LOGS}/${subscriptionId}/pause-logs`,
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch pause logs: ${error.message}`);
+    }
+    throw new Error("Failed to fetch pause logs: Unknown error");
   }
 };

@@ -13,6 +13,8 @@ export { API_CONFIG, API_ENDPOINTS } from "./config";
 export type {
     ApiError,
     ApiResponse,
+    Area,
+    Branch,
     Duration,
     DurationsResponse,
     SubscriptionPlan,
@@ -26,6 +28,7 @@ export type {
     ValidateCouponResponse,
     ValidateCouponResponseData
 } from "./services/coupons";
+export { getBranchAreas, getBranches } from "./services/branches";
 export { getDurationById, getDurations } from "./services/durations";
 export { initiateHesabePayment } from "./services/hesabe";
 export type {
@@ -45,16 +48,18 @@ export {
     checkoutSubscription,
     getActiveSubscription, getMySubscriptions,
     getSubscriptionDetails, getSubscriptionMeals,
+    getSubscriptionPauseLogs,
     getUserSubscriptions,
     updateSubscriptionMeal
 } from "./services/subscriptions";
 export type {
-    CheckoutRequest, CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, Subscription, Subscription, SubscriptionDetailsResponse, SubscriptionMealsResponse, SubscriptionMealsResponse, UpdateMealRequest, UpdateMealRequest, UpdateMealResponse, UpdateMealResponse, UserSubscriptionDetails, UserSubscriptionSummary
+    CheckoutRequest, CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, PauseLog, PauseLogsResponse, Subscription, Subscription, SubscriptionDetailsResponse, SubscriptionMealsResponse, SubscriptionMealsResponse, UpdateMealRequest, UpdateMealRequest, UpdateMealResponse, UpdateMealResponse, UserSubscriptionDetails, UserSubscriptionSummary
 } from "./services/subscriptions";
 export {
     createUser,
     getUserById,
     loginUser,
+    logoutUser,
     registerUser,
     updateUser
 } from "./services/users";

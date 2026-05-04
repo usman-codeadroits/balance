@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
   PAYMENT_CHECKOUT: "/v1/payment/checkout",
   MY_SUBSCRIPTIONS: "/v1/my-subscriptions",
   MY_SUBSCRIPTION_DETAILS: "/v1/my-subscriptions",
-
-  // Add more endpoints here as needed
+  LOGOUT: "/v1/logout",
+  BRANCHES: "/v1/branches",
+  SUBSCRIPTION_PAUSE_LOGS: "/v1/subscription",
 } as const;

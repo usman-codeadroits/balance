@@ -19,6 +19,7 @@ export default function SplashScreen() {
   const insets = useSafeAreaInsets();
   const [showSecondScreen, setShowSecondScreen] = useState(false);
   const [authState, setAuthState] = useState<AuthState>("loading");
+  const [animationDone, setAnimationDone] = useState(false);
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
 
@@ -39,7 +40,6 @@ export default function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    // Block Android hardware back on splash
     let backHandler: { remove: () => void } | null = null;
     if (Platform.OS === "android" && BackHandler) {
       backHandler = BackHandler.addEventListener("hardwareBackPress", () => true);
@@ -60,7 +60,10 @@ export default function SplashScreen() {
           delay: 300,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        // Both animations finished — safe to navigate now
+        setAnimationDone(true);
+      });
     }, 2500);
 
     return () => {
@@ -69,27 +72,18 @@ export default function SplashScreen() {
     };
   }, [logoOpacity, buttonOpacity]);
 
-  // Once second screen is visible and we know auth state, handle auto-navigation
+  // Navigate only after the full animation completes AND auth state is known
   useEffect(() => {
-    if (!showSecondScreen || authState === "loading") return;
+    if (!animationDone || authState === "loading") return;
 
     if (authState === "authenticated") {
-      // Check if this is a fresh login that should show welcome screen
-      AsyncStorage.getItem("showWelcome").then((showWelcome) => {
-        if (showWelcome === "true") {
-          // Just logged in or onboarding just completed → show welcome
-          router.replace("/welcome");
-        } else {
-          // Returning user → go straight to home without any button press
-          router.replace("/main-screen");
-        }
-      });
+      router.replace("/main-screen");
     }
-    // For unauthenticated, we keep the Next button visible
-  }, [showSecondScreen, authState]);
+    // For unauthenticated, Next button is already visible — no auto-navigate
+  }, [animationDone, authState]);
 
   const handleNext = () => {
-    router.replace("/welcome");
+    router.replace("/auth");
   };
 
   // First screen – just the Balance text

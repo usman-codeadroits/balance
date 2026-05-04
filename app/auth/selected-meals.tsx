@@ -80,6 +80,23 @@ export default function SelectedMealsScreen() {
     }, []),
   );
 
+  const sanitizeCount = (value: unknown): number => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) return 0;
+    return Math.floor(numeric);
+  };
+
+  const sanitizeDays = (value: unknown): number[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((day) => Number(day))
+      .filter(
+        (day, idx, arr) =>
+          Number.isInteger(day) && day >= 0 && day <= 6 && arr.indexOf(day) === idx,
+      )
+      .sort((a, b) => a - b);
+  };
+
   const loadData = async () => {
     try {
       // Check if we're in update mode (active subscription exists)
@@ -113,7 +130,8 @@ export default function SelectedMealsScreen() {
         // Load plan from active subscription
         setSelectedPlan(activeSubscription.plan);
         setSelectedDuration(activeSubscription.duration);
-        setSelectedDays(activeSubscription.days);
+        const normalizedActiveDays = sanitizeDays(activeSubscription.days);
+        setSelectedDays(normalizedActiveDays);
 
         // Build meal IDs map and load existing meals
         const mealIdsMap: { [key: string]: number } = {};
@@ -127,17 +145,15 @@ export default function SelectedMealsScreen() {
           "saturday",
         ];
         const initialDayMeals: { [key: number]: DayMeals } = {};
-        const mealCount =
-          activeSubscription.plan?.meal_count ??
-          activeSubscription.plan?.mealCount ??
-          0;
-        const snackCount =
-          activeSubscription.plan?.snack_count ??
-          activeSubscription.plan?.snackCount ??
-          0;
+        const mealCount = sanitizeCount(
+          activeSubscription.plan?.meal_count ?? activeSubscription.plan?.mealCount,
+        );
+        const snackCount = sanitizeCount(
+          activeSubscription.plan?.snack_count ?? activeSubscription.plan?.snackCount,
+        );
 
         // Initialize all days with empty arrays
-        activeSubscription.days.forEach((dayIndex: number) => {
+        normalizedActiveDays.forEach((dayIndex: number) => {
           initialDayMeals[dayIndex] = {
             meals: new Array(mealCount).fill(null),
             snacks: new Array(snackCount).fill(null),
@@ -149,7 +165,7 @@ export default function SelectedMealsScreen() {
           const dayName = meal.day?.toLowerCase();
           const dayIndex = dayNamesLookup.indexOf(dayName);
 
-          if (dayIndex !== -1 && activeSubscription.days.includes(dayIndex)) {
+          if (dayIndex !== -1 && normalizedActiveDays.includes(dayIndex)) {
             const mealType = meal.type === "is meal" ? "meals" : "snacks";
             const mealIndex =
               mealType === "meals"
@@ -222,7 +238,7 @@ export default function SelectedMealsScreen() {
         // Initialize day meals structure
         const daysData = await AsyncStorage.getItem("selectedDays");
         if (daysData) {
-          const days = JSON.parse(daysData);
+          const days = sanitizeDays(JSON.parse(daysData));
           setSelectedDays(days);
 
           // Load existing meal selections if available (from current session)
@@ -240,8 +256,8 @@ export default function SelectedMealsScreen() {
 
           // Initialize structure - use existing data if valid, otherwise start fresh
           const initialDayMeals: { [key: number]: DayMeals } = {};
-          const mealCount = plan.meal_count ?? plan.mealCount ?? 0;
-          const snackCount = plan.snack_count ?? plan.snackCount ?? 0;
+          const mealCount = sanitizeCount(plan.meal_count ?? plan.mealCount);
+          const snackCount = sanitizeCount(plan.snack_count ?? plan.snackCount);
 
           days.forEach((dayIndex: number) => {
             // Check if existing data matches current plan structure
@@ -411,8 +427,12 @@ export default function SelectedMealsScreen() {
     return total;
   };
 
-  const mealCount = selectedPlan?.meal_count ?? selectedPlan?.mealCount ?? 0;
-  const snackCount = selectedPlan?.snack_count ?? selectedPlan?.snackCount ?? 0;
+  const mealCount = sanitizeCount(
+    selectedPlan?.meal_count ?? selectedPlan?.mealCount,
+  );
+  const snackCount = sanitizeCount(
+    selectedPlan?.snack_count ?? selectedPlan?.snackCount,
+  );
 
   return (
     <SafeAreaView style={styles.container}>

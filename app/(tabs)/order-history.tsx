@@ -116,22 +116,35 @@ export default function OrderHistoryScreen() {
               <>
                 <Text style={styles.sectionTitle}>{t("history.active_subs")}</Text>
                 {activeSubscriptions.map((subscription) => (
-                  <View key={subscription.id} style={styles.orderCard}>
+                  <View
+                    key={subscription.id}
+                    style={[
+                      styles.orderCard,
+                      subscription.is_paused && styles.orderCardPaused,
+                    ]}
+                  >
                     <View style={styles.orderHeader}>
                       <Text style={styles.orderTitle}>
                         {getOrderSummary(subscription)}
                       </Text>
-                      <Text style={styles.orderPrice}>
-                        {subscription.price}
-                      </Text>
+                      <Text style={styles.orderPrice}>{subscription.price}</Text>
                     </View>
-                    <Text style={styles.orderStatus}>{subscription.status}</Text>
+
+                    {/* Status / Pause badge row */}
+                    <View style={styles.statusRow}>
+                      <Text style={styles.orderStatus}>{subscription.status}</Text>
+                      {subscription.is_paused && (
+                        <View style={styles.pauseBadge}>
+                          <Ionicons name="pause-circle" size={13} color="#FFFFFF" />
+                          <Text style={styles.pauseBadgeText}>
+                            Paused by Admin
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
                     <View style={styles.orderFooter}>
-                      <Ionicons
-                        name="calendar-outline"
-                        size={14}
-                        color="#344225"
-                      />
+                      <Ionicons name="calendar-outline" size={14} color="#344225" />
                       <Text style={styles.orderDate}>
                         {formatDate(subscription.start_date)} - {formatDate(subscription.end_date)}
                       </Text>
@@ -290,6 +303,30 @@ const styles = StyleSheet.create({
   orderCardCancelled: {
     borderColor: "#FFB3B3",
   },
+  orderCardPaused: {
+    borderColor: "#FF9800",
+    borderWidth: 2,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  pauseBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#B94A00",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  pauseBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -310,7 +347,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: "#344225",
-    marginBottom: 8,
   },
   orderFooter: {
     flexDirection: "row",

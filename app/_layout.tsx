@@ -49,6 +49,14 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="landing"
+          options={{
+            headerShown: false,
+            gestureEnabled: false,
+            animationTypeForReplace: "push",
+          }}
+        />
+        <Stack.Screen
           name="auth/index"
           options={{
             gestureEnabled: false,
