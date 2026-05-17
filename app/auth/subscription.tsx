@@ -38,8 +38,6 @@ export default function SubscriptionScreen() {
     useState<boolean>(true);
   const [hasPersonalizedPlan, setHasPersonalizedPlan] =
     useState<boolean>(false);
-  const [showPersonalizedPlanCard, setShowPersonalizedPlanCard] =
-    useState<boolean>(true);
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
@@ -77,7 +75,6 @@ export default function SubscriptionScreen() {
         "personalizedCarbs",
         "personalizedMealsPerDay",
         "personalizedSnacksPerDay",
-        "hidePersonalizedPlanCard",
         "personalizedPlanOwner",
       ]);
     } catch (error) {
@@ -86,27 +83,21 @@ export default function SubscriptionScreen() {
 
   const checkPersonalizedPlan = async () => {
     try {
-      const [personalizedPlan, hideFlag, userId, planOwner] = await Promise.all(
-        [
-          AsyncStorage.getItem("hasPersonalizedPlan"),
-          AsyncStorage.getItem("hidePersonalizedPlanCard"),
-          AsyncStorage.getItem("userId"),
-          AsyncStorage.getItem("personalizedPlanOwner"),
-        ],
-      );
+      const [personalizedPlan, userId, planOwner] = await Promise.all([
+        AsyncStorage.getItem("hasPersonalizedPlan"),
+        AsyncStorage.getItem("userId"),
+        AsyncStorage.getItem("personalizedPlanOwner"),
+      ]);
 
       if (userId && planOwner && planOwner !== userId) {
         await clearPersonalizedPlanCache();
         setHasPersonalizedPlan(false);
-        setShowPersonalizedPlanCard(true);
         return;
       }
 
       setHasPersonalizedPlan(personalizedPlan === "true");
-      setShowPersonalizedPlanCard(hideFlag !== "true");
     } catch (error) {
       setHasPersonalizedPlan(false);
-      setShowPersonalizedPlanCard(true);
     }
   };
 
@@ -307,42 +298,40 @@ export default function SubscriptionScreen() {
                   </TouchableOpacity>
                 </View>
               ))}
-              {/* Personalized Plan Card */}
-              {showPersonalizedPlanCard && (
-                <View style={styles.personalizedPlanCard}>
-                  <View style={styles.personalizedPlanContentRow}>
-                    <View style={styles.personalizedPlanTextContainer}>
-                      <Text style={styles.personalizedPlanTitle}>
-                        {t("subscription_screen.personalized_plan")}
-                      </Text>
-                      <Text style={styles.personalizedPlanDescription}>
-                        {hasPersonalizedPlan
-                          ? t("subscription_screen.personalized_plan_active_desc")
-                          : t("subscription_screen.personalized_plan_desc")}
-                      </Text>
-                    </View>
-                    <Image
-                      source={require("@/assets/images/plan.png")}
-                      style={styles.personalizedPlanIcon}
-                      resizeMode="contain"
-                    />
-                  </View>
-                  <TouchableOpacity
-                    style={styles.chooseButton}
-                    onPress={() => {
-                      router.push("/auth/build-plan" as any);
-                    }}
-                  >
-                    <Text style={styles.chooseButtonText}>
-                      {hasPersonalizedPlan
-                        ? t("subscription_screen.use_fit_plan")
-                        : t("subscription_screen.build_fit_plan")}
+              {/* Personalized Plan Card — always visible */}
+              <View style={styles.personalizedPlanCard}>
+                <View style={styles.personalizedPlanContentRow}>
+                  <View style={styles.personalizedPlanTextContainer}>
+                    <Text style={styles.personalizedPlanTitle}>
+                      {t("subscription_screen.personalized_plan")}
                     </Text>
-                  </TouchableOpacity>
+                    <Text style={styles.personalizedPlanDescription}>
+                      {hasPersonalizedPlan
+                        ? t("subscription_screen.personalized_plan_active_desc")
+                        : t("subscription_screen.personalized_plan_desc")}
+                    </Text>
+                  </View>
+                  <Image
+                    source={require("@/assets/images/plan.png")}
+                    style={styles.personalizedPlanIcon}
+                    resizeMode="contain"
+                  />
                 </View>
-              )}
-              {/* Empty state - only show if no plans and no personalized card */}
-              {mealPlans.length === 0 && !showPersonalizedPlanCard && (
+                <TouchableOpacity
+                  style={styles.chooseButton}
+                  onPress={() => {
+                    router.push("/auth/build-plan" as any);
+                  }}
+                >
+                  <Text style={styles.chooseButtonText}>
+                    {hasPersonalizedPlan
+                      ? t("subscription_screen.edit_fit_plan")
+                      : t("subscription_screen.build_fit_plan")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {/* Empty state */}
+              {mealPlans.length === 0 && (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
                     {t("subscription_screen.no_plans")}

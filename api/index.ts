@@ -28,7 +28,7 @@ export type {
     ValidateCouponResponse,
     ValidateCouponResponseData
 } from "./services/coupons";
-export { getBranchAreas, getBranches } from "./services/branches";
+export { getAllAreas, getBranchAreas, getBranches } from "./services/branches";
 export { getDurationById, getDurations } from "./services/durations";
 export { initiateHesabePayment } from "./services/hesabe";
 export type {

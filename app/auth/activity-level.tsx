@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ActivityLevel =
   | "sedentary"
@@ -51,6 +52,7 @@ export default function ActivityLevelScreen() {
   const [selectedLevel, setSelectedLevel] = useState<ActivityLevel>(null);
   const [loading, setLoading] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -128,7 +130,7 @@ export default function ActivityLevelScreen() {
         </ScrollView>
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen
             title={loading ? t("activity_level.saving") : t("activity_level.continue")}
             onPress={handleContinue}

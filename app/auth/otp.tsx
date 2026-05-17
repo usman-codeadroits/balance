@@ -17,6 +17,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function OTPScreen() {
   const { t } = useTranslation();
@@ -26,6 +27,7 @@ export default function OTPScreen() {
   const [resending, setResending] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadAuthType();
@@ -325,9 +327,10 @@ export default function OTPScreen() {
                   );
                 }
 
-                // Store subscription if available
-                if (data.subscription) {
-                  await storeActiveSubscription(data.subscription);
+                // Store subscription if available (new: active_subscription, legacy: subscription)
+                const subscriptionData = data.active_subscription || data.subscription;
+                if (subscriptionData) {
+                  await storeActiveSubscription(subscriptionData);
                 }
 
                 // Clear onboarding storage
@@ -574,7 +577,7 @@ export default function OTPScreen() {
         <View style={styles.spacer} />
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {/* Verify Button */}
           <AuthButton
             title={loading ? t("otp.verifying") : t("otp.verify")}

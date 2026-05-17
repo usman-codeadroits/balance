@@ -49,9 +49,6 @@ type CheckoutDraft = {
 
 export default function PaymentScreen() {
   const { t } = useTranslation();
-  const [paymentMethod, setPaymentMethod] = useState<
-    "credit" | "tabby" | "apple"
-  >("credit");
   const [nameOnCard, setNameOnCard] = useState("");
   const [cardNumber, setCardNumber] = useState("");
   const [ccvNumber, setCcvNumber] = useState("");
@@ -264,70 +261,73 @@ export default function PaymentScreen() {
       return;
     }
 
-    let expiryDetails: { month: string; year: string } | null = null;
+    const expiryDetails = parseExpiry(expiryDate);
+    if (
+      !nameOnCard.trim() ||
+      !cardNumber.trim() ||
+      !ccvNumber.trim() ||
+      !expiryDate.trim()
+    ) {
+      Alert.alert(t("payment.alerts.missing_details_title"), t("payment.alerts.missing_details_msg"));
+      return;
+    }
 
-    if (paymentMethod === "credit") {
-      expiryDetails = parseExpiry(expiryDate);
-      if (
-        !nameOnCard.trim() ||
-        !cardNumber.trim() ||
-        !ccvNumber.trim() ||
-        !expiryDate.trim()
-      ) {
-        Alert.alert(t("payment.alerts.missing_details_title"), t("payment.alerts.missing_details_msg"));
-        return;
-      }
+    if (!expiryDetails) {
+      Alert.alert(
+        t("payment.alerts.invalid_expiry_title"),
+        t("payment.alerts.invalid_expiry_msg"),
+      );
+      return;
+    }
 
-      if (!expiryDetails) {
-        Alert.alert(
-          t("payment.alerts.invalid_expiry_title"),
-          t("payment.alerts.invalid_expiry_msg"),
-        );
-        return;
-      }
+    if (ccvNumber.length < 3) {
+      Alert.alert(t("payment.alerts.invalid_cvv_title"), t("payment.alerts.invalid_cvv_msg"));
+      return;
+    }
 
-      if (ccvNumber.length < 3) {
-        Alert.alert(t("payment.alerts.invalid_cvv_title"), t("payment.alerts.invalid_cvv_msg"));
-        return;
-      }
-
-      if (sanitizeCardNumber(cardNumber).length < 12) {
-        Alert.alert(t("payment.alerts.invalid_card_title"), t("payment.alerts.invalid_card_msg"));
-        return;
-      }
+    if (sanitizeCardNumber(cardNumber).length < 12) {
+      Alert.alert(t("payment.alerts.invalid_card_title"), t("payment.alerts.invalid_card_msg"));
+      return;
     }
 
     setProcessing(true);
 
     try {
       // Build payment checkout payload
+      const rawDays = checkoutDraft.payload.selected_days;
+      const selectedDaysArray: string[] = Array.isArray(rawDays)
+        ? rawDays
+        : typeof rawDays === "string"
+          ? rawDays.split(",").map((d: string) => d.trim()).filter(Boolean)
+          : [];
+
+      const rawStartDate = checkoutDraft.payload.start_date;
+      const startDateObj = new Date(rawStartDate);
+      const localStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, "0")}-${String(startDateObj.getDate()).padStart(2, "0")}`;
+
+      const storedPayload = checkoutDraft.payload;
       const paymentCheckoutPayload: any = {
-        user_id: parseInt(checkoutDraft.payload.user_id as string, 10),
-        subcrption_plans_id: checkoutDraft.payload.subcrption_plans_id,
-        duration_id: checkoutDraft.payload.duration_id,
-        start_date: checkoutDraft.payload.start_date,
-        amount: checkoutDraft.summary.totalPrice.toString(),
-        currency: checkoutDraft.payload.currency || "KWD",
+        user_id: parseInt(storedPayload.user_id as string, 10),
+        subcrption_plans_id: storedPayload.subcrption_plans_id,
+        area_id: storedPayload.area_id,
+        start_date: localStartDate,
+        selected_days: selectedDaysArray,
+        price: storedPayload.price ?? checkoutDraft.summary.totalPrice,
+        amount: checkoutDraft.summary.totalPrice,
+        currency: storedPayload.currency || "KWD",
+        is_personalized: storedPayload.is_personalized ?? false,
+        protein: storedPayload.protein ?? 0,
+        carbs: storedPayload.carbs ?? 0,
+        meals: storedPayload.meals,
+        address: storedPayload.address,
         card_holder_name: nameOnCard.trim(),
         card_number: sanitizeCardNumber(cardNumber),
-        card_expiry_month: expiryDetails?.month || "",
-        card_expiry_year: expiryDetails?.year || "",
+        card_expiry_month: expiryDetails.month,
+        card_expiry_year: expiryDetails.year,
         card_cvv: ccvNumber,
         save_card: saveCard,
-        is_personalized: checkoutDraft.payload.is_personalized,
-        selected_days: checkoutDraft.payload.selected_days,
-        address: checkoutDraft.payload.address,
-        meals: checkoutDraft.payload.meals,
+        ...(storedPayload.coupon_code && { coupon_code: storedPayload.coupon_code }),
       };
-
-      // Add protein and carbs if personalized plan
-      if (checkoutDraft.payload.is_personalized) {
-        const protein = await AsyncStorage.getItem("personalizedProtein");
-        const carbs = await AsyncStorage.getItem("personalizedCarbs");
-
-        if (protein) paymentCheckoutPayload.protein = parseInt(protein, 10);
-        if (carbs) paymentCheckoutPayload.carbs = parseInt(carbs, 10);
-      }
 
       // Call payment checkout API
       const response = await apiClient.post(
@@ -335,17 +335,16 @@ export default function PaymentScreen() {
         paymentCheckoutPayload,
       );
 
-      if (response?.ok === false) {
-        Alert.alert(
-          t("payment.alerts.failed_title"),
-          response?.message || t("payment.alerts.failed_msg"),
-        );
+      // Handle success:false body returned with a 2xx status
+      if ((response as any)?.success === false) {
+        const apiMsg = (response as any)?.message || t("payment.alerts.failed_msg");
+        Alert.alert(t("payment.alerts.failed_title"), apiMsg);
         setProcessing(false);
         return;
       }
 
       // Process successful payment
-      const responseData = response?.data || response;
+      const responseData = (response as any)?.data || response;
       await handlePaymentSuccess(responseData, paymentCheckoutPayload);
     } catch (error) {
       Alert.alert(
@@ -362,10 +361,24 @@ export default function PaymentScreen() {
     if (!checkoutDraft) return;
 
     try {
-      const subscriptionData = response?.user_subscription || response;
+      // Handle new API response: { success, data: { payment, subscription: { user_subscription, subscription_days, subscription_meals } } }
+      const subscriptionWrapper = response?.data?.subscription || response?.subscription || {};
+      const subscriptionData =
+        subscriptionWrapper?.user_subscription ||
+        response?.data?.user_subscription ||
+        response?.user_subscription ||
+        response;
 
       if (!subscriptionData) {
         throw new Error("Invalid response from server");
+      }
+
+      // Merge subscription_days and subscription_meals into subscriptionData for persistence
+      if (subscriptionWrapper?.subscription_days && !subscriptionData.subscription_days) {
+        subscriptionData.subscription_days = subscriptionWrapper.subscription_days;
+      }
+      if (subscriptionWrapper?.subscription_meals && !subscriptionData.subscription_meals) {
+        subscriptionData.subscription_meals = subscriptionWrapper.subscription_meals;
       }
 
       // Persist subscription locally
@@ -462,118 +475,59 @@ export default function PaymentScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionLabel}>{t("payment.payment_method")}</Text>
+          <Text style={styles.sectionLabel}>{t("payment.card_details")}</Text>
 
-          <TouchableOpacity
-            style={styles.paymentOption}
-            onPress={() => setPaymentMethod("credit")}
-          >
-            <View style={styles.paymentLeft}>
-              <View style={styles.creditCardIcon}>
-                <View style={styles.masterCardCircle} />
-                <View
-                  style={[
-                    styles.masterCardCircle,
-                    styles.masterCardCircleOverlay,
-                  ]}
-                />
-              </View>
-              <Text style={styles.paymentText}>{t("payment.credit_card")}</Text>
-            </View>
-            <View style={styles.radioOuter}>
-              {paymentMethod === "credit" && <View style={styles.radioInner} />}
-            </View>
-          </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            placeholder={t("payment.name_on_card")}
+            placeholderTextColor="#6B7F75"
+            value={nameOnCard}
+            onChangeText={setNameOnCard}
+          />
 
-          <TouchableOpacity
-            style={[styles.paymentOption, styles.disabledPaymentOption]}
-            disabled={true}
-          >
-            <View style={styles.paymentLeft}>
-              <View style={styles.tabbyIcon}>
-                <Text style={styles.tabbyText}>tabby</Text>
-              </View>
-              <Text style={[styles.paymentText, styles.disabledText]}>
-                {t("payment.tabby")}
-              </Text>
-            </View>
-            <View style={styles.radioOuter}>
-              {paymentMethod === "tabby" && <View style={styles.radioInner} />}
-            </View>
-          </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            placeholder={t("payment.card_number")}
+            placeholderTextColor="#6B7F75"
+            value={cardNumber}
+            onChangeText={setCardNumber}
+            keyboardType="numeric"
+          />
 
-          <TouchableOpacity
-            style={[styles.paymentOption, styles.disabledPaymentOption]}
-            disabled={true}
-          >
-            <View style={styles.paymentLeft}>
-              <View style={styles.appleIcon}>
-                <Ionicons name="logo-apple" size={16} color="#FFFFFF" />
-              </View>
-              <Text style={[styles.paymentText, styles.disabledText]}>
-                {t("payment.apple_pay")}
-              </Text>
-            </View>
-            <View style={styles.radioOuter}>
-              {paymentMethod === "apple" && <View style={styles.radioInner} />}
-            </View>
-          </TouchableOpacity>
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, styles.rowInput]}
+              placeholder={t("payment.ccv")}
+              placeholderTextColor="#6B7F75"
+              value={ccvNumber}
+              onChangeText={setCcvNumber}
+              keyboardType="numeric"
+              maxLength={4}
+            />
+            <TextInput
+              style={[styles.input, styles.rowInput]}
+              placeholder={t("payment.expiry")}
+              placeholderTextColor="#6B7F75"
+              value={expiryDate}
+              onChangeText={(text) =>
+                setExpiryDate(formatExpiryInput(text))
+              }
+              keyboardType="numeric"
+              maxLength={5}
+            />
+          </View>
 
-          {paymentMethod === "credit" && (
-            <>
-              <TextInput
-                style={styles.input}
-                placeholder={t("payment.name_on_card")}
-                placeholderTextColor="#6B7F75"
-                value={nameOnCard}
-                onChangeText={setNameOnCard}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder={t("payment.card_number")}
-                placeholderTextColor="#6B7F75"
-                value={cardNumber}
-                onChangeText={setCardNumber}
-                keyboardType="numeric"
-              />
-
-              <View style={styles.row}>
-                <TextInput
-                  style={[styles.input, styles.rowInput]}
-                  placeholder={t("payment.ccv")}
-                  placeholderTextColor="#6B7F75"
-                  value={ccvNumber}
-                  onChangeText={setCcvNumber}
-                  keyboardType="numeric"
-                  maxLength={4}
-                />
-                <TextInput
-                  style={[styles.input, styles.rowInput]}
-                  placeholder={t("payment.expiry")}
-                  placeholderTextColor="#6B7F75"
-                  value={expiryDate}
-                  onChangeText={(text) =>
-                    setExpiryDate(formatExpiryInput(text))
-                  }
-                  keyboardType="numeric"
-                  maxLength={5}
-                />
-              </View>
-
-              <View style={styles.saveCardRow}>
-                <Text style={styles.saveCardText}>
-                  {t("payment.save_card")}
-                </Text>
-                <Switch
-                  value={saveCard}
-                  onValueChange={setSaveCard}
-                  trackColor={{ false: "#D4E8E0", true: "#7A9B7E" }}
-                  thumbColor={saveCard ? "#344225" : "#f4f3f4"}
-                />
-              </View>
-            </>
-          )}
+          <View style={styles.saveCardRow}>
+            <Text style={styles.saveCardText}>
+              {t("payment.save_card")}
+            </Text>
+            <Switch
+              value={saveCard}
+              onValueChange={setSaveCard}
+              trackColor={{ false: "#D4E8E0", true: "#7A9B7E" }}
+              thumbColor={saveCard ? "#344225" : "#f4f3f4"}
+            />
+          </View>
 
           <View style={styles.shippingSection}>
             <View style={styles.shippingHeader}>
@@ -689,85 +643,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#344225",
     marginBottom: 12,
-  },
-  paymentOption: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#E8F0ED",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    marginBottom: 12,
-  },
-  disabledPaymentOption: {
-    opacity: 0.5,
-  },
-  paymentLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  creditCardIcon: {
-    width: 28,
-    height: 20,
-    position: "relative",
-  },
-  masterCardCircle: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#EB001B",
-    position: "absolute",
-    left: 0,
-  },
-  masterCardCircleOverlay: {
-    backgroundColor: "#F79E1B",
-    left: 8,
-  },
-  tabbyIcon: {
-    width: 28,
-    height: 20,
-    backgroundColor: "#3EDFCF",
-    borderRadius: 3,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tabbyText: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#000000",
-  },
-  appleIcon: {
-    width: 28,
-    height: 20,
-    backgroundColor: "#000000",
-    borderRadius: 3,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  paymentText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#344225",
-  },
-  disabledText: {
-    color: "#999999",
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#344225",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#344225",
   },
   input: {
     backgroundColor: "#E8F0ED",

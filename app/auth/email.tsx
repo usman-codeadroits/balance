@@ -14,12 +14,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function EmailScreen() {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,7 +90,7 @@ export default function EmailScreen() {
         <View style={styles.spacer} />
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("email.continue")} onPress={handleContinue} />
         </View>
       </KeyboardAvoidingView>

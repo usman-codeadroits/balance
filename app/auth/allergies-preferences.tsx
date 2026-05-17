@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllergiesPreferencesScreen() {
   const { t } = useTranslation();
@@ -33,6 +34,7 @@ export default function AllergiesPreferencesScreen() {
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   const normalizeAllergies = (list: string[]) => {
     const normalized = list.flatMap((item) =>
@@ -163,7 +165,7 @@ export default function AllergiesPreferencesScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 32) }]}>
           <TouchableOpacity
             style={[
               styles.updateButton,
@@ -263,7 +265,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#D4E8E0",
     paddingHorizontal: 24,
     paddingTop: 12,
-    paddingBottom: 32,
   },
   updateButton: {
     backgroundColor: "#344225",

@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Goal =
   | "eat-healthy"
@@ -57,6 +58,7 @@ export default function GoalScreen() {
   const [selectedGoal, setSelectedGoal] = useState<Goal>(null);
   const [loading, setLoading] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const loadGoal = async () => {
@@ -134,7 +136,7 @@ export default function GoalScreen() {
         </ScrollView>
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen
             title={loading ? t("goal.saving") : t("goal.continue")}
             onPress={handleContinue}

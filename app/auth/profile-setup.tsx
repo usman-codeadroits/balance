@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const DEFAULT_WEIGHT_KG = 70;
 const DEFAULT_HEIGHT_CM = 170;
@@ -28,6 +29,7 @@ export default function ProfileSetupScreen() {
   const [heightUnit, setHeightUnit] = useState<"cm" | "ft">("cm");
   const [loading, setLoading] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   const handleContinue = async () => {
     if (!weight.trim()) {
@@ -167,7 +169,7 @@ export default function ProfileSetupScreen() {
         <View style={styles.spacer} />
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen
             title={loading ? t("profile_setup.registering") : t("profile_setup.continue")}
             onPress={handleContinue}

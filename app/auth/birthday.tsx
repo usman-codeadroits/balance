@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function BirthdayScreen() {
   const { t } = useTranslation();
@@ -24,6 +25,7 @@ export default function BirthdayScreen() {
   const [selectedMonth, setSelectedMonth] = useState<number>(0);
   const [selectedYear, setSelectedYear] = useState<number>(2000);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   const generateYears = () => {
     const currentYear = new Date().getFullYear();
@@ -198,7 +200,7 @@ export default function BirthdayScreen() {
         <View style={styles.spacer} />
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("birthday.continue")} onPress={handleContinue} />
         </View>
       </View>

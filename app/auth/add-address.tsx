@@ -1,5 +1,5 @@
-import type { Area, Branch, Duration } from "@/api";
-import { getBranchAreas, getBranches } from "@/api";
+import type { Area, Duration } from "@/api";
+import { getAllAreas } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -23,64 +23,32 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AddAddressScreen() {
   const { t } = useTranslation();
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [blockNumber, setBlockNumber] = useState("");
   const [street, setStreet] = useState("");
   const [houseBuliding, setHouseBuliding] = useState("");
   const [floorApartment, setFloorApartment] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [addressCategory, setAddressCategory] = useState<"home" | "office">("home");
   const [isPrimary, setIsPrimary] = useState(true);
   const [deliveryTime, setDeliveryTime] = useState<"4pm-8pm" | "8pm-12am">("4pm-8pm");
   const [loading, setLoading] = useState(false);
 
-  // Branch & Area state
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
-  const [branchesLoading, setBranchesLoading] = useState(false);
   const [areasLoading, setAreasLoading] = useState(false);
-  const [showBranchModal, setShowBranchModal] = useState(false);
   const [showAreaModal, setShowAreaModal] = useState(false);
 
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    fetchBranches();
-    setFirstName("John");
-    setLastName("Doe");
-    setBlockNumber("5");
-    setStreet("Salmiya Street");
-    setHouseBuliding("Building 123");
-    setFloorApartment("Floor 2, Apt 201");
-    setPhoneNumber("12345678");
-    setRemarks("Please ring the doorbell");
+    fetchAllAreas();
   }, []);
 
-  const fetchBranches = async () => {
-    try {
-      setBranchesLoading(true);
-      const data = await getBranches();
-      setBranches(data);
-    } catch {
-      // silently fail — branch selection remains optional UI
-    } finally {
-      setBranchesLoading(false);
-    }
-  };
-
-  const handleSelectBranch = async (branch: Branch) => {
-    setSelectedBranch(branch);
-    setSelectedArea(null);
-    setAreas([]);
-    setShowBranchModal(false);
+  const fetchAllAreas = async () => {
     try {
       setAreasLoading(true);
-      const data = await getBranchAreas(branch.id);
+      const data = await getAllAreas();
       setAreas(data);
     } catch {
       // silently fail
@@ -90,14 +58,6 @@ export default function AddAddressScreen() {
   };
 
   const handleCheckout = async () => {
-    if (!firstName.trim()) {
-      Alert.alert(t("common.error"), t("address.validation.first_name"));
-      return;
-    }
-    if (!lastName.trim()) {
-      Alert.alert(t("common.error"), t("address.validation.last_name"));
-      return;
-    }
     if (!selectedArea) {
       Alert.alert(t("common.error"), t("address.validation.areas"));
       return;
@@ -118,15 +78,6 @@ export default function AddAddressScreen() {
       Alert.alert(t("common.error"), t("address.validation.apartment"));
       return;
     }
-    if (!phoneNumber.trim()) {
-      Alert.alert(t("common.error"), t("address.validation.phone"));
-      return;
-    }
-    if (phoneNumber.length < 8) {
-      Alert.alert(t("common.error"), t("address.validation.phone_invalid"));
-      return;
-    }
-
     setLoading(true);
     try {
       const planData = await AsyncStorage.getItem("selectedPlan");
@@ -164,6 +115,11 @@ export default function AddAddressScreen() {
         return;
       }
 
+      const storedUserData = await AsyncStorage.getItem("userData");
+      const parsedUser = storedUserData ? JSON.parse(storedUserData) : null;
+      const userFirstName: string = parsedUser?.name || "";
+      const userPhoneNumber: string = parsedUser?.mobile ? String(parsedUser.mobile) : "";
+
       const basePrice =
         typeof selectedPlan.pricePerDay === "number"
           ? selectedPlan.pricePerDay
@@ -180,13 +136,12 @@ export default function AddAddressScreen() {
         return Math.max(0, Math.min(price, discount_value));
       };
 
-      const basePlanPrice = basePrice * selectedDuration.no_of_weeks;
-      const discountAmount = calculateDiscount(basePlanPrice);
-      const planPrice = Math.max(0, basePlanPrice - discountAmount);
+      const discountAmount = calculateDiscount(basePrice);
+      const planPrice = Math.max(0, basePrice - discountAmount);
       const totalPrice = planPrice;
 
       const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const selectedDaysString = selectedDays.map((dayIndex) => dayNames[dayIndex]).join(",");
+      const selectedDaysArray = selectedDays.map((dayIndex) => dayNames[dayIndex]);
 
       const mealsArray: { day: string; meal_id: number; type: "is meal" | "is snack" }[] = [];
       Object.keys(dayMeals).forEach((dayIndexStr) => {
@@ -210,7 +165,8 @@ export default function AddAddressScreen() {
         }
       });
 
-      const formattedStartDate = new Date(startDate).toISOString().split("T")[0];
+      const startDateObj = new Date(startDate);
+      const formattedStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, "0")}-${String(startDateObj.getDate()).padStart(2, "0")}`;
 
       let planId: number;
       if (typeof selectedPlan.id === "string") {
@@ -242,31 +198,29 @@ export default function AddAddressScreen() {
         user_id: parseInt(userId, 10),
         subcrption_plans_id: planId,
         duration_id: Number(selectedDuration.id),
-        selected_days: selectedDaysString,
+        selected_days: selectedDaysArray,
         start_date: formattedStartDate,
         price: Math.round(totalPrice),
-        payment: "pending" as const,
-        status: "active" as const,
         is_personalized: isPersonalized,
         protein,
         carbs,
         meals: mealsArray,
+        area_id: selectedArea.id,
         ...(appliedCoupon?.code && { coupon_code: appliedCoupon.code }),
         address: {
-          first_name: firstName,
-          last_name: lastName,
+          first_name: userFirstName,
+          phone_number: userPhoneNumber,
           area: selectedArea.name,
           block_number: blockNumber,
           street,
           house_building: houseBuliding,
           floor_apartment: floorApartment,
-          phone_number: phoneNumber,
           remarks,
           category: addressCategory,
           is_primary: isPrimary,
           preferred_delivery_slot: preferredDeliverySlot,
         },
-        amount: Math.round(totalPrice),
+        amount: totalPrice,
         currency: selectedPlan.currency || "KWD",
       };
 
@@ -314,43 +268,11 @@ export default function AddAddressScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <TextInput
-            style={styles.input}
-            placeholder={t("address.first_name")}
-            placeholderTextColor="#6B7F75"
-            value={firstName}
-            onChangeText={setFirstName}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder={t("address.last_name")}
-            placeholderTextColor="#6B7F75"
-            value={lastName}
-            onChangeText={setLastName}
-          />
-
-          {/* Branch Picker */}
-          <TouchableOpacity
-            style={styles.pickerButton}
-            onPress={() => setShowBranchModal(true)}
-            disabled={branchesLoading}
-          >
-            {branchesLoading ? (
-              <ActivityIndicator size="small" color="#6B7F75" />
-            ) : (
-              <Text style={[styles.pickerText, !selectedBranch && styles.pickerPlaceholder]}>
-                {selectedBranch ? selectedBranch.name : t("address.select_branch")}
-              </Text>
-            )}
-            <Text style={styles.pickerChevron}>▾</Text>
-          </TouchableOpacity>
-
           {/* Area Picker */}
           <TouchableOpacity
-            style={[styles.pickerButton, !selectedBranch && styles.pickerDisabled]}
-            onPress={() => selectedBranch && setShowAreaModal(true)}
-            disabled={!selectedBranch || areasLoading}
+            style={styles.pickerButton}
+            onPress={() => !areasLoading && setShowAreaModal(true)}
+            disabled={areasLoading}
           >
             {areasLoading ? (
               <ActivityIndicator size="small" color="#6B7F75" />
@@ -393,15 +315,6 @@ export default function AddAddressScreen() {
             placeholderTextColor="#6B7F75"
             value={floorApartment}
             onChangeText={setFloorApartment}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder={t("address.phone")}
-            placeholderTextColor="#6B7F75"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
           />
 
           <TextInput
@@ -455,10 +368,10 @@ export default function AddAddressScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.timeButton, deliveryTime === "8pm-12am" && styles.timeButtonActiveGreen]}
+              style={[styles.timeButton, deliveryTime === "8pm-12am" && styles.timeButtonActiveYellow]}
               onPress={() => setDeliveryTime("8pm-12am")}
             >
-              <Text style={[styles.timeButtonTextGreen, deliveryTime === "8pm-12am" && styles.timeButtonTextActiveWhite]}>
+              <Text style={[styles.timeButtonText, deliveryTime === "8pm-12am" && styles.timeButtonTextActive]}>
                 {t("address.time_8_12")}
               </Text>
             </TouchableOpacity>
@@ -478,35 +391,6 @@ export default function AddAddressScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Branch Modal */}
-      <Modal visible={showBranchModal} transparent animationType="slide" onRequestClose={() => setShowBranchModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t("address.select_branch")}</Text>
-              <TouchableOpacity onPress={() => setShowBranchModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={branches}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.modalItem, selectedBranch?.id === item.id && styles.modalItemSelected]}
-                  onPress={() => handleSelectBranch(item)}
-                >
-                  <Text style={[styles.modalItemText, selectedBranch?.id === item.id && styles.modalItemTextSelected]}>
-                    {item.name}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={<Text style={styles.modalEmpty}>{t("address.no_branches")}</Text>}
-            />
-          </View>
-        </View>
-      </Modal>
 
       {/* Area Modal */}
       <Modal visible={showAreaModal} transparent animationType="slide" onRequestClose={() => setShowAreaModal(false)}>
@@ -591,7 +475,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  pickerDisabled: { opacity: 0.5 },
   pickerText: { fontSize: 14, color: "#344225", flex: 1 },
   pickerPlaceholder: { color: "#6B7F75" },
   pickerChevron: { fontSize: 16, color: "#6B7F75", marginLeft: 8 },

@@ -28,16 +28,16 @@ export type Subscription = {
 export type CheckoutRequest = {
   user_id: number;
   subcrption_plans_id: number; // Note: API uses "subcrption" (typo in API)
-  duration_id: number;
-  selected_days: string; // Comma-separated string like "monday,tuesday,wednesday"
+  duration_id?: number; // kept for local draft compat, not sent to /v1/payment/checkout
+  selected_days: string[] | string; // Array preferred: ["monday","tuesday"]; string for legacy drafts
   start_date: string; // YYYY-MM-DD format
-  price: number;
-  payment: "paid" | "pending";
-  status: "active" | "pending";
-  is_personalized: boolean;
-  protein: number;
-  carbs: number;
-  meals: {
+  price?: number; // local display only
+  payment?: "paid" | "pending"; // local tracking only
+  status?: "active" | "pending"; // local tracking only
+  is_personalized?: boolean;
+  protein?: number;
+  carbs?: number;
+  meals?: {
     day: string; // lowercase day name like "monday"
     meal_id: number;
     type: "is meal" | "is snack";
@@ -56,6 +56,7 @@ export type CheckoutRequest = {
     is_primary: boolean;
     preferred_delivery_slot: "four_pm_to_eight_pm" | "eight_pm_to_midnight";
   };
+  area_id?: number;
   amount?: number;
   currency?: string;
   card_holder_name?: string;
@@ -159,40 +160,58 @@ export const getActiveSubscription = async (
 
 export type UpdateMealRequest = {
   user_id: number;
-  day: string; // lowercase day name like "monday"
+  subscription_day_id?: number; // Preferred: ID of the subscription_day record
+  day?: string; // Fallback: lowercase day name like "monday" (used when subscription_day_id unavailable)
   meal_id: number;
   type: "is meal" | "is snack";
   subscription_meal_id?: number; // Optional: required for update, omitted for create
+};
+
+export type SubscriptionMealItem = {
+  id: number;
+  meal_id: number;
+  type: "is meal" | "is snack";
+  meal: {
+    id: number;
+    title: string;
+    description?: string;
+    calories?: number;
+    protein_g?: number;
+    fat_g?: number;
+    carbs_g?: number;
+    image_url?: string;
+    image_thumb_url?: string;
+  };
+  subscription_days_id?: number;
+  user_subscription_id?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type WeeklyScheduleDay = {
+  subscription_day_id: number;
+  day: string;
+  meals: SubscriptionMealItem[];
 };
 
 export type SubscriptionMealsResponse = {
   success: boolean;
   data: {
     user_subscription_id: number;
-    subscription_days: {
+    plan_title?: string;
+    no_of_weeks?: number;
+    days_per_week?: number;
+    start_date?: string;
+    end_date?: string;
+    note?: string;
+    // New format
+    weekly_schedule?: WeeklyScheduleDay[];
+    // Legacy format (kept for backward compat)
+    subscription_days?: {
       id: number;
-      user_subcrptions_id: number;
+      user_subcrptions_id?: number;
       day: string;
-      subscription_meals: {
-        id: number;
-        subscription_days_id: number;
-        meal_id: number;
-        type: "is meal" | "is snack";
-        meal: {
-          id: number;
-          title: string;
-          description?: string;
-          calories?: number;
-          protein_g?: number;
-          fat_g?: number;
-          carbs_g?: number;
-          image_url?: string;
-          image_thumb_url?: string;
-        };
-        user_subscription_id?: number;
-        created_at?: string;
-        updated_at?: string;
-      }[];
+      subscription_meals: SubscriptionMealItem[];
     }[];
   };
 };
@@ -232,13 +251,18 @@ export const updateSubscriptionMeal = async (
   updateData: UpdateMealRequest,
 ): Promise<UpdateMealResponse> => {
   try {
-    // Build request payload - only include subscription_meal_id if provided
+    // Build request payload - prefer subscription_day_id, fall back to day string
     const requestPayload: any = {
       user_id: updateData.user_id,
-      day: updateData.day,
       meal_id: updateData.meal_id,
       type: updateData.type,
     };
+
+    if (updateData.subscription_day_id !== undefined) {
+      requestPayload.subscription_day_id = updateData.subscription_day_id;
+    } else if (updateData.day) {
+      requestPayload.day = updateData.day;
+    }
 
     // Only include subscription_meal_id if provided (for updates)
     if (updateData.subscription_meal_id !== undefined) {

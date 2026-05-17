@@ -110,9 +110,14 @@ export default function UpdateSubscriptionMealsScreen() {
     try {
       setSavingSlot(true);
 
+      const subscriptionDayId = details?.subscription_days?.find(
+        (d) => d.day === pickerContext.day,
+      )?.id;
+
       const response = await updateSubscriptionMeal({
         user_id: details.user_id,
-        day: pickerContext.day,
+        subscription_day_id: subscriptionDayId,
+        day: subscriptionDayId === undefined ? pickerContext.day : undefined,
         meal_id: meal.id,
         type: pickerContext.type,
         subscription_meal_id: pickerContext.subscriptionMealId,
@@ -198,9 +203,14 @@ export default function UpdateSubscriptionMealsScreen() {
 
       // Update all selected slots (meals and snacks) across all days
       for (const meal of selectedMeals) {
+        const subscriptionDayId = details?.subscription_days?.find(
+          (d) => d.day === meal.day,
+        )?.id;
+
         await updateSubscriptionMeal({
           user_id: details?.user_id || 0,
-          day: meal.day,
+          subscription_day_id: subscriptionDayId,
+          day: subscriptionDayId === undefined ? meal.day : undefined,
           meal_id: meal.mealId,
           type: meal.type,
           subscription_meal_id: meal.subscriptionMealId,

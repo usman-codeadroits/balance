@@ -16,12 +16,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function NameScreen() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   const handleContinue = async () => {
     if (!name.trim()) {
@@ -91,7 +93,7 @@ export default function NameScreen() {
         <View style={styles.spacer} />
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("name.continue")} onPress={handleContinue} />
         </View>
       </KeyboardAvoidingView>

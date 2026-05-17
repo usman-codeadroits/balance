@@ -3,7 +3,7 @@ import AuthButtonGreen from "@/components/auth/auth-button-green";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   SafeAreaView,
@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const proteinOptions = [
   { value: "100", label: "100 g", percentage: "" },
@@ -34,6 +35,19 @@ export default function BuildPlanScreen() {
   const [showProteinDropdown, setShowProteinDropdown] = useState(false);
   const [showCarbsDropdown, setShowCarbsDropdown] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const loadSaved = async () => {
+      const [protein, carbs] = await Promise.all([
+        AsyncStorage.getItem("personalizedProtein"),
+        AsyncStorage.getItem("personalizedCarbs"),
+      ]);
+      if (protein) setSelectedProtein(protein);
+      if (carbs) setSelectedCarbs(carbs);
+    };
+    loadSaved();
+  }, []);
 
   const handleContinue = async () => {
     if (!selectedProtein || !selectedCarbs) {
@@ -46,10 +60,6 @@ export default function BuildPlanScreen() {
       await AsyncStorage.setItem("hasPersonalizedPlan", "true");
       await AsyncStorage.setItem("personalizedProtein", selectedProtein);
       await AsyncStorage.setItem("personalizedCarbs", selectedCarbs);
-
-      // Hide the personalized plan card when returning to the subscription screen
-      // so the user does not see the CTA again after they've built their plan.
-      await AsyncStorage.setItem("hidePersonalizedPlanCard", "true");
       const userId = await AsyncStorage.getItem("userId");
       if (userId) {
         await AsyncStorage.setItem("personalizedPlanOwner", userId);
@@ -237,7 +247,7 @@ export default function BuildPlanScreen() {
         </ScrollView>
 
         {/* Fixed Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("build_plan.continue")} onPress={handleContinue} />
         </View>
       </View>

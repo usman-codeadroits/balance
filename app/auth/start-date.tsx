@@ -18,9 +18,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function StartDateScreen() {
   const { t } = useTranslation();
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(today);
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
@@ -42,27 +44,13 @@ export default function StartDateScreen() {
   };
 
   const isDateDisabled = (day: number): boolean => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     const checkDate = new Date(currentYear, currentMonth, day);
     checkDate.setHours(0, 0, 0, 0);
-
-    // Disable today and past dates - only allow from tomorrow onwards
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-
-    return checkDate < tomorrow;
+    return checkDate < today;
   };
 
   const handleDateSelect = (day: number) => {
-    if (isDateDisabled(day)) {
-      Alert.alert(
-        t("start_date_screen.invalid_date_title"),
-        t("start_date_screen.invalid_date_msg"),
-      );
-      return;
-    }
+    if (isDateDisabled(day)) return;
     const date = new Date(currentYear, currentMonth, day);
     setSelectedDate(date);
   };
@@ -374,7 +362,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   dayCellSelected: {
-    backgroundColor: "#5A7C65",
+    backgroundColor: "#344225",
   },
   dayCellDisabled: {
     opacity: 0.3,

@@ -100,25 +100,18 @@ export default function PlanPageScreen() {
     }
   };
 
-  // Price calculations: base price stays as plan price; duration scales by weeks only
-  const getBasePlanPrice = () => {
-    if (typeof selectedPlan?.pricePerDay === "number")
-      return selectedPlan.pricePerDay;
-    if (typeof selectedPlan?.price === "number") return selectedPlan.price;
-    if (typeof selectedPlan?.price === "string") {
-      const numeric = parseFloat(
-        String(selectedPlan.price).replace(/[^0-9.]/g, ""),
-      );
-      if (!Number.isNaN(numeric)) return numeric;
+  const getPlanDisplayPrice = (): string => {
+    if (typeof selectedPlan?.pricePerDay === "number") {
+      return `KWD ${selectedPlan.pricePerDay.toFixed(2)}`;
     }
-    return 0;
-  };
-
-  const calculateDurationPrice = () => {
-    const basePrice = getBasePlanPrice(); // Base plan price (for one week)
-    const totalPrice = basePrice * planWeeks; // Scale only by weeks
-
-    return { total: totalPrice, perWeek: basePrice, base: basePrice };
+    if (typeof selectedPlan?.price === "number") {
+      return `KWD ${selectedPlan.price.toFixed(2)}`;
+    }
+    if (typeof selectedPlan?.price === "string") {
+      const numeric = parseFloat(selectedPlan.price.replace(/[^0-9.]/g, ""));
+      if (!Number.isNaN(numeric)) return `KWD ${numeric.toFixed(2)}`;
+    }
+    return "KWD 0.00";
   };
 
   const snackCount = selectedPlan?.snack_count || 0;
@@ -160,18 +153,15 @@ export default function PlanPageScreen() {
               <View style={styles.billingHeaderRow}>
                 <View style={{ flexDirection: "column" }}>
                   <Text style={styles.billingTitle}>
-                    {`${planWeeks} Week${planWeeks > 1 ? "s" : ""}`}
+                    {selectedPlan?.title || ""}
                   </Text>
                   <Text style={styles.billingDaily}>
-                    KWD {calculateDurationPrice().perWeek.toFixed(2)}{t("plan_page.per_week")}
+                    {`${planWeeks} Week${planWeeks > 1 ? "s" : ""}`}
                   </Text>
                 </View>
                 <View style={{ flexDirection: "column", alignItems: "flex-end" }}>
                   <Text style={styles.billingPrice}>
-                    KWD {calculateDurationPrice().total.toFixed(2)}
-                  </Text>
-                  <Text style={styles.billingPeriod}>
-                    {t("plan_page.per_period", { period: `${planWeeks} weeks` })}
+                    {getPlanDisplayPrice()}
                   </Text>
                 </View>
               </View>

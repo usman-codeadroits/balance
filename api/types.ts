@@ -30,8 +30,10 @@ export type Branch = {
 export type Area = {
   id: number;
   name: string;
-  delivery_charges: string;
-  status: string;
+  delivery_charges: number | string;
+  branch_id?: number;
+  branch_name?: string;
+  status?: string | number | boolean;
 };
 
 export type SubscriptionPlansResponse = {

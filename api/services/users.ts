@@ -68,9 +68,11 @@ export type LoginRequest = {
 };
 
 export type LoginResponse = {
-  data: User;
   token?: string;
-  subscriptions?: any[];
+  user?: User;
+  data?: User; // legacy field alias
+  active_subscription?: ActiveSubscription | null;
+  subscriptions?: any[]; // legacy
   message?: string;
 };
 
@@ -83,14 +85,25 @@ export type ActiveSubscription = {
   id: number;
   subscription_plan_id: number;
   subscription_plan_title: string;
-  duration_id: number;
-  duration_title: string;
+  no_of_weeks?: number;
+  days_per_week?: number;
   selected_days: string;
   start_date: string;
   end_date: string;
   price: number;
+  currency?: string;
   payment: string;
+  payment_reference?: string;
+  card_brand?: string;
+  card_last_four?: string;
   status: string;
+  is_personalized?: boolean;
+  protein?: number | null;
+  carbs?: number | null;
+  is_paused?: boolean;
+  paused_at?: string | null;
+  paused_until?: string | null;
+  total_paused_days?: number;
 };
 
 export type CheckUserData = {
@@ -348,16 +361,23 @@ export const loginUser = async (
   loginData: LoginRequest,
 ): Promise<LoginResponse> => {
   try {
-    const response = await apiClient.post<ApiResponse<LoginResponse>>(
-      API_ENDPOINTS.LOGIN,
-      loginData,
-    );
+    const response = await apiClient.post<any>(API_ENDPOINTS.LOGIN, loginData);
 
-    if (!response || !response.data) {
+    if (!response) {
       throw new Error("Invalid response: expected data object for user login");
     }
 
-    return response.data as LoginResponse;
+    // New API returns { token, user, active_subscription } at top level
+    if (response.token || response.user) {
+      return response as LoginResponse;
+    }
+
+    // Legacy: wrapped in { data: ... }
+    if (response.data) {
+      return response.data as LoginResponse;
+    }
+
+    throw new Error("Invalid response: expected token or user in login response");
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to login: ${error.message}`);

@@ -394,23 +394,19 @@ export default function SelectedMealsScreen() {
     });
   };
 
-  const calculateTotalPrice = (): number => {
-    if (!selectedPlan || !selectedDuration) return 0;
-
-    const basePrice =
-      typeof selectedPlan.pricePerDay === "number"
-        ? selectedPlan.pricePerDay
-        : typeof selectedPlan.price === "number"
-          ? selectedPlan.price
-          : parseFloat(
-            String(selectedPlan.price || "").replace(/[^0-9.]/g, ""),
-          ) || 0;
-
-    const noOfWeeks =
-      selectedDuration.no_of_weeks || selectedDuration.weeks || 0;
-    const totalPrice = basePrice * noOfWeeks;
-
-    return Number.isNaN(totalPrice) ? 0 : totalPrice;
+  const getPlanDisplayPrice = (): string => {
+    if (!selectedPlan) return "KWD 0.00";
+    if (typeof selectedPlan.pricePerDay === "number") {
+      return `KWD ${selectedPlan.pricePerDay.toFixed(2)}`;
+    }
+    if (typeof selectedPlan.price === "number") {
+      return `KWD ${selectedPlan.price.toFixed(2)}`;
+    }
+    if (typeof selectedPlan.price === "string") {
+      const numeric = parseFloat(selectedPlan.price.replace(/[^0-9.]/g, ""));
+      if (!Number.isNaN(numeric)) return `KWD ${numeric.toFixed(2)}`;
+    }
+    return "KWD 0.00";
   };
 
   const calculateTotalCalories = (dayIndex: number) => {
@@ -475,7 +471,7 @@ export default function SelectedMealsScreen() {
             <View style={styles.summaryDetails}>
               <Text style={styles.summaryLabel}>{t("selected_meals.total")}</Text>
               <Text style={styles.summaryPrice}>
-                KWD {calculateTotalPrice().toFixed(2)}
+                {getPlanDisplayPrice()}
               </Text>
             </View>
             <TouchableOpacity

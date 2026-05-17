@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Gender = "male" | "female" | null;
 
@@ -22,6 +23,7 @@ export default function GenderScreen() {
   const [selectedGender, setSelectedGender] = useState<Gender>(null);
   const [loading, setLoading] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const loadGender = async () => {
@@ -119,7 +121,7 @@ export default function GenderScreen() {
         <View style={styles.spacer} />
 
         {/* Bottom Section */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen
             title={loading ? t("gender.saving") : t("gender.continue")}
             onPress={handleContinue}

@@ -16,12 +16,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllergiesScreen() {
   const { t } = useTranslation();
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const loadPreference = async () => {
@@ -141,7 +143,7 @@ export default function AllergiesScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen
             title={loading ? t("allergies.wait") : t("allergies.continue")}
             onPress={handleContinue}

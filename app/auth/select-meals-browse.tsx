@@ -23,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type MealItem = {
   id: string;
@@ -73,6 +74,7 @@ export default function SelectMealsScreen() {
     ? parseInt(params.subscriptionMealId as string)
     : undefined;
   useStaticScreen();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     loadPlanData();
@@ -342,12 +344,30 @@ export default function SelectMealsScreen() {
 
         const mealType = type === "meal" ? "is meal" : "is snack";
 
+        // Look up subscription_day_id from cached subscription days
+        let resolvedSubscriptionDayId: number | undefined;
+        try {
+          const daysCache = await AsyncStorage.getItem("subscriptionDaysData");
+          if (daysCache) {
+            const parsedDays: { id: number; day: string }[] = JSON.parse(daysCache);
+            const match = parsedDays.find((d) => d.day === dayName);
+            if (match) resolvedSubscriptionDayId = match.id;
+          }
+        } catch {
+          // fall back to sending day string
+        }
+
         const updateRequest: any = {
           user_id: parseInt(userId),
-          day: dayName,
           meal_id: meal.id,
           type: mealType,
         };
+
+        if (resolvedSubscriptionDayId !== undefined) {
+          updateRequest.subscription_day_id = resolvedSubscriptionDayId;
+        } else {
+          updateRequest.day = dayName;
+        }
 
         // If subscription_meal_id is provided (from params), use it for update
         // Otherwise, omit it to create new meal
@@ -507,21 +527,19 @@ export default function SelectMealsScreen() {
     });
   };
 
-  const calculateTotalPrice = (): number => {
-    if (!selectedPlan || !selectedDuration) return 0;
-
-    const basePrice =
-      typeof selectedPlan.pricePerDay === "number"
-        ? selectedPlan.pricePerDay
-        : typeof selectedPlan.price === "number"
-          ? selectedPlan.price
-          : parseFloat(
-            String(selectedPlan.price || "").replace(/[^0-9.]/g, ""),
-          ) || 0;
-
-    const totalPrice = basePrice * selectedDuration.no_of_weeks;
-
-    return totalPrice;
+  const getPlanDisplayPrice = (): string => {
+    if (!selectedPlan) return "KWD 0.00";
+    if (typeof selectedPlan.pricePerDay === "number") {
+      return `KWD ${selectedPlan.pricePerDay.toFixed(2)}`;
+    }
+    if (typeof selectedPlan.price === "number") {
+      return `KWD ${selectedPlan.price.toFixed(2)}`;
+    }
+    if (typeof selectedPlan.price === "string") {
+      const numeric = parseFloat(selectedPlan.price.replace(/[^0-9.]/g, ""));
+      if (!Number.isNaN(numeric)) return `KWD ${numeric.toFixed(2)}`;
+    }
+    return "KWD 0.00";
   };
 
   const isLoadingState = loading || loadingExisting;
@@ -632,7 +650,7 @@ export default function SelectMealsScreen() {
             <View style={styles.summaryFooter}>
               <Text style={styles.summaryTotal}>{t("select_meals.total")}</Text>
               <Text style={styles.summaryPrice}>
-                KWD {calculateTotalPrice().toFixed(2)}
+                {getPlanDisplayPrice()}
               </Text>
             </View>
             <TouchableOpacity
@@ -758,7 +776,7 @@ export default function SelectMealsScreen() {
       </View>
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 20) }]}>
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => router.push("/(tabs)/" as any)}

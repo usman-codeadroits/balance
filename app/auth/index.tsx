@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Image, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AuthScreen() {
   const { t } = useTranslation();
@@ -15,6 +16,7 @@ export default function AuthScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Kuwait by default
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleAuth = async () => {
     if (!phoneNumber.trim()) {
@@ -92,7 +94,7 @@ export default function AuthScreen() {
           </View>
 
           {/* Bottom — button + links pinned to bottom */}
-          <View style={styles.bottomSection}>
+          <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <AuthButton
               title={loading ? t('auth.sending_otp') : activeTab === 'login' ? t('auth.sign_in') : t('auth.signup')}
               onPress={handleAuth}

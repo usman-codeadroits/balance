@@ -112,21 +112,10 @@ export default function CheckoutScreen() {
   };
 
   const calculatePlanPrice = (): number => {
-    if (!selectedPlan || !selectedDuration) return 0;
-
-    // Base plan price (per week); keep the same base, scale only by weeks
-    const basePrice =
-      typeof selectedPlan.pricePerDay === "number"
-        ? selectedPlan.pricePerDay
-        : typeof selectedPlan.price === "number"
-          ? selectedPlan.price
-          : parseFloat(
-            String(selectedPlan.price || "").replace(/[^0-9.]/g, ""),
-          ) || 0;
-
-    const totalPrice = basePrice * selectedDuration.no_of_weeks;
-
-    return totalPrice;
+    if (!selectedPlan) return 0;
+    if (typeof selectedPlan.pricePerDay === "number") return selectedPlan.pricePerDay;
+    if (typeof selectedPlan.price === "number") return selectedPlan.price;
+    return parseFloat(String(selectedPlan.price || "").replace(/[^0-9.]/g, "")) || 0;
   };
 
   const calculateDiscount = (planPrice: number) => {
