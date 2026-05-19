@@ -44,6 +44,7 @@ type CheckoutDraft = {
     planPrice: number;
     vat: number;
     totalPrice: number;
+    discount?: number;
   };
 };
 
@@ -54,6 +55,7 @@ export default function PaymentScreen() {
   const [ccvNumber, setCcvNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [saveCard, setSaveCard] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "debit_card" | "credit_card">("debit_card");
   const [processing, setProcessing] = useState(false);
   const [draftLoading, setDraftLoading] = useState(true);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft | null>(
@@ -262,32 +264,35 @@ export default function PaymentScreen() {
     }
 
     const expiryDetails = parseExpiry(expiryDate);
-    if (
-      !nameOnCard.trim() ||
-      !cardNumber.trim() ||
-      !ccvNumber.trim() ||
-      !expiryDate.trim()
-    ) {
-      Alert.alert(t("payment.alerts.missing_details_title"), t("payment.alerts.missing_details_msg"));
-      return;
-    }
 
-    if (!expiryDetails) {
-      Alert.alert(
-        t("payment.alerts.invalid_expiry_title"),
-        t("payment.alerts.invalid_expiry_msg"),
-      );
-      return;
-    }
+    if (paymentMethod !== "cash") {
+      if (
+        !nameOnCard.trim() ||
+        !cardNumber.trim() ||
+        !ccvNumber.trim() ||
+        !expiryDate.trim()
+      ) {
+        Alert.alert(t("payment.alerts.missing_details_title"), t("payment.alerts.missing_details_msg"));
+        return;
+      }
 
-    if (ccvNumber.length < 3) {
-      Alert.alert(t("payment.alerts.invalid_cvv_title"), t("payment.alerts.invalid_cvv_msg"));
-      return;
-    }
+      if (!expiryDetails) {
+        Alert.alert(
+          t("payment.alerts.invalid_expiry_title"),
+          t("payment.alerts.invalid_expiry_msg"),
+        );
+        return;
+      }
 
-    if (sanitizeCardNumber(cardNumber).length < 12) {
-      Alert.alert(t("payment.alerts.invalid_card_title"), t("payment.alerts.invalid_card_msg"));
-      return;
+      if (ccvNumber.length < 3) {
+        Alert.alert(t("payment.alerts.invalid_cvv_title"), t("payment.alerts.invalid_cvv_msg"));
+        return;
+      }
+
+      if (sanitizeCardNumber(cardNumber).length < 12) {
+        Alert.alert(t("payment.alerts.invalid_card_title"), t("payment.alerts.invalid_card_msg"));
+        return;
+      }
     }
 
     setProcessing(true);
@@ -306,27 +311,31 @@ export default function PaymentScreen() {
       const localStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, "0")}-${String(startDateObj.getDate()).padStart(2, "0")}`;
 
       const storedPayload = checkoutDraft.payload;
+      const isPersonalized = storedPayload.is_personalized ?? false;
       const paymentCheckoutPayload: any = {
         user_id: parseInt(storedPayload.user_id as string, 10),
         subcrption_plans_id: storedPayload.subcrption_plans_id,
         area_id: storedPayload.area_id,
         start_date: localStartDate,
         selected_days: selectedDaysArray,
-        price: storedPayload.price ?? checkoutDraft.summary.totalPrice,
-        amount: checkoutDraft.summary.totalPrice,
-        currency: storedPayload.currency || "KWD",
-        is_personalized: storedPayload.is_personalized ?? false,
-        protein: storedPayload.protein ?? 0,
-        carbs: storedPayload.carbs ?? 0,
-        meals: storedPayload.meals,
+        payment_method: paymentMethod,
+        is_personalized: isPersonalized,
+        ...(isPersonalized && {
+          protein: storedPayload.protein ?? 0,
+          carbs: storedPayload.protein ?? 0,
+        }),
+        meals: storedPayload.meals ?? [],
         address: storedPayload.address,
-        card_holder_name: nameOnCard.trim(),
-        card_number: sanitizeCardNumber(cardNumber),
-        card_expiry_month: expiryDetails.month,
-        card_expiry_year: expiryDetails.year,
-        card_cvv: ccvNumber,
-        save_card: saveCard,
+        ...(storedPayload.currency && { currency: storedPayload.currency }),
         ...(storedPayload.coupon_code && { coupon_code: storedPayload.coupon_code }),
+        ...(paymentMethod !== "cash" && {
+          card_holder_name: nameOnCard.trim(),
+          card_number: sanitizeCardNumber(cardNumber),
+          card_expiry_month: expiryDetails!.month,
+          card_expiry_year: expiryDetails!.year,
+          card_cvv: ccvNumber,
+          save_card: saveCard,
+        }),
       };
 
       // Call payment checkout API
@@ -335,10 +344,17 @@ export default function PaymentScreen() {
         paymentCheckoutPayload,
       );
 
-      // Handle success:false body returned with a 2xx status
+      // Handle success:false (422 validation or 502 payment failure)
       if ((response as any)?.success === false) {
         const apiMsg = (response as any)?.message || t("payment.alerts.failed_msg");
-        Alert.alert(t("payment.alerts.failed_title"), apiMsg);
+        const errors = (response as any)?.errors;
+        const errorDetail = errors
+          ? Object.values(errors).flat().join("\n")
+          : "";
+        Alert.alert(
+          t("payment.alerts.failed_title"),
+          errorDetail ? `${apiMsg}\n\n${errorDetail}` : apiMsg,
+        );
         setProcessing(false);
         return;
       }
@@ -361,11 +377,12 @@ export default function PaymentScreen() {
     if (!checkoutDraft) return;
 
     try {
-      // Handle new API response: { success, data: { payment, subscription: { user_subscription, subscription_days, subscription_meals } } }
-      const subscriptionWrapper = response?.data?.subscription || response?.subscription || {};
+      // Response shape: { payment: { status, method, amount, ... }, subscription: { ... } }
+      const paymentInfo = response?.payment;
+      const subscriptionRaw = response?.subscription || response?.data?.subscription;
       const subscriptionData =
-        subscriptionWrapper?.user_subscription ||
-        response?.data?.user_subscription ||
+        subscriptionRaw?.user_subscription ||
+        subscriptionRaw ||
         response?.user_subscription ||
         response;
 
@@ -373,26 +390,27 @@ export default function PaymentScreen() {
         throw new Error("Invalid response from server");
       }
 
-      // Merge subscription_days and subscription_meals into subscriptionData for persistence
-      if (subscriptionWrapper?.subscription_days && !subscriptionData.subscription_days) {
-        subscriptionData.subscription_days = subscriptionWrapper.subscription_days;
+      if (subscriptionRaw?.subscription_days && !subscriptionData.subscription_days) {
+        subscriptionData.subscription_days = subscriptionRaw.subscription_days;
       }
-      if (subscriptionWrapper?.subscription_meals && !subscriptionData.subscription_meals) {
-        subscriptionData.subscription_meals = subscriptionWrapper.subscription_meals;
+      if (subscriptionRaw?.subscription_meals && !subscriptionData.subscription_meals) {
+        subscriptionData.subscription_meals = subscriptionRaw.subscription_meals;
       }
 
-      // Persist subscription locally
-      await persistSubscriptionLocally(
-        subscriptionData,
-        "paid",
-        checkoutDraft.payload,
-      );
+      const apiPaymentStatus = paymentInfo?.status?.toLowerCase();
+      const paymentStatus: "paid" | "pending" =
+        apiPaymentStatus === "paid" ? "paid" : "pending";
 
-      Alert.alert(t("payment.alerts.success_title"), t("payment.alerts.success_msg"), [
-        {
-          text: t("nav.home"),
-          onPress: () => router.replace("/(tabs)/" as any),
-        },
+      await persistSubscriptionLocally(subscriptionData, paymentStatus, checkoutDraft.payload);
+
+      const isCash = paymentInfo?.method === "cash" || payload?.payment_method === "cash";
+      const successTitle = isCash ? "Order Placed" : t("payment.alerts.success_title");
+      const successMsg = isCash
+        ? "Order placed successfully. Cash will be collected on delivery."
+        : t("payment.alerts.success_msg");
+
+      Alert.alert(successTitle, successMsg, [
+        { text: t("nav.home"), onPress: () => router.replace("/(tabs)/" as any) },
       ]);
     } catch (error) {
       Alert.alert(
@@ -475,59 +493,87 @@ export default function PaymentScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionLabel}>{t("payment.card_details")}</Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder={t("payment.name_on_card")}
-            placeholderTextColor="#6B7F75"
-            value={nameOnCard}
-            onChangeText={setNameOnCard}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder={t("payment.card_number")}
-            placeholderTextColor="#6B7F75"
-            value={cardNumber}
-            onChangeText={setCardNumber}
-            keyboardType="numeric"
-          />
-
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, styles.rowInput]}
-              placeholder={t("payment.ccv")}
-              placeholderTextColor="#6B7F75"
-              value={ccvNumber}
-              onChangeText={setCcvNumber}
-              keyboardType="numeric"
-              maxLength={4}
-            />
-            <TextInput
-              style={[styles.input, styles.rowInput]}
-              placeholder={t("payment.expiry")}
-              placeholderTextColor="#6B7F75"
-              value={expiryDate}
-              onChangeText={(text) =>
-                setExpiryDate(formatExpiryInput(text))
-              }
-              keyboardType="numeric"
-              maxLength={5}
-            />
+          {/* Payment Method */}
+          <Text style={styles.sectionLabel}>Payment Method</Text>
+          <View style={styles.paymentMethodGroup}>
+            {([
+              { key: "cash", label: "Cash", icon: "💵", desc: "We will collect cash from you" },
+              { key: "debit_card", label: "Debit Card", icon: "💳", desc: "" },
+              { key: "credit_card", label: "Credit Card", icon: "🏦", desc: "" },
+            ] as const).map((method) => (
+              <TouchableOpacity
+                key={method.key}
+                style={[styles.paymentMethodItem, paymentMethod === method.key && styles.paymentMethodItemSelected]}
+                onPress={() => setPaymentMethod(method.key)}
+              >
+                <View style={styles.paymentMethodLeft}>
+                  <View style={styles.paymentMethodRadioOuter}>
+                    {paymentMethod === method.key && <View style={styles.paymentMethodRadioInner} />}
+                  </View>
+                  <View>
+                    <Text style={styles.paymentMethodLabel}>{method.label}</Text>
+                    {method.desc ? <Text style={styles.paymentMethodDesc}>{method.desc}</Text> : null}
+                  </View>
+                </View>
+                <Text style={styles.paymentMethodIcon}>{method.icon}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
-          <View style={styles.saveCardRow}>
-            <Text style={styles.saveCardText}>
-              {t("payment.save_card")}
-            </Text>
-            <Switch
-              value={saveCard}
-              onValueChange={setSaveCard}
-              trackColor={{ false: "#D4E8E0", true: "#7A9B7E" }}
-              thumbColor={saveCard ? "#344225" : "#f4f3f4"}
-            />
-          </View>
+          {/* Card Details — hidden for cash */}
+          {paymentMethod !== "cash" && (
+            <>
+              <Text style={styles.sectionLabel}>{t("payment.card_details")}</Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder={t("payment.name_on_card")}
+                placeholderTextColor="#6B7F75"
+                value={nameOnCard}
+                onChangeText={setNameOnCard}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder={t("payment.card_number")}
+                placeholderTextColor="#6B7F75"
+                value={cardNumber}
+                onChangeText={setCardNumber}
+                keyboardType="numeric"
+              />
+
+              <View style={styles.row}>
+                <TextInput
+                  style={[styles.input, styles.rowInput]}
+                  placeholder={t("payment.ccv")}
+                  placeholderTextColor="#6B7F75"
+                  value={ccvNumber}
+                  onChangeText={setCcvNumber}
+                  keyboardType="numeric"
+                  maxLength={4}
+                />
+                <TextInput
+                  style={[styles.input, styles.rowInput]}
+                  placeholder={t("payment.expiry")}
+                  placeholderTextColor="#6B7F75"
+                  value={expiryDate}
+                  onChangeText={(text) => setExpiryDate(formatExpiryInput(text))}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
+              </View>
+
+              <View style={styles.saveCardRow}>
+                <Text style={styles.saveCardText}>{t("payment.save_card")}</Text>
+                <Switch
+                  value={saveCard}
+                  onValueChange={setSaveCard}
+                  trackColor={{ false: "#D4E8E0", true: "#7A9B7E" }}
+                  thumbColor={saveCard ? "#344225" : "#f4f3f4"}
+                />
+              </View>
+            </>
+          )}
 
           <View style={styles.shippingSection}>
             <View style={styles.shippingHeader}>
@@ -546,25 +592,51 @@ export default function PaymentScreen() {
 
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>{t("payment.order_summary")}</Text>
+
+            {/* Base plan price (before any discount) */}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>{t("payment.plan_total")}</Text>
               <Text style={styles.summaryValue}>
                 {checkoutDraft.payload.currency}{" "}
-                {checkoutDraft.summary.planPrice.toFixed(2)}
+                {(checkoutDraft.summary.planPrice + (checkoutDraft.summary.discount ?? 0)).toFixed(3)}
               </Text>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t("payment.vat_label", { percent: 10 })}</Text>
-              <Text style={styles.summaryValue}>
-                {checkoutDraft.payload.currency}{" "}
-                {checkoutDraft.summary.vat.toFixed(2)}
-              </Text>
-            </View>
+
+            {/* Discount row */}
+            {(checkoutDraft.summary.discount ?? 0) > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Discount</Text>
+                <Text style={[styles.summaryValue, { color: "#FAD979" }]}>
+                  - {checkoutDraft.payload.currency}{" "}
+                  {(checkoutDraft.summary.discount ?? 0).toFixed(3)}
+                </Text>
+              </View>
+            )}
+
+            {/* Protein upgrade row */}
+            {checkoutDraft.payload.is_personalized && (checkoutDraft.payload.protein ?? 0) > 0 && (() => {
+              const extraCharge = checkoutDraft.summary.totalPrice
+                - checkoutDraft.summary.planPrice
+                - (checkoutDraft.summary.discount ?? 0);
+              if (extraCharge <= 0) return null;
+              return (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Protein Upgrade ({checkoutDraft.payload.protein}g)
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    + {checkoutDraft.payload.currency}{" "}
+                    {extraCharge.toFixed(3)}
+                  </Text>
+                </View>
+              );
+            })()}
+
             <View style={[styles.summaryRow, styles.summaryTotal]}>
               <Text style={styles.summaryTotalLabel}>{t("payment.amount_due")}</Text>
               <Text style={styles.summaryTotalValue}>
                 {checkoutDraft.payload.currency}{" "}
-                {checkoutDraft.summary.totalPrice.toFixed(2)}
+                {checkoutDraft.summary.totalPrice.toFixed(3)}
               </Text>
             </View>
           </View>
@@ -580,7 +652,7 @@ export default function PaymentScreen() {
             disabled={processing || !checkoutDraft}
           >
             <Text style={styles.payButtonText}>
-              {processing ? t("payment.processing") : t("payment.pay_now")}
+              {processing ? t("payment.processing") : paymentMethod === "cash" ? "Place Order" : t("payment.pay_now")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -659,6 +731,57 @@ const styles = StyleSheet.create({
   },
   rowInput: {
     flex: 1,
+  },
+  paymentMethodGroup: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  paymentMethodItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F7F3",
+  },
+  paymentMethodItemSelected: {
+    backgroundColor: "#F4FAF6",
+  },
+  paymentMethodLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  paymentMethodRadioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  paymentMethodRadioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#344225",
+  },
+  paymentMethodLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#344225",
+  },
+  paymentMethodDesc: {
+    fontSize: 12,
+    color: "#6B7F75",
+    marginTop: 2,
+  },
+  paymentMethodIcon: {
+    fontSize: 28,
   },
   saveCardRow: {
     flexDirection: "row",

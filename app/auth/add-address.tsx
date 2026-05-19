@@ -138,10 +138,31 @@ export default function AddAddressScreen() {
 
       const discountAmount = calculateDiscount(basePrice);
       const planPrice = Math.max(0, basePrice - discountAmount);
-      const totalPrice = planPrice;
 
       const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
       const selectedDaysArray = selectedDays.map((dayIndex) => dayNames[dayIndex]);
+
+      let extraCharge = 0;
+      if (isPersonalized && protein) {
+        // Prefer the directly stored price; fall back to looking up from options list
+        let extraPerMeal = parseFloat(personalizedProteinExtraPrice ?? "") || 0;
+        if (!extraPerMeal) {
+          const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
+          if (proteinOptionsRaw) {
+            const opts: { protein_grams: number; extra_price_per_meal: string }[] =
+              JSON.parse(proteinOptionsRaw);
+            const match = opts.find((o) => o.protein_grams === protein);
+            extraPerMeal = parseFloat(match?.extra_price_per_meal ?? "") || 0;
+          }
+        }
+        if (extraPerMeal > 0) {
+          const mealCount =
+            selectedPlan.meal_count ?? selectedPlan.mealCount ?? 1;
+          extraCharge = extraPerMeal * (mealCount || 1) * selectedDaysArray.length;
+        }
+      }
+
+      const totalPrice = planPrice + extraCharge;
 
       const mealsArray: { day: string; meal_id: number; type: "is meal" | "is snack" }[] = [];
       Object.keys(dayMeals).forEach((dayIndexStr) => {
@@ -185,11 +206,10 @@ export default function AddAddressScreen() {
 
       const hasPersonalizedPlan = await AsyncStorage.getItem("hasPersonalizedPlan");
       const personalizedProtein = await AsyncStorage.getItem("personalizedProtein");
-      const personalizedCarbs = await AsyncStorage.getItem("personalizedCarbs");
+      const personalizedProteinExtraPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
 
       const isPersonalized = hasPersonalizedPlan === "true";
       const protein = isPersonalized && personalizedProtein ? parseFloat(personalizedProtein) : 0;
-      const carbs = isPersonalized && personalizedCarbs ? parseFloat(personalizedCarbs) : 0;
 
       const preferredDeliverySlot =
         deliveryTime === "4pm-8pm" ? "four_pm_to_eight_pm" : "eight_pm_to_midnight";
@@ -203,7 +223,7 @@ export default function AddAddressScreen() {
         price: Math.round(totalPrice),
         is_personalized: isPersonalized,
         protein,
-        carbs,
+        carbs: protein,
         meals: mealsArray,
         area_id: selectedArea.id,
         ...(appliedCoupon?.code && { coupon_code: appliedCoupon.code }),

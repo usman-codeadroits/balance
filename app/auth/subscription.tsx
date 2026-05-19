@@ -279,10 +279,7 @@ export default function SubscriptionScreen() {
                       String(selectedPlan) === String(plan.id) &&
                       styles.chooseButtonSelected,
                     ]}
-                    onPress={() => {
-                      const newSelectedPlan = String(plan.id);
-                      setSelectedPlan(newSelectedPlan);
-                    }}
+                    onPress={() => setSelectedPlan(String(plan.id))}
                   >
                     <Text
                       style={[

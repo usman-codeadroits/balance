@@ -1,3 +1,4 @@
+import { apiClient } from "@/api/client";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AuthButtonGreen from "@/components/auth/auth-button-green";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,6 +7,7 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -15,48 +17,78 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const proteinOptions = [
-  { value: "100", label: "100 g", percentage: "" },
-  { value: "150", label: "150 g", percentage: "" },
-  { value: "200", label: "200 g", percentage: "" },
-];
+type ProteinOption = {
+  id: number;
+  protein_grams: number;
+  extra_price_per_meal: string;
+  is_active: boolean;
+};
 
-const carbsOptions = [
-  { value: "80", label: "80 g", percentage: "" },
-  { value: "100", label: "100 g", percentage: "" },
-  { value: "150", label: "150 g", percentage: "" },
-  { value: "200", label: "200 g", percentage: "" },
-];
 
 export default function BuildPlanScreen() {
   const { t } = useTranslation();
   const [selectedProtein, setSelectedProtein] = useState<string | null>(null);
   const [selectedCarbs, setSelectedCarbs] = useState<string | null>(null);
   const [showProteinDropdown, setShowProteinDropdown] = useState(false);
-  const [showCarbsDropdown, setShowCarbsDropdown] = useState(false);
+  const [proteinApiOptions, setProteinApiOptions] = useState<ProteinOption[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    const loadSaved = async () => {
-      const [protein, carbs] = await Promise.all([
-        AsyncStorage.getItem("personalizedProtein"),
-        AsyncStorage.getItem("personalizedCarbs"),
-      ]);
-      if (protein) setSelectedProtein(protein);
-      if (carbs) setSelectedCarbs(carbs);
-    };
+    fetchProteinOptions();
     loadSaved();
   }, []);
 
+  const fetchProteinOptions = async () => {
+    try {
+      const response = await apiClient.get("/v1/protein-options");
+      const data: ProteinOption[] = (response as any)?.data || [];
+      const filtered = data.filter((opt) => opt.is_active && opt.protein_grams !== 100);
+      setProteinApiOptions(filtered);
+      await AsyncStorage.setItem("proteinOptionsData", JSON.stringify(filtered));
+    } catch {
+      const fallback = [
+        { id: 1, protein_grams: 150, extra_price_per_meal: "0.650", is_active: true },
+        { id: 2, protein_grams: 200, extra_price_per_meal: "1.300", is_active: true },
+      ];
+      setProteinApiOptions(fallback);
+      await AsyncStorage.setItem("proteinOptionsData", JSON.stringify(fallback));
+    } finally {
+      setOptionsLoading(false);
+    }
+  };
+
+  const loadSaved = async () => {
+    const [protein, carbs] = await Promise.all([
+      AsyncStorage.getItem("personalizedProtein"),
+      AsyncStorage.getItem("personalizedCarbs"),
+    ]);
+    if (protein) setSelectedProtein(protein);
+    if (carbs) setSelectedCarbs(carbs);
+  };
+
+  const handleProteinSelect = (proteinGrams: string) => {
+    setSelectedProtein(proteinGrams);
+    setShowProteinDropdown(false);
+    if (proteinGrams === "150") setSelectedCarbs("150");
+    else if (proteinGrams === "200") setSelectedCarbs("200");
+
+    const option = proteinApiOptions.find(
+      (opt) => String(opt.protein_grams) === proteinGrams,
+    );
+    if (option) {
+      AsyncStorage.setItem("personalizedProteinExtraPrice", option.extra_price_per_meal);
+    }
+  };
+
   const handleContinue = async () => {
-    if (!selectedProtein || !selectedCarbs) {
+    if (!selectedProtein) {
       alert(t("build_plan.error_missing_fields"));
       return;
     }
 
     try {
-      // Save personalized plan selection
       await AsyncStorage.setItem("hasPersonalizedPlan", "true");
       await AsyncStorage.setItem("personalizedProtein", selectedProtein);
       await AsyncStorage.setItem("personalizedCarbs", selectedCarbs);
@@ -64,8 +96,6 @@ export default function BuildPlanScreen() {
       if (userId) {
         await AsyncStorage.setItem("personalizedPlanOwner", userId);
       }
-
-      // Return to subscription screen to select meals per day
       router.back();
     } catch (error) {
       alert(t("build_plan.error_saving"));
@@ -73,19 +103,15 @@ export default function BuildPlanScreen() {
   };
 
   const getProteinLabel = () => {
-    const option = proteinOptions.find((opt) => opt.value === selectedProtein);
-    return option ? option.label : t("build_plan.protein_placeholder");
+    const option = proteinApiOptions.find(
+      (opt) => String(opt.protein_grams) === selectedProtein,
+    );
+    return option ? `${option.protein_grams} g` : t("build_plan.protein_placeholder");
   };
 
-  const getCarbsLabel = () => {
-    const option = carbsOptions.find((opt) => opt.value === selectedCarbs);
-    return option ? option.label : t("build_plan.carbs_placeholder");
-  };
-
-  return (
+return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Header */}
         <View style={styles.headerSection}>
           <TouchableOpacity
             style={styles.backButton}
@@ -95,158 +121,85 @@ export default function BuildPlanScreen() {
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={styles.title}>{t("build_plan.title")}</Text>
-            <Text style={styles.subtitle}>
-              {t("build_plan.subtitle")}
-            </Text>
+            <Text style={styles.subtitle}>{t("build_plan.subtitle")}</Text>
           </View>
         </View>
 
-        {/* Scrollable Content */}
-        <ScrollView
-          style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Select Protein Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t("build_plan.select_protein")}</Text>
-            <Text style={styles.sectionDescription}>
-              {t("build_plan.protein_desc")}
-            </Text>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => {
-                setShowProteinDropdown(!showProteinDropdown);
-                setShowCarbsDropdown(false);
-              }}
-            >
-              <Text
-                style={[
-                  styles.dropdownText,
-                  !selectedProtein && styles.dropdownPlaceholder,
-                ]}
-              >
-                {getProteinLabel()}
-              </Text>
-              <Ionicons
-                name={showProteinDropdown ? "chevron-up" : "chevron-down"}
-                size={20}
-                color="#344225"
-              />
-            </TouchableOpacity>
-            {showProteinDropdown && (
-              <View style={styles.dropdownCard}>
-                {proteinOptions.map((option, index) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.dropdownRow,
-                      selectedProtein === option.value &&
-                      styles.dropdownRowSelected,
-                      index === proteinOptions.length - 1 &&
-                      styles.dropdownRowLast,
-                    ]}
-                    onPress={() => {
-                      setSelectedProtein(option.value);
-                      setShowProteinDropdown(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.dropdownRowText,
-                        selectedProtein === option.value &&
-                        styles.dropdownRowTextSelected,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.dropdownRowText,
-                        styles.dropdownRowPercentage,
-                        selectedProtein === option.value &&
-                        styles.dropdownRowTextSelected,
-                      ]}
-                    >
-                      {option.percentage}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+        {optionsLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#344225" />
           </View>
-
-          {/* Select Carbs Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t("build_plan.select_carbs")}</Text>
-            <Text style={styles.sectionDescription}>
-              {t("build_plan.carbs_desc")}
-            </Text>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => {
-                setShowCarbsDropdown(!showCarbsDropdown);
-                setShowProteinDropdown(false);
-              }}
-            >
-              <Text
-                style={[
-                  styles.dropdownText,
-                  !selectedCarbs && styles.dropdownPlaceholder,
-                ]}
-              >
-                {getCarbsLabel()}
+        ) : (
+          <ScrollView
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Select Protein & Carbs Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Select Your Proteins and Carbs</Text>
+              <Text style={styles.sectionDescription}>
+                {t("build_plan.protein_desc")}
               </Text>
-              <Ionicons
-                name={showCarbsDropdown ? "chevron-up" : "chevron-down"}
-                size={20}
-                color="#344225"
-              />
-            </TouchableOpacity>
-            {showCarbsDropdown && (
-              <View style={styles.dropdownCard}>
-                {carbsOptions.map((option, index) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.dropdownRow,
-                      selectedCarbs === option.value &&
-                      styles.dropdownRowSelected,
-                      index === carbsOptions.length - 1 &&
-                      styles.dropdownRowLast,
-                    ]}
-                    onPress={() => {
-                      setSelectedCarbs(option.value);
-                      setShowCarbsDropdown(false);
-                    }}
-                  >
-                    <Text
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setShowProteinDropdown(!showProteinDropdown)}
+              >
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    !selectedProtein && styles.dropdownPlaceholder,
+                  ]}
+                >
+                  {getProteinLabel()}
+                </Text>
+                <Ionicons
+                  name={showProteinDropdown ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#344225"
+                />
+              </TouchableOpacity>
+              {showProteinDropdown && (
+                <View style={styles.dropdownCard}>
+                  {proteinApiOptions.map((option, index) => (
+                    <TouchableOpacity
+                      key={option.id}
                       style={[
-                        styles.dropdownRowText,
-                        selectedCarbs === option.value &&
-                        styles.dropdownRowTextSelected,
+                        styles.dropdownRow,
+                        selectedProtein === String(option.protein_grams) &&
+                          styles.dropdownRowSelected,
+                        index === proteinApiOptions.length - 1 &&
+                          styles.dropdownRowLast,
                       ]}
+                      onPress={() => handleProteinSelect(String(option.protein_grams))}
                     >
-                      {option.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.dropdownRowText,
-                        styles.dropdownRowPercentage,
-                        selectedCarbs === option.value &&
-                        styles.dropdownRowTextSelected,
-                      ]}
-                    >
-                      {option.percentage}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        </ScrollView>
+                      <Text
+                        style={[
+                          styles.dropdownRowText,
+                          selectedProtein === String(option.protein_grams) &&
+                            styles.dropdownRowTextSelected,
+                        ]}
+                      >
+                        {option.protein_grams} g
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dropdownRowPrice,
+                          selectedProtein === String(option.protein_grams) &&
+                            styles.dropdownRowTextSelected,
+                        ]}
+                      >
+                        +{parseFloat(option.extra_price_per_meal).toFixed(3)} KWD/meal
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
 
-        {/* Fixed Bottom Section */}
+          </ScrollView>
+        )}
+
         <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("build_plan.continue")} onPress={handleContinue} />
         </View>
@@ -293,6 +246,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "400",
     color: "#6B7F75",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   scrollContainer: {
     flex: 1,
@@ -365,18 +323,14 @@ const styles = StyleSheet.create({
     color: "#4A4A4A",
     fontWeight: "400",
   },
-  dropdownRowPercentage: {
-    textAlign: "right",
-  },
   dropdownRowTextSelected: {
     fontWeight: "600",
     color: "#344225",
   },
-  noteText: {
+  dropdownRowPrice: {
     fontSize: 12,
     color: "#6B7F75",
-    marginTop: 8,
-    fontStyle: "italic",
+    fontWeight: "400",
   },
   bottomSection: {
     paddingHorizontal: "5%",

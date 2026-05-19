@@ -36,4 +36,5 @@ export const API_ENDPOINTS = {
   BRANCHES: "/v1/branches",
   AREAS: "/v1/areas",
   SUBSCRIPTION_PAUSE_LOGS: "/v1/subscription",
+  PROTEIN_OPTIONS: "/v1/protein-options",
 } as const;

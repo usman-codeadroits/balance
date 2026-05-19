@@ -46,6 +46,9 @@ export default function CheckoutScreen() {
     useState<ValidateCouponResponseData | null>(null);
   const [couponMessage, setCouponMessage] = useState<string>("");
   const [validating, setValidating] = useState(false);
+  const [isPersonalized, setIsPersonalized] = useState(false);
+  const [proteinGrams, setProteinGrams] = useState<number>(0);
+  const [proteinExtraPerMeal, setProteinExtraPerMeal] = useState<number>(0);
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
@@ -84,6 +87,28 @@ export default function CheckoutScreen() {
         const parsed = JSON.parse(couponData);
         setAppliedCoupon(parsed?.data ?? null);
         setPromoCode(parsed?.code ?? "");
+      }
+
+      const personalizedFlag = await AsyncStorage.getItem("hasPersonalizedPlan");
+      const personalizedProtein = await AsyncStorage.getItem("personalizedProtein");
+      if (personalizedFlag === "true" && personalizedProtein) {
+        setIsPersonalized(true);
+        const grams = parseFloat(personalizedProtein);
+        setProteinGrams(grams);
+
+        // Try direct stored price first, then fall back to options lookup
+        const directPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
+        let extraPerMeal = parseFloat(directPrice ?? "") || 0;
+        if (!extraPerMeal) {
+          const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
+          if (proteinOptionsRaw) {
+            const options: { protein_grams: number; extra_price_per_meal: string }[] =
+              JSON.parse(proteinOptionsRaw);
+            const match = options.find((o) => o.protein_grams === grams);
+            extraPerMeal = parseFloat(match?.extra_price_per_meal ?? "") || 0;
+          }
+        }
+        setProteinExtraPerMeal(extraPerMeal);
       }
     } catch (error) {
     }
@@ -129,10 +154,17 @@ export default function CheckoutScreen() {
 
   const calculateVAT = (): number => 0;
 
+  const calculateProteinExtraCharge = (): number => {
+    if (!isPersonalized || !proteinExtraPerMeal) return 0;
+    const mealCount = selectedPlan?.meal_count || 1;
+    return proteinExtraPerMeal * mealCount * selectedDays.length;
+  };
+
   const calculateTotal = (): number => {
     const planPrice = calculatePlanPrice();
     const discount = calculateDiscount(planPrice);
-    return Math.max(planPrice - discount, 0);
+    const extra = calculateProteinExtraCharge();
+    return Math.max(planPrice - discount + extra, 0);
   };
 
   const handleValidateCoupon = async () => {
@@ -406,6 +438,17 @@ export default function CheckoutScreen() {
                 KWD {calculatePlanPrice().toFixed(2)}
               </Text>
             </View>
+
+            {isPersonalized && calculateProteinExtraCharge() > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>
+                  Protein Upgrade ({proteinGrams}g)
+                </Text>
+                <Text style={styles.summaryValue}>
+                  + KWD {calculateProteinExtraCharge().toFixed(3)}
+                </Text>
+              </View>
+            )}
 
             {appliedCoupon && (
               <View style={styles.summaryRow}>

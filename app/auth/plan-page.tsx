@@ -3,15 +3,19 @@ import AuthButtonGreen from "@/components/auth/auth-button-green";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function PlanPageScreen() {
   const { t } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDaysByWeek, setSelectedDaysByWeek] = useState<number[][]>([]);
+  const [isPersonalized, setIsPersonalized] = useState(false);
+  const [proteinGrams, setProteinGrams] = useState(0);
+  const [proteinExtraPerMeal, setProteinExtraPerMeal] = useState(0);
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
@@ -21,6 +25,13 @@ export default function PlanPageScreen() {
     loadSelectedPlan();
   }, []);
 
+  // Reload protein info whenever screen comes back into focus (e.g. after editing in build-plan)
+  useFocusEffect(
+    useCallback(() => {
+      loadProteinInfo();
+    }, []),
+  );
+
   const loadSelectedPlan = async () => {
     try {
       const planData = await AsyncStorage.getItem("selectedPlan");
@@ -28,11 +39,38 @@ export default function PlanPageScreen() {
         const plan = JSON.parse(planData);
         setSelectedPlan(plan);
         const noOfWeeks = Math.max(1, Number(plan.no_of_weeks ?? 1));
-        // Start with no pre-selected days so users can freely choose their own combination.
         setSelectedDaysByWeek(Array.from({ length: noOfWeeks }, () => []));
       }
-    } catch (error) {
-    }
+    } catch (error) {}
+  };
+
+  const loadProteinInfo = async () => {
+    try {
+      const personalizedFlag = await AsyncStorage.getItem("hasPersonalizedPlan");
+      const personalizedProtein = await AsyncStorage.getItem("personalizedProtein");
+      const personalizedProteinExtraPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
+      const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
+
+      if (personalizedFlag === "true" && personalizedProtein) {
+        setIsPersonalized(true);
+        const grams = parseFloat(personalizedProtein);
+        setProteinGrams(grams);
+
+        // Try direct extra price first, then options lookup
+        let extraPerMeal = parseFloat(personalizedProteinExtraPrice ?? "") || 0;
+        if (!extraPerMeal && proteinOptionsRaw) {
+          const options: { protein_grams: number; extra_price_per_meal: string }[] =
+            JSON.parse(proteinOptionsRaw);
+          const match = options.find((o) => o.protein_grams === grams);
+          extraPerMeal = parseFloat(match?.extra_price_per_meal ?? "") || 0;
+        }
+        setProteinExtraPerMeal(extraPerMeal);
+      } else {
+        setIsPersonalized(false);
+        setProteinGrams(0);
+        setProteinExtraPerMeal(0);
+      }
+    } catch (error) {}
   };
 
   const planMinDays = selectedPlan?.min_days ?? 5;
@@ -100,18 +138,24 @@ export default function PlanPageScreen() {
     }
   };
 
-  const getPlanDisplayPrice = (): string => {
-    if (typeof selectedPlan?.pricePerDay === "number") {
-      return `KWD ${selectedPlan.pricePerDay.toFixed(2)}`;
-    }
-    if (typeof selectedPlan?.price === "number") {
-      return `KWD ${selectedPlan.price.toFixed(2)}`;
-    }
+  const getBasePlanPrice = (): number => {
+    if (typeof selectedPlan?.pricePerDay === "number") return selectedPlan.pricePerDay;
+    if (typeof selectedPlan?.price === "number") return selectedPlan.price;
     if (typeof selectedPlan?.price === "string") {
       const numeric = parseFloat(selectedPlan.price.replace(/[^0-9.]/g, ""));
-      if (!Number.isNaN(numeric)) return `KWD ${numeric.toFixed(2)}`;
+      if (!Number.isNaN(numeric)) return numeric;
     }
-    return "KWD 0.00";
+    return 0;
+  };
+
+  const totalSelectedDays = selectedDaysByWeek.reduce((sum, week) => sum + week.length, 0);
+  const proteinExtraCharge =
+    isPersonalized && proteinExtraPerMeal > 0
+      ? proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * totalSelectedDays
+      : 0;
+
+  const getPlanDisplayPrice = (): string => {
+    return `KWD ${(getBasePlanPrice() + proteinExtraCharge).toFixed(3)}`;
   };
 
   const snackCount = selectedPlan?.snack_count || 0;
@@ -163,6 +207,11 @@ export default function PlanPageScreen() {
                   <Text style={styles.billingPrice}>
                     {getPlanDisplayPrice()}
                   </Text>
+                  {isPersonalized && proteinExtraCharge > 0 && (
+                    <Text style={styles.billingProteinNote}>
+                      +{proteinExtraCharge.toFixed(3)} protein
+                    </Text>
+                  )}
                 </View>
               </View>
             </View>
@@ -352,6 +401,11 @@ const styles = StyleSheet.create({
   billingDaily: {
     fontSize: 13,
     color: "#D4E8E0",
+  },
+  billingProteinNote: {
+    fontSize: 11,
+    color: "#FAD979",
+    marginTop: 2,
   },
   billingPeriod: {
     fontSize: 12,

@@ -45,6 +45,8 @@ export default function SelectedMealsScreen() {
   const [dayMeals, setDayMeals] = useState<{ [key: number]: DayMeals }>({});
   const [hasPersonalizedPlan, setHasPersonalizedPlan] =
     useState<boolean>(false);
+  const [proteinGrams, setProteinGrams] = useState(0);
+  const [proteinExtraPerMeal, setProteinExtraPerMeal] = useState(0);
   const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
   const [subscriptionMealsData, setSubscriptionMealsData] = useState<any[]>([]);
   const [subscriptionDaysData, setSubscriptionDaysData] = useState<any[]>([]);
@@ -65,10 +67,21 @@ export default function SelectedMealsScreen() {
 
   const checkPersonalizedPlan = async () => {
     try {
-      const personalizedPlan = await AsyncStorage.getItem(
-        "hasPersonalizedPlan",
-      );
-      setHasPersonalizedPlan(personalizedPlan === "true");
+      const personalizedFlag = await AsyncStorage.getItem("hasPersonalizedPlan");
+      const isPersonalized = personalizedFlag === "true";
+      setHasPersonalizedPlan(isPersonalized);
+      if (isPersonalized) {
+        const personalizedProtein = await AsyncStorage.getItem("personalizedProtein");
+        const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
+        if (personalizedProtein && proteinOptionsRaw) {
+          const grams = parseFloat(personalizedProtein);
+          setProteinGrams(grams);
+          const options: { protein_grams: number; extra_price_per_meal: string }[] =
+            JSON.parse(proteinOptionsRaw);
+          const match = options.find((o) => o.protein_grams === grams);
+          if (match) setProteinExtraPerMeal(parseFloat(match.extra_price_per_meal) || 0);
+        }
+      }
     } catch (error) {
     }
   };
@@ -394,19 +407,24 @@ export default function SelectedMealsScreen() {
     });
   };
 
-  const getPlanDisplayPrice = (): string => {
-    if (!selectedPlan) return "KWD 0.00";
-    if (typeof selectedPlan.pricePerDay === "number") {
-      return `KWD ${selectedPlan.pricePerDay.toFixed(2)}`;
-    }
-    if (typeof selectedPlan.price === "number") {
-      return `KWD ${selectedPlan.price.toFixed(2)}`;
-    }
+  const getBasePlanPrice = (): number => {
+    if (!selectedPlan) return 0;
+    if (typeof selectedPlan.pricePerDay === "number") return selectedPlan.pricePerDay;
+    if (typeof selectedPlan.price === "number") return selectedPlan.price;
     if (typeof selectedPlan.price === "string") {
       const numeric = parseFloat(selectedPlan.price.replace(/[^0-9.]/g, ""));
-      if (!Number.isNaN(numeric)) return `KWD ${numeric.toFixed(2)}`;
+      if (!Number.isNaN(numeric)) return numeric;
     }
-    return "KWD 0.00";
+    return 0;
+  };
+
+  const proteinExtraCharge =
+    hasPersonalizedPlan && proteinExtraPerMeal > 0
+      ? proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length
+      : 0;
+
+  const getPlanDisplayPrice = (): string => {
+    return `KWD ${(getBasePlanPrice() + proteinExtraCharge).toFixed(3)}`;
   };
 
   const calculateTotalCalories = (dayIndex: number) => {
@@ -470,9 +488,14 @@ export default function SelectedMealsScreen() {
             <View style={styles.summaryDivider} />
             <View style={styles.summaryDetails}>
               <Text style={styles.summaryLabel}>{t("selected_meals.total")}</Text>
-              <Text style={styles.summaryPrice}>
-                {getPlanDisplayPrice()}
-              </Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.summaryPrice}>{getPlanDisplayPrice()}</Text>
+                {hasPersonalizedPlan && proteinExtraCharge > 0 && (
+                  <Text style={styles.summaryProteinNote}>
+                    incl. +{proteinExtraCharge.toFixed(3)} protein ({proteinGrams}g)
+                  </Text>
+                )}
+              </View>
             </View>
             <TouchableOpacity
               style={styles.continueButton}
@@ -795,6 +818,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#FAD979",
+  },
+  summaryProteinNote: {
+    fontSize: 11,
+    color: "#D4E8E0",
+    marginTop: 2,
   },
   continueButton: {
     backgroundColor: "#FAD979",
