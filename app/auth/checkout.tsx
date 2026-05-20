@@ -7,6 +7,7 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -36,14 +37,11 @@ export default function CheckoutScreen() {
   const { t } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [selectedDuration, setSelectedDuration] = useState<Duration | null>(
-    null,
-  );
+  const [selectedDuration, setSelectedDuration] = useState<Duration | null>(null);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [dayMeals, setDayMeals] = useState<{ [key: number]: DayMeals }>({});
   const [promoCode, setPromoCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] =
-    useState<ValidateCouponResponseData | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<ValidateCouponResponseData | null>(null);
   const [couponMessage, setCouponMessage] = useState<string>("");
   const [validating, setValidating] = useState(false);
   const [isPersonalized, setIsPersonalized] = useState(false);
@@ -59,29 +57,20 @@ export default function CheckoutScreen() {
   const loadData = async () => {
     try {
       const planData = await AsyncStorage.getItem("selectedPlan");
-      if (planData) {
-        setSelectedPlan(JSON.parse(planData));
-      }
+      if (planData) setSelectedPlan(JSON.parse(planData));
 
       const durationData = await AsyncStorage.getItem("selectedDuration");
-      if (durationData) {
-        setSelectedDuration(JSON.parse(durationData));
-      }
+      if (durationData) setSelectedDuration(JSON.parse(durationData));
 
       const daysData = await AsyncStorage.getItem("selectedDays");
-      if (daysData) {
-        setSelectedDays(JSON.parse(daysData));
-      }
+      if (daysData) setSelectedDays(JSON.parse(daysData));
 
       const dateData = await AsyncStorage.getItem("startDate");
-      if (dateData) {
-        setStartDate(dateData);
-      }
+      if (dateData) setStartDate(dateData);
 
       const mealsData = await AsyncStorage.getItem("selectedDayMeals");
-      if (mealsData) {
-        setDayMeals(JSON.parse(mealsData));
-      }
+      if (mealsData) setDayMeals(JSON.parse(mealsData));
+
       const couponData = await AsyncStorage.getItem("appliedCoupon");
       if (couponData) {
         const parsed = JSON.parse(couponData);
@@ -91,80 +80,58 @@ export default function CheckoutScreen() {
 
       const personalizedFlag = await AsyncStorage.getItem("hasPersonalizedPlan");
       const personalizedProtein = await AsyncStorage.getItem("personalizedProtein");
+
       if (personalizedFlag === "true" && personalizedProtein) {
         setIsPersonalized(true);
         const grams = parseFloat(personalizedProtein);
         setProteinGrams(grams);
 
-        // Try direct stored price first, then fall back to options lookup
-        const directPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
-        let extraPerMeal = parseFloat(directPrice ?? "") || 0;
+        // Match selected-meals.tsx: use proteinOptionsData lookup first, then fallback
+        let extraPerMeal = 0;
+        const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
+        if (proteinOptionsRaw) {
+          const options: { protein_grams: number; extra_price_per_meal: string | number }[] =
+            JSON.parse(proteinOptionsRaw);
+          const match = options.find((o) => o.protein_grams === grams);
+          if (match) extraPerMeal = parseFloat(String(match.extra_price_per_meal)) || 0;
+        }
         if (!extraPerMeal) {
-          const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
-          if (proteinOptionsRaw) {
-            const options: { protein_grams: number; extra_price_per_meal: string }[] =
-              JSON.parse(proteinOptionsRaw);
-            const match = options.find((o) => o.protein_grams === grams);
-            extraPerMeal = parseFloat(match?.extra_price_per_meal ?? "") || 0;
-          }
+          const directPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
+          if (directPrice) extraPerMeal = parseFloat(directPrice) || 0;
         }
         setProteinExtraPerMeal(extraPerMeal);
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
-  const handleContinue = () => {
-    router.push("/auth/add-address");
-  };
-
-  const dayNames = t("calendar.weekdays", { returnObjects: true }) as string[];
-
-  const getDayName = (dayIndex: number) => {
-    return dayNames[dayIndex];
-  };
-
-  const formatDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      const day = date.getDate();
-      const month = date.getMonth() + 1;
-      const year = date.getFullYear();
-      return `${day}/${month}/${year}`;
-    } catch (error) {
-      return "";
-    }
-  };
-
-  const calculatePlanPrice = (): number => {
+  // Same price extraction as selected-meals.tsx
+  const getBasePlanPrice = (): number => {
     if (!selectedPlan) return 0;
     if (typeof selectedPlan.pricePerDay === "number") return selectedPlan.pricePerDay;
     if (typeof selectedPlan.price === "number") return selectedPlan.price;
     return parseFloat(String(selectedPlan.price || "").replace(/[^0-9.]/g, "")) || 0;
   };
 
-  const calculateDiscount = (planPrice: number) => {
+  // Same formula as selected-meals.tsx: extraPerMeal * meal_count * days
+  const getProteinExtraCharge = (): number => {
+    if (!isPersonalized || !proteinExtraPerMeal) return 0;
+    return proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length;
+  };
+
+  const getDiscount = (base: number): number => {
     if (!appliedCoupon) return 0;
     const value = appliedCoupon.discount_value || 0;
     if (appliedCoupon.discount_type === "percentage") {
-      return Math.max(0, planPrice * (value / 100));
+      return Math.max(0, base * (value / 100));
     }
-    return Math.max(0, Math.min(planPrice, value));
+    return Math.max(0, Math.min(base, value));
   };
 
-  const calculateVAT = (): number => 0;
-
-  const calculateProteinExtraCharge = (): number => {
-    if (!isPersonalized || !proteinExtraPerMeal) return 0;
-    const mealCount = selectedPlan?.meal_count || 1;
-    return proteinExtraPerMeal * mealCount * selectedDays.length;
-  };
-
-  const calculateTotal = (): number => {
-    const planPrice = calculatePlanPrice();
-    const discount = calculateDiscount(planPrice);
-    const extra = calculateProteinExtraCharge();
-    return Math.max(planPrice - discount + extra, 0);
+  const getTotal = (): number => {
+    const base = getBasePlanPrice();
+    const protein = getProteinExtraCharge();
+    const discount = getDiscount(base);
+    return Math.max(base + protein - discount, 0);
   };
 
   const handleValidateCoupon = async () => {
@@ -174,7 +141,6 @@ export default function CheckoutScreen() {
       await AsyncStorage.removeItem("appliedCoupon");
       return;
     }
-
     try {
       setValidating(true);
       setCouponMessage("");
@@ -183,11 +149,12 @@ export default function CheckoutScreen() {
         coupon_code: promoCode.trim(),
         ...(userId ? { user_id: Number(userId) } : {}),
       });
-
       if (response.success && response.data) {
         setAppliedCoupon(response.data);
-        const stored = { code: promoCode.trim(), data: response.data };
-        await AsyncStorage.setItem("appliedCoupon", JSON.stringify(stored));
+        await AsyncStorage.setItem(
+          "appliedCoupon",
+          JSON.stringify({ code: promoCode.trim(), data: response.data }),
+        );
         setCouponMessage(response.message || t("checkout.success_coupon"));
       } else {
         setAppliedCoupon(null);
@@ -197,56 +164,45 @@ export default function CheckoutScreen() {
     } catch (error: any) {
       setAppliedCoupon(null);
       await AsyncStorage.removeItem("appliedCoupon");
-      const message =
-        error?.message || t("checkout.error_validate_failed");
-      setCouponMessage(message);
+      setCouponMessage(error?.message || t("checkout.error_validate_failed"));
     } finally {
       setValidating(false);
     }
   };
 
-  const getPlanSummaryText = () => {
-    if (!selectedPlan) return "";
-    const mealCount = selectedPlan.meal_count || 0;
-    const snackCount = selectedPlan.snack_count || 0;
-    const daysCount = selectedDays.length;
-    return t("checkout.summary_desc", {
-      plan: selectedPlan.title || "Plan",
-      meals: mealCount,
-      snacks: snackCount,
-      days: daysCount
-    });
+  const handleContinue = () => {
+    router.push("/auth/add-address");
   };
 
-  // Calculate dates for each day based on start date
+  const dayNames = t("calendar.weekdays", { returnObjects: true }) as string[];
+  const getDayName = (dayIndex: number) => dayNames[dayIndex];
+
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+    } catch {
+      return "";
+    }
+  };
+
   const getDayDate = (dayIndex: number, weekOffset: number = 0): string => {
     if (!startDate) return "";
     try {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
-
       const startDayOfWeek = start.getDay();
-
-      // Calculate days to add to reach the target day of week
       let daysToAdd = (dayIndex - startDayOfWeek + 7) % 7;
-
-      // If the target day is before the start day in the week, go to next week
-      if (dayIndex < startDayOfWeek) {
-        daysToAdd += 7;
-      }
-
-      // Add week offset
+      if (dayIndex < startDayOfWeek) daysToAdd += 7;
       daysToAdd += weekOffset * 7;
-
-      const targetDate = new Date(start);
-      targetDate.setDate(start.getDate() + daysToAdd);
-      return formatDate(targetDate.toISOString());
-    } catch (error) {
+      const target = new Date(start);
+      target.setDate(start.getDate() + daysToAdd);
+      return formatDate(target.toISOString());
+    } catch {
       return "";
     }
   };
 
-  // Group meals by week
   const getWeeksData = () => {
     if (!selectedDuration) return [];
     const weeks = [];
@@ -268,24 +224,34 @@ export default function CheckoutScreen() {
           });
         }
       });
-      if (weekData.length > 0) {
-        weeks.push(weekData);
-      }
+      if (weekData.length > 0) weeks.push(weekData);
     }
     return weeks;
   };
 
+  const getPlanSummaryText = () => {
+    if (!selectedPlan) return "";
+    return t("checkout.summary_desc", {
+      plan: selectedPlan.title || "Plan",
+      meals: selectedPlan.meal_count || 0,
+      snacks: selectedPlan.snack_count || 0,
+      days: selectedDays.length,
+    });
+  };
+
   const weeksData = getWeeksData();
+  const basePlanPrice = getBasePlanPrice();
+  const proteinExtra = getProteinExtraCharge();
+  const discount = getDiscount(basePlanPrice);
+  const total = getTotal();
+  const multiWeek = (selectedDuration?.no_of_weeks ?? 1) > 1;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Fixed Header */}
+        {/* Header */}
         <View style={[styles.headerSection, { paddingTop: Math.max(insets.top, 16) }]}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
@@ -294,106 +260,82 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
-        {/* Scrollable Day Cards Section */}
+        {/* Scrollable content */}
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Days Cards */}
-          {weeksData.map((week, weekIndex) => (
-            <View key={weekIndex}>
-              {week.map((dayData, dayIdx) => {
-                const allMeals = [
-                  ...dayData.meals.meals.map((m, i) => ({
-                    ...m,
-                    type: "meal",
-                    index: i,
-                  })),
-                  ...dayData.meals.snacks.map((s, i) => ({
-                    ...s,
-                    type: "snack",
-                    index: i,
-                  })),
-                ].filter((item) => item !== null);
-
-                if (allMeals.length === 0) return null;
-
-                return (
-                  <View key={`${weekIndex}-${dayIdx}`} style={styles.dayCard}>
-                    <Text style={styles.dayTitle}>{dayData.dayName}</Text>
-                    <Text style={styles.dateText}>{dayData.date}</Text>
-
-                    {(() => {
-                      // Deduplicate meals and compute counts
-                      const uniqueMeals: typeof allMeals = [];
-                      const counts: { [key: string]: number } = {};
-                      allMeals.forEach((meal) => {
-                        if (!meal) return;
-                        const key = `${meal.id}-${meal.type}`;
-                        if (counts[key] === undefined) {
-                          uniqueMeals.push(meal);
-                          counts[key] = 1;
-                        } else {
-                          counts[key]++;
-                        }
-                      });
-
-                      // Total macros across all meals (count-weighted)
-                      const totalCal = uniqueMeals.reduce((sum, m) => sum + (m?.calories ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
-                      const totalProtein = uniqueMeals.reduce((sum, m) => sum + (m?.protein ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
-                      const totalCarbs = uniqueMeals.reduce((sum, m) => sum + (m?.carbs ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
-                      const totalFat = uniqueMeals.reduce((sum, m) => sum + (m?.fat ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1), 0);
-
-                      return (
-                        <>
-                          {uniqueMeals.map((meal, mealIdx) => {
-                            if (!meal) return null;
-                            const count = counts[`${meal.id}-${meal.type}`] ?? 1;
-                            return (
-                              <View key={`${meal.id}-${meal.type}-${mealIdx}`} style={styles.mealItem}>
-                                <View style={styles.mealRow}>
-                                  <Text style={styles.mealName}>{meal.name}</Text>
-                                  <Text style={styles.mealMultiplier}>{count}x</Text>
-                                </View>
-                                <View style={styles.macroRow}>
-                                  <Text style={styles.macroText}>{t("checkout.cal")}: {meal.calories ?? 0}</Text>
-                                  <Text style={styles.macroDot}>·</Text>
-                                  <Text style={styles.macroText}>{t("checkout.protein")}: {meal.protein ?? 0}g</Text>
-                                  <Text style={styles.macroDot}>·</Text>
-                                  <Text style={styles.macroText}>{t("checkout.carbs")}: {meal.carbs ?? 0}g</Text>
-                                  <Text style={styles.macroDot}>·</Text>
-                                  <Text style={styles.macroText}>{t("checkout.fat")}: {meal.fat ?? 0}g</Text>
-                                </View>
-                              </View>
-                            );
-                          })}
-
-                          {/* Total macros for the day */}
-                          <View style={styles.totalMacroContainer}>
-                            <Text style={styles.totalMacroTitle}>{t("checkout.total_macros")}</Text>
-                            <View style={styles.macroRow}>
-                              <Text style={styles.totalMacroText}>{t("checkout.cal")}: {totalCal}</Text>
-                              <Text style={styles.macroDot}>·</Text>
-                              <Text style={styles.totalMacroText}>{t("checkout.protein")}: {totalProtein}g</Text>
-                              <Text style={styles.macroDot}>·</Text>
-                              <Text style={styles.totalMacroText}>{t("checkout.carbs")}: {totalCarbs}g</Text>
-                              <Text style={styles.macroDot}>·</Text>
-                              <Text style={styles.totalMacroText}>{t("checkout.fat")}: {totalFat}g</Text>
-                            </View>
-                          </View>
-                        </>
-                      );
-                    })()}
-                  </View>
-                );
-              })}
+          {/* Order Summary Card — styled like selected-meals summary card */}
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryCardHeader}>
+              <View style={styles.summaryCardTextContainer}>
+                <Text style={styles.summaryCardTitle}>{t("checkout.payment_summary")}</Text>
+                <Text style={styles.summaryCardSubtitle}>{getPlanSummaryText()}</Text>
+              </View>
+              <Image
+                source={require("@/assets/images/bag.png")}
+                style={styles.summaryCardIcon}
+                resizeMode="contain"
+              />
             </View>
-          ))}
-        </ScrollView>
 
-        {/* Fixed Payment Summary Section */}
-        <View style={[styles.fixedSection, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+            <View style={styles.summaryDivider} />
+
+            {/* Plan base price */}
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>{t("checkout.plan_price")}</Text>
+              <Text style={styles.priceValue}>KWD {basePlanPrice.toFixed(3)}</Text>
+            </View>
+
+            {/* Protein upgrade — only if personalized */}
+            {isPersonalized && proteinExtra > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>
+                  Protein Upgrade ({proteinGrams}g)
+                </Text>
+                <Text style={[styles.priceValue, styles.extraPrice]}>
+                  + KWD {proteinExtra.toFixed(3)}
+                </Text>
+              </View>
+            )}
+
+            {/* Discount — only if coupon applied */}
+            {appliedCoupon && discount > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>
+                  {t("checkout.discount_label", {
+                    coupon: appliedCoupon.readable_discount || appliedCoupon.coupon_code,
+                  })}
+                </Text>
+                <Text style={[styles.priceValue, styles.discountPrice]}>
+                  - KWD {discount.toFixed(3)}
+                </Text>
+              </View>
+            )}
+
+            {/* Delivery */}
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>{t("checkout.delivery_fee")}</Text>
+              <Text style={styles.priceValue}>{t("checkout.free")}</Text>
+            </View>
+
+            <View style={styles.summaryDivider} />
+
+            {/* Total */}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>{t("checkout.total")}</Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.totalValue}>KWD {total.toFixed(3)}</Text>
+                {isPersonalized && proteinExtra > 0 && (
+                  <Text style={styles.proteinNote}>
+                    incl. +{proteinExtra.toFixed(3)} protein ({proteinGrams}g)
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+
           {/* Promo Code Section */}
           <View style={styles.promoSection}>
             <TextInput
@@ -417,6 +359,7 @@ export default function CheckoutScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
           {!!couponMessage && (
             <Text
               style={[
@@ -428,63 +371,113 @@ export default function CheckoutScreen() {
             </Text>
           )}
 
-          {/* Payment Summary */}
-          <View style={styles.summarySection}>
-            <Text style={styles.summaryTitle}>{t("checkout.payment_summary")}</Text>
+          {/* Meal Day Cards */}
+          {weeksData.map((week, weekIndex) => (
+            <View key={weekIndex}>
+              {multiWeek && (
+                <Text style={styles.weekLabel}>Week {weekIndex + 1}</Text>
+              )}
+              {week.map((dayData, dayIdx) => {
+                const allMeals = [
+                  ...dayData.meals.meals.map((m, i) => ({ ...m, type: "meal", index: i })),
+                  ...dayData.meals.snacks.map((s, i) => ({ ...s, type: "snack", index: i })),
+                ].filter(Boolean);
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t("checkout.plan_price")}</Text>
-              <Text style={styles.summaryValue}>
-                KWD {calculatePlanPrice().toFixed(2)}
-              </Text>
+                if (allMeals.length === 0) return null;
+
+                const uniqueMeals: typeof allMeals = [];
+                const counts: { [key: string]: number } = {};
+                allMeals.forEach((meal) => {
+                  if (!meal) return;
+                  const key = `${meal.id}-${meal.type}`;
+                  if (counts[key] === undefined) {
+                    uniqueMeals.push(meal);
+                    counts[key] = 1;
+                  } else {
+                    counts[key]++;
+                  }
+                });
+
+                const totalCal = uniqueMeals.reduce(
+                  (sum, m) => sum + (m?.calories ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1),
+                  0,
+                );
+                const totalProtein = uniqueMeals.reduce(
+                  (sum, m) => sum + (m?.protein ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1),
+                  0,
+                );
+                const totalCarbs = uniqueMeals.reduce(
+                  (sum, m) => sum + (m?.carbs ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1),
+                  0,
+                );
+                const totalFat = uniqueMeals.reduce(
+                  (sum, m) => sum + (m?.fat ?? 0) * (counts[`${m?.id}-${m?.type}`] ?? 1),
+                  0,
+                );
+
+                return (
+                  <View key={`${weekIndex}-${dayIdx}`} style={styles.dayCard}>
+                    <Text style={styles.dayTitle}>{dayData.dayName}</Text>
+                    <Text style={styles.dateText}>{dayData.date}</Text>
+
+                    {uniqueMeals.map((meal, mealIdx) => {
+                      if (!meal) return null;
+                      const count = counts[`${meal.id}-${meal.type}`] ?? 1;
+                      return (
+                        <View key={`${meal.id}-${meal.type}-${mealIdx}`} style={styles.mealItem}>
+                          <View style={styles.mealRow}>
+                            <Text style={styles.mealName}>{meal.name}</Text>
+                            {count > 1 && (
+                              <Text style={styles.mealMultiplier}>{count}x</Text>
+                            )}
+                          </View>
+                          <View style={styles.macroRow}>
+                            <Text style={styles.macroText}>
+                              {t("checkout.cal")}: {meal.calories ?? 0}
+                            </Text>
+                            <Text style={styles.macroDot}>·</Text>
+                            <Text style={styles.macroText}>
+                              {t("checkout.protein")}: {meal.protein ?? 0}g
+                            </Text>
+                            <Text style={styles.macroDot}>·</Text>
+                            <Text style={styles.macroText}>
+                              {t("checkout.carbs")}: {meal.carbs ?? 0}g
+                            </Text>
+                            <Text style={styles.macroDot}>·</Text>
+                            <Text style={styles.macroText}>
+                              {t("checkout.fat")}: {meal.fat ?? 0}g
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+
+                    <View style={styles.totalMacroContainer}>
+                      <Text style={styles.totalMacroTitle}>{t("checkout.total_macros")}</Text>
+                      <View style={styles.macroRow}>
+                        <Text style={styles.totalMacroText}>{t("checkout.cal")}: {totalCal}</Text>
+                        <Text style={styles.macroDotLight}>·</Text>
+                        <Text style={styles.totalMacroText}>{t("checkout.protein")}: {totalProtein}g</Text>
+                        <Text style={styles.macroDotLight}>·</Text>
+                        <Text style={styles.totalMacroText}>{t("checkout.carbs")}: {totalCarbs}g</Text>
+                        <Text style={styles.macroDotLight}>·</Text>
+                        <Text style={styles.totalMacroText}>{t("checkout.fat")}: {totalFat}g</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
+          ))}
+        </ScrollView>
 
-            {isPersonalized && calculateProteinExtraCharge() > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  Protein Upgrade ({proteinGrams}g)
-                </Text>
-                <Text style={styles.summaryValue}>
-                  + KWD {calculateProteinExtraCharge().toFixed(3)}
-                </Text>
-              </View>
-            )}
-
-            {appliedCoupon && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {t("checkout.discount_label", { coupon: appliedCoupon.readable_discount || appliedCoupon.coupon_code })}
-                </Text>
-                <Text style={styles.summaryValue}>
-                  - KWD {calculateDiscount(calculatePlanPrice()).toFixed(2)}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t("checkout.delivery_fee")}</Text>
-              <Text style={styles.summaryValue}>{t("checkout.free")}</Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>{t("checkout.total")}</Text>
-              <Text style={styles.totalValue}>
-                KWD {calculateTotal().toFixed(2)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Fixed Continue Button */}
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.continueButton}
-              onPress={handleContinue}
-            >
-              <Text style={styles.continueButtonText}>{t("checkout.continue")}</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Fixed Continue Button */}
+        <View
+          style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}
+        >
+          <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+            <Text style={styles.continueButtonText}>{t("checkout.continue")}</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -518,22 +511,6 @@ const styles = StyleSheet.create({
   headerContent: {
     flex: 1,
   },
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: "5%",
-    paddingBottom: 400, // Space for fixed payment summary section
-  },
-  fixedSection: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#D4E8E0",
-    paddingHorizontal: "5%",
-    paddingTop: 16,
-  },
   title: {
     fontSize: 24,
     fontWeight: "700",
@@ -545,6 +522,144 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     color: "#344225",
   },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: "5%",
+    paddingBottom: 100,
+  },
+  // Summary card — mirrors selected-meals.tsx summaryCard
+  summaryCard: {
+    backgroundColor: "#344225",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+  },
+  summaryCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  summaryCardTextContainer: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  summaryCardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  summaryCardSubtitle: {
+    fontSize: 12,
+    color: "#D4E8E0",
+  },
+  summaryCardIcon: {
+    width: 80,
+    height: 80,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: "#5A7C65",
+    marginVertical: 12,
+  },
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: "#D4E8E0",
+    fontWeight: "400",
+    flex: 1,
+    paddingRight: 8,
+  },
+  priceValue: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  extraPrice: {
+    color: "#FAD979",
+  },
+  discountPrice: {
+    color: "#7ED321",
+  },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  totalValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FAD979",
+  },
+  proteinNote: {
+    fontSize: 11,
+    color: "#D4E8E0",
+    marginTop: 2,
+  },
+  // Promo code
+  promoSection: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 8,
+  },
+  promoInput: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 14,
+    color: "#344225",
+    borderWidth: 1,
+    borderColor: "#B8D5C5",
+  },
+  applyButton: {
+    backgroundColor: "#344225",
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  applyButtonDisabled: {
+    opacity: 0.6,
+  },
+  applyButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  couponMessage: {
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  couponSuccess: {
+    color: "#1A6F46",
+  },
+  couponError: {
+    color: "#C0392B",
+  },
+  weekLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  // Day cards
   dayCard: {
     backgroundColor: "#B8D5C5",
     borderRadius: 12,
@@ -607,7 +722,6 @@ const styles = StyleSheet.create({
   },
   totalMacroContainer: {
     marginTop: 12,
-    paddingTop: 10,
     backgroundColor: "#344225",
     borderRadius: 8,
     padding: 10,
@@ -623,99 +737,17 @@ const styles = StyleSheet.create({
     color: "#B8D5C5",
     fontWeight: "500",
   },
-  promoSection: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
+  macroDotLight: {
+    fontSize: 11,
+    color: "#5A7C65",
   },
-  promoInput: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 14,
-    color: "#344225",
-    borderWidth: 1,
-    borderColor: "#B8D5C5",
-  },
-  applyButton: {
-    backgroundColor: "#344225",
-    borderRadius: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  applyButtonDisabled: {
-    opacity: 0.6,
-  },
-  applyButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  summarySection: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 20,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#344225",
-    marginBottom: 16,
-  },
-  couponMessage: {
-    fontSize: 13,
-    marginTop: -12,
-    marginBottom: 16,
-  },
-  couponSuccess: {
-    color: "#1A6F46",
-  },
-  couponError: {
-    color: "#C0392B",
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    fontWeight: "400",
-    color: "#344225",
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#344225",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#D4E8E0",
-    marginVertical: 16,
-  },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 0,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#344225",
-  },
-  totalValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#344225",
-  },
+  // Footer
   footer: {
-    marginTop: 16,
+    paddingHorizontal: "5%",
+    paddingTop: 16,
+    backgroundColor: "#D4E8E0",
+    borderTopWidth: 1,
+    borderTopColor: "#B8D5C5",
   },
   continueButton: {
     backgroundColor: "#344225",

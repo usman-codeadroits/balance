@@ -4,14 +4,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function SubscriptionFullDetailsScreen() {
   const { subscriptionId } = useLocalSearchParams();
@@ -19,12 +20,11 @@ export default function SubscriptionFullDetailsScreen() {
   const [pauseLogs, setPauseLogs] = useState<PauseLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   useFocusEffect(
     useCallback(() => {
-      if (subscriptionId) {
-        loadSubscriptionDetails(Number(subscriptionId));
-      }
+      if (subscriptionId) loadSubscriptionDetails(Number(subscriptionId));
     }, [subscriptionId]),
   );
 
@@ -32,69 +32,39 @@ export default function SubscriptionFullDetailsScreen() {
     try {
       setLoading(true);
       setError(null);
-
       const response = await getSubscriptionDetails(id);
-
       if (response.success && response.data) {
         setDetails(response.data);
         if (response.data.is_paused) {
           try {
-            const logsResponse = await getSubscriptionPauseLogs(id);
-            if (logsResponse.success) setPauseLogs(logsResponse.pause_logs);
-          } catch {
-            // non-critical
-          }
+            const logsRes = await getSubscriptionPauseLogs(id);
+            if (logsRes.success) setPauseLogs(logsRes.pause_logs);
+          } catch {}
         }
       } else {
         setError("Failed to load subscription details");
       }
-    } catch (e) {
+    } catch {
       setError("Failed to load subscription details. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return "-";
-
+  const formatDate = (s?: string | null): string => {
+    if (!s) return "-";
     try {
-      // Handle date format like "20.03.2024"
-      const parts = dateString.split(".");
+      const parts = s.split(".");
       if (parts.length === 3) {
-        const [day, month, year] = parts;
-        return `${day} ${getMonthName(parseInt(month))} ${year}`;
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const m = parseInt(parts[1], 10);
+        return `${parts[0]} ${months[m - 1] ?? ""} ${parts[2]}`;
       }
-
-      // Fallback to standard date parsing
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return dateString;
-
-      const dayNum = date.getDate();
-      const monthName = getMonthName(date.getMonth() + 1);
-      const yearNum = date.getFullYear();
-      return `${dayNum} ${monthName} ${yearNum}`;
-    } catch (error) {
-      return dateString || "-";
-    }
-  };
-
-  const getMonthName = (month: number): string => {
-    const monthNames = [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
-    ];
-    return monthNames[month - 1] || "";
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch { return s; }
   };
 
   const getActivePauseLog = (): PauseLog | null => {
@@ -106,246 +76,256 @@ export default function SubscriptionFullDetailsScreen() {
   };
 
   const activePauseLog = getActivePauseLog();
-  const isPausedByAdmin = details?.is_paused && activePauseLog?.performed_by_type === "admin";
+  const isPausedByAdmin = !!(details?.is_paused && activePauseLog?.performed_by_type === "admin");
+
+  const statusColor = details?.is_paused
+    ? "#FF9800"
+    : details?.status === "active" ? "#4CAF50"
+    : details?.status === "completed" ? "#FF9800"
+    : "#F44336";
+
+  const statusLabel = (() => {
+    if (!details) return "";
+    if (details.is_paused) return isPausedByAdmin ? "Paused by Admin" : "Paused";
+    const s = details.status || "";
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  })();
+
+  const addr = details?.address as any;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.headerContainer}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#344225" />
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Subscription Details</Text>
           <View style={{ width: 40 }} />
         </View>
 
         {loading ? (
-          <View style={styles.loadingContainer}>
+          <View style={styles.center}>
             <ActivityIndicator size="large" color="#344225" />
             <Text style={styles.loadingText}>Loading details...</Text>
           </View>
         ) : error ? (
-          <View style={styles.errorContainer}>
+          <View style={styles.center}>
             <Ionicons name="alert-circle-outline" size={48} color="#D64545" />
-            <Text style={styles.errorTitle}>Error</Text>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorTitle}>Could not load</Text>
+            <Text style={styles.errorDesc}>{error}</Text>
             <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => {
-                if (subscriptionId) {
-                  loadSubscriptionDetails(Number(subscriptionId));
-                }
-              }}
+              style={styles.retryBtn}
+              onPress={() => { if (subscriptionId) loadSubscriptionDetails(Number(subscriptionId)); }}
             >
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryBtnText}>Try Again</Text>
             </TouchableOpacity>
           </View>
         ) : details ? (
           <ScrollView
-            style={styles.scrollContainer}
-            contentContainerStyle={styles.scrollContent}
+            style={styles.scroll}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
-            {/* Admin Pause Card */}
-            {isPausedByAdmin && (
-              <View style={styles.adminPauseCard}>
-                <View style={styles.adminPauseCardHeader}>
-                  <Ionicons name="pause-circle" size={22} color="#FFFFFF" />
-                  <Text style={styles.adminPauseCardTitle}>Paused by Admin</Text>
+            {isPausedByAdmin ? (
+              <View style={styles.adminPauseBanner}>
+                <View style={styles.pauseBannerRow}>
+                  <Ionicons name="pause-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.adminPauseTitle}>Paused by Admin</Text>
                 </View>
-                <Text style={styles.adminPauseCardSubtitle}>
+                <Text style={styles.adminPauseDesc}>
                   Your subscription has been paused by an administrator.
                 </Text>
                 {activePauseLog?.performed_by_name ? (
-                  <View style={styles.adminPauseRow}>
-                    <Text style={styles.adminPauseLabel}>Paused By</Text>
-                    <Text style={styles.adminPauseValue}>{activePauseLog.performed_by_name}</Text>
+                  <View style={styles.pauseDetailRow}>
+                    <Text style={styles.pauseDetailLabel}>Paused By</Text>
+                    <Text style={styles.pauseDetailValue}>{activePauseLog.performed_by_name}</Text>
                   </View>
                 ) : null}
                 {activePauseLog?.reason ? (
-                  <View style={styles.adminPauseRow}>
-                    <Text style={styles.adminPauseLabel}>Reason</Text>
-                    <Text style={styles.adminPauseValue}>{activePauseLog.reason}</Text>
+                  <View style={styles.pauseDetailRow}>
+                    <Text style={styles.pauseDetailLabel}>Reason</Text>
+                    <Text style={styles.pauseDetailValue}>{activePauseLog.reason}</Text>
                   </View>
                 ) : null}
-                {details?.paused_at ? (
-                  <View style={styles.adminPauseRow}>
-                    <Text style={styles.adminPauseLabel}>Paused On</Text>
-                    <Text style={styles.adminPauseValue}>{formatDate(details.paused_at)}</Text>
-                  </View>
-                ) : null}
-                {details?.paused_until ? (
-                  <View style={styles.adminPauseRow}>
-                    <Text style={styles.adminPauseLabel}>Paused Until</Text>
-                    <Text style={styles.adminPauseValue}>{formatDate(details.paused_until)}</Text>
-                  </View>
-                ) : null}
-                {activePauseLog?.paused_days ? (
-                  <View style={styles.adminPauseRow}>
-                    <Text style={styles.adminPauseLabel}>Paused Days</Text>
-                    <Text style={styles.adminPauseValue}>{activePauseLog.paused_days} days</Text>
-                  </View>
-                ) : null}
-                {activePauseLog?.notes ? (
-                  <View style={styles.adminPauseRow}>
-                    <Text style={styles.adminPauseLabel}>Notes</Text>
-                    <Text style={styles.adminPauseValue}>{activePauseLog.notes}</Text>
+                {details.paused_until ? (
+                  <View style={styles.pauseDetailRow}>
+                    <Text style={styles.pauseDetailLabel}>Paused Until</Text>
+                    <Text style={styles.pauseDetailValue}>{formatDate(details.paused_until)}</Text>
                   </View>
                 ) : null}
               </View>
-            )}
+            ) : null}
 
-            {/* User-paused banner */}
-            {details?.is_paused && !isPausedByAdmin && (
+            {details.is_paused && !isPausedByAdmin ? (
               <View style={styles.userPauseBanner}>
-                <Ionicons name="pause-circle-outline" size={20} color="#344225" />
-                <Text style={styles.userPauseBannerText}>
-                  Subscription is currently paused
-                  {details.paused_until ? ` until ${formatDate(details.paused_until)}` : ""}
+                <Ionicons name="pause-circle-outline" size={18} color="#344225" />
+                <Text style={styles.userPauseText}>
+                  {details.paused_until ? `Paused until ${formatDate(details.paused_until)}` : "Paused"}
                 </Text>
               </View>
-            )}
+            ) : null}
 
-            {/* Basic Info */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Basic Information</Text>
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Status</Text>
-                <Text
-                  style={[
-                    styles.infoValue,
-                    {
-                      color: details.is_paused
-                        ? "#FF9800"
-                        : details.status === "active"
-                          ? "#4CAF50"
-                          : details.status === "completed"
-                            ? "#FF9800"
-                            : "#F44336",
-                    },
-                  ]}
-                >
-                  {details.is_paused
-                    ? isPausedByAdmin ? "Paused by Admin" : "Paused"
-                    : details.status.charAt(0).toUpperCase() + details.status.slice(1)}
-                </Text>
+            {/* Summary Card */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.summaryPlanName}>
+                    {String((details as any)?.subcrption_plans?.title || (details as any)?.plan?.title || "Subscription Plan")}
+                  </Text>
+                  <Text style={styles.summaryDuration}>
+                    {String((details as any)?.duration?.title || "")}
+                  </Text>
+                </View>
+                <View style={[styles.statusChip, { borderColor: statusColor }]}>
+                  <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                  <Text style={[styles.statusChipText, { color: statusColor }]}>{statusLabel}</Text>
+                </View>
               </View>
 
-              <View style={styles.divider} />
+              <View style={styles.summaryDivider} />
 
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Personalized</Text>
-                <Text style={styles.infoValue}>
-                  {details.is_personalized ? "Yes" : "No"}
-                </Text>
+              <View style={styles.summaryGrid}>
+                <View style={styles.summaryCell}>
+                  <Text style={styles.summaryCellLabel}>Start Date</Text>
+                  <Text style={styles.summaryCellValue}>{formatDate(details.start_date)}</Text>
+                </View>
+                <View style={styles.summaryCellSep} />
+                <View style={styles.summaryCell}>
+                  <Text style={styles.summaryCellLabel}>End Date</Text>
+                  <Text style={styles.summaryCellValue}>{formatDate(details.end_date)}</Text>
+                </View>
+                <View style={styles.summaryCellSep} />
+                <View style={styles.summaryCell}>
+                  <Text style={styles.summaryCellLabel}>Total Price</Text>
+                  <Text style={styles.summaryCellPrice}>{`${details.price ?? ""} ${details.currency ?? ""}`}</Text>
+                </View>
               </View>
 
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Price</Text>
-                <Text style={styles.infoPrice}>
-                  {details.price} {details.currency}
-                </Text>
-              </View>
-            </View>
-
-            {/* Dates */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Subscription Period</Text>
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Start Date</Text>
-                <Text style={styles.infoValue}>
-                  {formatDate(details.start_date)}
-                </Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>End Date</Text>
-                <Text style={styles.infoValue}>
-                  {formatDate(details.end_date)}
-                </Text>
-              </View>
+              {details.is_personalized ? (
+                <View style={styles.personalizedBadge}>
+                  <Ionicons name="star" size={12} color="#344225" />
+                  <Text style={styles.personalizedBadgeText}>Personalized Plan</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Delivery Address */}
-            {details.address && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Delivery Address</Text>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Name</Text>
-                  <Text style={styles.infoValue}>{details.address.first_name}</Text>
+            {addr ? (
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionIconWrap}>
+                    <Ionicons name="location" size={16} color="#344225" />
+                  </View>
+                  <Text style={styles.sectionTitle}>Delivery Address</Text>
                 </View>
 
-                <View style={styles.divider} />
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Area</Text>
-                  <Text style={styles.infoValue}>{details.address.area}</Text>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Street</Text>
-                  <Text style={styles.infoValue}>{details.address.street}</Text>
+                <View style={styles.addressBlock}>
+                  {addr.first_name ? (
+                    <View style={styles.addressRow}>
+                      <Ionicons name="person-outline" size={14} color="#6B7F75" />
+                      <Text style={styles.addressText}>{String(addr.first_name)}</Text>
+                    </View>
+                  ) : null}
+                  {addr.phone_number ? (
+                    <View style={styles.addressRow}>
+                      <Ionicons name="call-outline" size={14} color="#6B7F75" />
+                      <Text style={styles.addressText}>{String(addr.phone_number)}</Text>
+                    </View>
+                  ) : null}
+                  {addr.area || addr.street ? (
+                    <View style={styles.addressRow}>
+                      <Ionicons name="map-outline" size={14} color="#6B7F75" />
+                      <Text style={styles.addressText}>
+                        {[
+                          addr.area ? String(typeof addr.area === "object" ? (addr.area.name || addr.area.title || "") : addr.area) : null,
+                          addr.block_number ? `Block ${addr.block_number}` : null,
+                          addr.street ? `Street ${addr.street}` : null,
+                        ].filter(Boolean).join(", ")}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {addr.house_building || addr.floor_apartment ? (
+                    <View style={styles.addressRow}>
+                      <Ionicons name="home-outline" size={14} color="#6B7F75" />
+                      <Text style={styles.addressText}>
+                        {[
+                          addr.house_building ? `Bldg ${addr.house_building}` : null,
+                          addr.floor_apartment ? `Floor/Apt ${addr.floor_apartment}` : null,
+                        ].filter(Boolean).join(", ")}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {addr.preferred_delivery_slot ? (
+                    <View style={styles.addressRow}>
+                      <Ionicons name="time-outline" size={14} color="#6B7F75" />
+                      <Text style={styles.addressText}>{String(addr.preferred_delivery_slot)}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
-            )}
+            ) : null}
 
-            {/* Meals */}
-            {details.subscription_days && details.subscription_days.length > 0 && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Subscription Schedule</Text>
+            {/* Schedule */}
+            {details.subscription_days && details.subscription_days.length > 0 ? (
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionIconWrap}>
+                    <Ionicons name="calendar" size={16} color="#344225" />
+                  </View>
+                  <Text style={styles.sectionTitle}>Weekly Schedule</Text>
+                  <View style={styles.dayCountBadge}>
+                    <Text style={styles.dayCountText}>{`${details.subscription_days.length} days/week`}</Text>
+                  </View>
+                </View>
 
                 {details.subscription_days.map((day, dayIndex) => (
-                  <View key={dayIndex}>
-                    <View style={styles.dayHeader}>
-                      <Text style={styles.dayName}>
-                        {day.day.charAt(0).toUpperCase() + day.day.slice(1)}
-                      </Text>
-                      <Text style={styles.mealCount}>
-                        {day.subscription_meals.length} item
-                        {day.subscription_meals.length !== 1 ? "s" : ""}
+                  <View key={dayIndex} style={styles.dayBlock}>
+                    <View style={styles.dayLabelRow}>
+                      <View style={styles.dayPill}>
+                        <Text style={styles.dayPillText}>
+                          {day.day ? day.day.charAt(0).toUpperCase() + day.day.slice(1) : ""}
+                        </Text>
+                      </View>
+                      <Text style={styles.dayMealCount}>
+                        {`${day.subscription_meals?.length ?? 0} item${(day.subscription_meals?.length ?? 0) !== 1 ? "s" : ""}`}
                       </Text>
                     </View>
 
-                    {day.subscription_meals.map((meal, mealIndex) => (
-                      <View key={mealIndex}>
-                        <View style={styles.mealRow}>
-                          <View style={styles.mealInfo}>
-                            <Text style={styles.mealTitle}>{meal.meal.title}</Text>
-                            <Text style={styles.mealType}>{meal.type}</Text>
+                    <View style={styles.mealsContainer}>
+                      {(day.subscription_meals || []).map((meal, mealIndex) => {
+                        const isMeal = meal.type === "is meal";
+                        const mealTitle = meal?.meal?.title ?? "Unknown";
+                        const mealCals = meal?.meal?.calories;
+                        const mealProtein = (meal?.meal as any)?.protein_g;
+                        const mealLabel = isMeal ? "Meal" : "Snack";
+                        const calStr = mealCals != null ? ` · ${mealCals} kcal` : "";
+                        const protStr = mealProtein != null ? ` · P ${mealProtein}g` : "";
+                        return (
+                          <View key={mealIndex} style={styles.mealRow}>
+                            <View style={[styles.mealTypeDot, { backgroundColor: isMeal ? "#344225" : "#FAD979" }]} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.mealName}>{mealTitle}</Text>
+                              <Text style={styles.mealMeta}>{`${mealLabel}${calStr}${protStr}`}</Text>
+                            </View>
+                            {mealCals != null ? (
+                              <View style={styles.calBadge}>
+                                <Text style={styles.calBadgeText}>{String(mealCals)}</Text>
+                                <Text style={styles.calBadgeUnit}>kcal</Text>
+                              </View>
+                            ) : null}
                           </View>
-                          <View style={styles.calorieBox}>
-                            <Text style={styles.calorieText}>
-                              {meal.meal.calories}
-                            </Text>
-                            <Text style={styles.calorieLabel}>kcal</Text>
-                          </View>
-                        </View>
-                        {mealIndex < day.subscription_meals.length - 1 && (
-                          <View style={styles.divider} />
-                        )}
-                      </View>
-                    ))}
+                        );
+                      })}
+                    </View>
 
-                    {dayIndex < details.subscription_days.length - 1 && (
+                    {dayIndex < details.subscription_days.length - 1 ? (
                       <View style={styles.dayDivider} />
-                    )}
+                    ) : null}
                   </View>
                 ))}
               </View>
-            )}
+            ) : null}
           </ScrollView>
         ) : null}
       </View>
@@ -356,223 +336,135 @@ export default function SubscriptionFullDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#D4E8E0",
-  },
-  content: {
-    flex: 1,
-  },
-  headerContainer: {
+  container: { flex: 1, backgroundColor: "#D4E8E0" },
+  content: { flex: 1 },
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 16,
     paddingBottom: 16,
-    backgroundColor: "#D4E8E0",
   },
-  backButton: {
+  backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: "#344225",
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#344225",
-    textAlign: "center",
-    flex: 1,
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 140,
-  },
-  adminPauseCard: {
-    backgroundColor: "#B94A00",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  adminPauseCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  adminPauseCardTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
-  adminPauseCardSubtitle: { fontSize: 13, color: "#FFD4B0", marginBottom: 10, lineHeight: 18 },
-  adminPauseRow: {
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#344225", flex: 1, textAlign: "center" },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  loadingText: { fontSize: 14, color: "#6B7F75", marginTop: 12 },
+  errorTitle: { fontSize: 18, fontWeight: "700", color: "#344225", marginTop: 16 },
+  errorDesc: { fontSize: 13, color: "#6B7F75", textAlign: "center", marginTop: 6, marginBottom: 20 },
+  retryBtn: { backgroundColor: "#344225", paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
+  retryBtnText: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
+
+  adminPauseBanner: { backgroundColor: "#B94A00", borderRadius: 14, padding: 16, marginBottom: 14 },
+  pauseBannerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  adminPauseTitle: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
+  adminPauseDesc: { fontSize: 13, color: "#FFD4B0", marginBottom: 8, lineHeight: 18 },
+  pauseDetailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.15)",
   },
-  adminPauseLabel: { fontSize: 12, color: "#FFD4B0", fontWeight: "500" },
-  adminPauseValue: { fontSize: 12, color: "#FFFFFF", fontWeight: "600", flexShrink: 1, textAlign: "right", marginLeft: 8 },
+  pauseDetailLabel: { fontSize: 12, color: "#FFD4B0" },
+  pauseDetailValue: { fontSize: 12, color: "#FFFFFF", fontWeight: "600" },
   userPauseBanner: {
-    backgroundColor: "#FFF3CD",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    backgroundColor: "#FFF3CD",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: "#FAD979",
   },
-  userPauseBannerText: { fontSize: 13, color: "#344225", fontWeight: "500", flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#6B7F75",
-    marginTop: 12,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 60,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#D64545",
-    marginTop: 16,
-  },
-  errorText: {
-    fontSize: 14,
-    fontWeight: "400",
-    color: "#6B7F75",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  retryButton: {
-    backgroundColor: "#344225",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 16,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    textAlign: "center",
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#344225",
-    marginBottom: 16,
-  },
-  infoRow: {
+  userPauseText: { fontSize: 13, color: "#344225", fontWeight: "500", flex: 1 },
+
+  summaryCard: { backgroundColor: "#344225", borderRadius: 20, padding: 20, marginBottom: 14 },
+  summaryTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 },
+  summaryPlanName: { fontSize: 18, fontWeight: "700", color: "#FFFFFF", marginBottom: 3 },
+  summaryDuration: { fontSize: 13, color: "#B8D5C5" },
+  statusChip: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
+    gap: 5,
+    borderWidth: 1.5,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
-  infoLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6B7F75",
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#344225",
-  },
-  infoPrice: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#2E7D32",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#E6EFE9",
-    marginVertical: 12,
-  },
-  dayHeader: {
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusChipText: { fontSize: 12, fontWeight: "600" },
+  summaryDivider: { height: 1, backgroundColor: "#4A6040", marginBottom: 16 },
+  summaryGrid: { flexDirection: "row", alignItems: "center" },
+  summaryCell: { flex: 1, alignItems: "center" },
+  summaryCellSep: { width: 1, height: 32, backgroundColor: "#4A6040" },
+  summaryCellLabel: { fontSize: 10, color: "#8FA880", marginBottom: 4 },
+  summaryCellValue: { fontSize: 13, fontWeight: "600", color: "#FFFFFF" },
+  summaryCellPrice: { fontSize: 15, fontWeight: "700", color: "#FAD979" },
+  personalizedBadge: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    backgroundColor: "#F5F5F5",
+    gap: 5,
+    marginTop: 14,
+    alignSelf: "flex-start",
+    backgroundColor: "#FAD979",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
-    marginBottom: 12,
   },
-  dayName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#344225",
+  personalizedBadgeText: { fontSize: 11, fontWeight: "700", color: "#344225" },
+
+  sectionCard: { backgroundColor: "#FFFFFF", borderRadius: 18, padding: 16, marginBottom: 14 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  sectionIconWrap: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "#D4E8E0", alignItems: "center", justifyContent: "center",
   },
-  mealCount: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#6B7F75",
-  },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#344225", flex: 1 },
+  dayCountBadge: { backgroundColor: "#D4E8E0", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  dayCountText: { fontSize: 11, fontWeight: "600", color: "#344225" },
+
+  addressBlock: { gap: 8 },
+  addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  addressText: { fontSize: 13, color: "#344225", flex: 1, lineHeight: 18 },
+
+  dayBlock: { marginBottom: 4 },
+  dayLabelRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+  dayPill: { backgroundColor: "#344225", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  dayPillText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
+  dayMealCount: { fontSize: 12, color: "#6B7F75" },
+  mealsContainer: { gap: 8, paddingLeft: 4 },
   mealRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    gap: 10,
+    backgroundColor: "#F7FAF8",
+    borderRadius: 10,
+    padding: 10,
   },
-  mealInfo: {
-    flex: 1,
-  },
-  mealTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#344225",
-    marginBottom: 4,
-  },
-  mealType: {
-    fontSize: 12,
-    fontWeight: "400",
-    color: "#6B7F75",
-  },
-  calorieBox: {
+  mealTypeDot: { width: 8, height: 8, borderRadius: 4 },
+  mealName: { fontSize: 13, fontWeight: "600", color: "#344225" },
+  mealMeta: { fontSize: 11, color: "#6B7F75", marginTop: 2 },
+  calBadge: {
     alignItems: "center",
-    justifyContent: "center",
-    width: 50,
-    height: 50,
+    backgroundColor: "#EEF4F0",
     borderRadius: 8,
-    backgroundColor: "#F5F5F5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 44,
   },
-  calorieText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#344225",
-  },
-  calorieLabel: {
-    fontSize: 10,
-    fontWeight: "400",
-    color: "#6B7F75",
-  },
-  dayDivider: {
-    height: 2,
-    backgroundColor: "#E6EFE9",
-    marginVertical: 16,
-  },
+  calBadgeText: { fontSize: 13, fontWeight: "700", color: "#344225" },
+  calBadgeUnit: { fontSize: 9, color: "#6B7F75" },
+  dayDivider: { height: 1, backgroundColor: "#EEF4F0", marginVertical: 12 },
 });

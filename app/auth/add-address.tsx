@@ -80,15 +80,30 @@ export default function AddAddressScreen() {
     }
     setLoading(true);
     try {
+      // Load all required data
       const planData = await AsyncStorage.getItem("selectedPlan");
       const durationData = await AsyncStorage.getItem("selectedDuration");
       const daysData = await AsyncStorage.getItem("selectedDays");
       const dateData = await AsyncStorage.getItem("startDate");
       const mealsData = await AsyncStorage.getItem("selectedDayMeals");
       const couponData = await AsyncStorage.getItem("appliedCoupon");
+      const userId = await AsyncStorage.getItem("userId");
+      const storedUserData = await AsyncStorage.getItem("userData");
+
+      // Load personalization data before it is used in price calculation
+      const hasPersonalizedPlanFlag = await AsyncStorage.getItem("hasPersonalizedPlan");
+      const personalizedProteinStr = await AsyncStorage.getItem("personalizedProtein");
+      const personalizedProteinExtraPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
+      const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
 
       if (!planData || !durationData || !daysData || !dateData || !mealsData) {
         Alert.alert(t("common.error"), "Subscription data not found. Please start over.");
+        return;
+      }
+
+      if (!userId) {
+        Alert.alert(t("common.error"), t("select_meals.error_user_not_found"));
+        router.replace("/auth");
         return;
       }
 
@@ -104,21 +119,13 @@ export default function AddAddressScreen() {
         return;
       }
 
-      const start = new Date(startDate);
-      const endDate = new Date(start);
-      endDate.setDate(start.getDate() + selectedDuration.no_of_weeks * 7);
-
-      const userId = await AsyncStorage.getItem("userId");
-      if (!userId) {
-        Alert.alert(t("common.error"), t("select_meals.error_user_not_found"));
-        router.replace("/auth");
-        return;
-      }
-
-      const storedUserData = await AsyncStorage.getItem("userData");
       const parsedUser = storedUserData ? JSON.parse(storedUserData) : null;
       const userFirstName: string = parsedUser?.name || "";
       const userPhoneNumber: string = parsedUser?.mobile ? String(parsedUser.mobile) : "";
+
+      // Personalization flags — resolved before any price calculation
+      const isPersonalized = hasPersonalizedPlanFlag === "true";
+      const protein = isPersonalized && personalizedProteinStr ? parseFloat(personalizedProteinStr) : 0;
 
       const basePrice =
         typeof selectedPlan.pricePerDay === "number"
@@ -137,32 +144,32 @@ export default function AddAddressScreen() {
       };
 
       const discountAmount = calculateDiscount(basePrice);
-      const planPrice = Math.max(0, basePrice - discountAmount);
 
       const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
       const selectedDaysArray = selectedDays.map((dayIndex) => dayNames[dayIndex]);
 
-      let extraCharge = 0;
-      if (isPersonalized && protein) {
-        // Prefer the directly stored price; fall back to looking up from options list
-        let extraPerMeal = parseFloat(personalizedProteinExtraPrice ?? "") || 0;
-        if (!extraPerMeal) {
-          const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
-          if (proteinOptionsRaw) {
-            const opts: { protein_grams: number; extra_price_per_meal: string }[] =
-              JSON.parse(proteinOptionsRaw);
-            const match = opts.find((o) => o.protein_grams === protein);
-            extraPerMeal = parseFloat(match?.extra_price_per_meal ?? "") || 0;
-          }
+      // Protein extra charge — same formula as checkout.tsx and selected-meals.tsx
+      let proteinExtra = 0;
+      if (isPersonalized && protein > 0) {
+        let extraPerMeal = 0;
+        // Use proteinOptionsData lookup first (matches checkout.tsx logic)
+        if (proteinOptionsRaw) {
+          const opts: { protein_grams: number; extra_price_per_meal: string | number }[] =
+            JSON.parse(proteinOptionsRaw);
+          const match = opts.find((o) => o.protein_grams === protein);
+          if (match) extraPerMeal = parseFloat(String(match.extra_price_per_meal)) || 0;
+        }
+        if (!extraPerMeal && personalizedProteinExtraPrice) {
+          extraPerMeal = parseFloat(personalizedProteinExtraPrice) || 0;
         }
         if (extraPerMeal > 0) {
-          const mealCount =
-            selectedPlan.meal_count ?? selectedPlan.mealCount ?? 1;
-          extraCharge = extraPerMeal * (mealCount || 1) * selectedDaysArray.length;
+          const mealCount = selectedPlan.meal_count ?? selectedPlan.mealCount ?? 1;
+          proteinExtra = extraPerMeal * (mealCount || 1) * selectedDays.length;
         }
       }
 
-      const totalPrice = planPrice + extraCharge;
+      const planPriceAfterDiscount = Math.max(0, basePrice - discountAmount);
+      const totalPrice = planPriceAfterDiscount + proteinExtra;
 
       const mealsArray: { day: string; meal_id: number; type: "is meal" | "is snack" }[] = [];
       Object.keys(dayMeals).forEach((dayIndexStr) => {
@@ -204,29 +211,21 @@ export default function AddAddressScreen() {
         return;
       }
 
-      const hasPersonalizedPlan = await AsyncStorage.getItem("hasPersonalizedPlan");
-      const personalizedProtein = await AsyncStorage.getItem("personalizedProtein");
-      const personalizedProteinExtraPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
-
-      const isPersonalized = hasPersonalizedPlan === "true";
-      const protein = isPersonalized && personalizedProtein ? parseFloat(personalizedProtein) : 0;
-
       const preferredDeliverySlot =
         deliveryTime === "4pm-8pm" ? "four_pm_to_eight_pm" : "eight_pm_to_midnight";
 
+      // Payload sent to POST /v1/payment/checkout — do NOT include amount (backend calculates it)
       const checkoutPayload = {
         user_id: parseInt(userId, 10),
         subcrption_plans_id: planId,
-        duration_id: Number(selectedDuration.id),
-        selected_days: selectedDaysArray,
-        start_date: formattedStartDate,
-        price: Math.round(totalPrice),
-        is_personalized: isPersonalized,
-        protein,
-        carbs: protein,
-        meals: mealsArray,
         area_id: selectedArea.id,
+        start_date: formattedStartDate,
+        selected_days: selectedDaysArray,
+        is_personalized: isPersonalized,
+        ...(isPersonalized && protein > 0 && { protein, carbs: protein }),
+        meals: mealsArray,
         ...(appliedCoupon?.code && { coupon_code: appliedCoupon.code }),
+        currency: selectedPlan.currency || "KWD",
         address: {
           first_name: userFirstName,
           phone_number: userPhoneNumber,
@@ -240,9 +239,10 @@ export default function AddAddressScreen() {
           is_primary: isPrimary,
           preferred_delivery_slot: preferredDeliverySlot,
         },
-        amount: totalPrice,
-        currency: selectedPlan.currency || "KWD",
       };
+
+      const endDate = new Date(startDateObj);
+      endDate.setDate(startDateObj.getDate() + selectedDuration.no_of_weeks * 7);
 
       const checkoutDraft = {
         payload: checkoutPayload,
@@ -254,7 +254,8 @@ export default function AddAddressScreen() {
           endDate: endDate.toISOString(),
           dayMeals,
           address: checkoutPayload.address,
-          planPrice,
+          planPrice: basePrice,
+          proteinExtra,
           vat: 0,
           totalPrice,
           discount: discountAmount,

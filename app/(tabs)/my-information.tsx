@@ -7,7 +7,6 @@ import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, T
 
 export default function MyInformationScreen() {
   const [fullName, setFullName] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [block, setBlock] = useState('');
@@ -73,7 +72,6 @@ export default function MyInformationScreen() {
           // Populate form with API data
           setFullName(userData.name || '');
           setEmail(userData.email || '');
-          setMobileNumber(userData.mobile || userData.phone || '');
 
           // Capture address if provided by API response
           const address = normalizeAddress(
@@ -97,7 +95,6 @@ export default function MyInformationScreen() {
         const userData = JSON.parse(userDataStr);
         setFullName(userData.name || '');
         setEmail(userData.email || '');
-        setMobileNumber(userData.mobile || userData.phone || '');
       }
       
       // Load address from local storage (address is separate from user profile)
@@ -147,8 +144,6 @@ export default function MyInformationScreen() {
           await updateUser(parseInt(userId), {
             name: fullName,
             email: email,
-            mobile: mobileNumber,
-            phone: mobileNumber,
           });
         } catch (apiError) {
         }
@@ -158,8 +153,6 @@ export default function MyInformationScreen() {
       const userData = {
         name: fullName,
         email: email,
-        mobile: mobileNumber,
-        phone: mobileNumber,
       };
       await AsyncStorage.setItem('userData', JSON.stringify(userData));
 
@@ -218,15 +211,6 @@ export default function MyInformationScreen() {
             placeholderTextColor="#6B7F75"
             value={fullName}
             onChangeText={setFullName}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Mobile number"
-            placeholderTextColor="#6B7F75"
-            value={mobileNumber}
-            onChangeText={setMobileNumber}
-            keyboardType="phone-pad"
           />
 
           <TextInput

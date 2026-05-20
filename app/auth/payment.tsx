@@ -30,7 +30,6 @@ type DurationSummary = {
 type CheckoutDraft = {
   payload: CheckoutRequest & {
     address: NonNullable<CheckoutRequest["address"]>;
-    amount: number;
     currency: string;
   };
   summary: {
@@ -42,6 +41,7 @@ type CheckoutDraft = {
     dayMeals: Record<string, any>;
     address: NonNullable<CheckoutRequest["address"]>;
     planPrice: number;
+    proteinExtra?: number;
     vat: number;
     totalPrice: number;
     discount?: number;
@@ -187,7 +187,7 @@ export default function PaymentScreen() {
           ...payload,
           payment: "pending",
           user_subscription_id: subscriptionData.id,
-        },
+        } as CheckoutDraft["payload"],
         summary,
       };
       await AsyncStorage.setItem(
@@ -313,7 +313,7 @@ export default function PaymentScreen() {
       const storedPayload = checkoutDraft.payload;
       const isPersonalized = storedPayload.is_personalized ?? false;
       const paymentCheckoutPayload: any = {
-        user_id: parseInt(storedPayload.user_id as string, 10),
+        user_id: storedPayload.user_id,
         subcrption_plans_id: storedPayload.subcrption_plans_id,
         area_id: storedPayload.area_id,
         start_date: localStartDate,
@@ -322,12 +322,12 @@ export default function PaymentScreen() {
         is_personalized: isPersonalized,
         ...(isPersonalized && {
           protein: storedPayload.protein ?? 0,
-          carbs: storedPayload.protein ?? 0,
+          carbs: storedPayload.carbs ?? storedPayload.protein ?? 0,
         }),
         meals: storedPayload.meals ?? [],
         address: storedPayload.address,
         ...(storedPayload.currency && { currency: storedPayload.currency }),
-        ...(storedPayload.coupon_code && { coupon_code: storedPayload.coupon_code }),
+        ...((storedPayload as any).coupon_code && { coupon_code: (storedPayload as any).coupon_code }),
         ...(paymentMethod !== "cash" && {
           card_holder_name: nameOnCard.trim(),
           card_number: sanitizeCardNumber(cardNumber),
@@ -362,7 +362,7 @@ export default function PaymentScreen() {
       // Process successful payment
       const responseData = (response as any)?.data || response;
       await handlePaymentSuccess(responseData, paymentCheckoutPayload);
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert(
         t("payment.alerts.error_title"),
         error instanceof Error
@@ -593,44 +593,45 @@ export default function PaymentScreen() {
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>{t("payment.order_summary")}</Text>
 
-            {/* Base plan price (before any discount) */}
+            {/* Base plan price (before discount) */}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>{t("payment.plan_total")}</Text>
               <Text style={styles.summaryValue}>
                 {checkoutDraft.payload.currency}{" "}
-                {(checkoutDraft.summary.planPrice + (checkoutDraft.summary.discount ?? 0)).toFixed(3)}
+                {checkoutDraft.summary.planPrice.toFixed(3)}
               </Text>
             </View>
+
+            {/* Protein upgrade — uses value stored by add-address.tsx */}
+            {checkoutDraft.payload.is_personalized &&
+              (checkoutDraft.summary.proteinExtra ?? 0) > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    Protein Upgrade ({checkoutDraft.payload.protein}g)
+                  </Text>
+                  <Text style={[styles.summaryValue, { color: "#FAD979" }]}>
+                    + {checkoutDraft.payload.currency}{" "}
+                    {(checkoutDraft.summary.proteinExtra ?? 0).toFixed(3)}
+                  </Text>
+                </View>
+              )}
 
             {/* Discount row */}
             {(checkoutDraft.summary.discount ?? 0) > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Discount</Text>
-                <Text style={[styles.summaryValue, { color: "#FAD979" }]}>
+                <Text style={[styles.summaryValue, { color: "#7ED321" }]}>
                   - {checkoutDraft.payload.currency}{" "}
                   {(checkoutDraft.summary.discount ?? 0).toFixed(3)}
                 </Text>
               </View>
             )}
 
-            {/* Protein upgrade row */}
-            {checkoutDraft.payload.is_personalized && (checkoutDraft.payload.protein ?? 0) > 0 && (() => {
-              const extraCharge = checkoutDraft.summary.totalPrice
-                - checkoutDraft.summary.planPrice
-                - (checkoutDraft.summary.discount ?? 0);
-              if (extraCharge <= 0) return null;
-              return (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>
-                    Protein Upgrade ({checkoutDraft.payload.protein}g)
-                  </Text>
-                  <Text style={styles.summaryValue}>
-                    + {checkoutDraft.payload.currency}{" "}
-                    {extraCharge.toFixed(3)}
-                  </Text>
-                </View>
-              );
-            })()}
+            {/* Delivery */}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>{t("checkout.delivery_fee")}</Text>
+              <Text style={styles.summaryValue}>{t("checkout.free")}</Text>
+            </View>
 
             <View style={[styles.summaryRow, styles.summaryTotal]}>
               <Text style={styles.summaryTotalLabel}>{t("payment.amount_due")}</Text>

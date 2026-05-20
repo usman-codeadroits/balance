@@ -4,20 +4,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function SubscriptionDetailsScreen() {
   const [subscription, setSubscription] = useState<UserSubscriptionSummary | null>(null);
   const [pauseLogs, setPauseLogs] = useState<PauseLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   useFocusEffect(
     useCallback(() => {
@@ -30,247 +32,227 @@ export default function SubscriptionDetailsScreen() {
       setLoading(true);
       setError(null);
       const response = await getMySubscriptions();
-      if (response.success && response.data.active && response.data.active.length > 0) {
+      if (response.success && response.data.active?.length > 0) {
         const active = response.data.active[0];
         setSubscription(active);
-        if (active.is_paused) {
-          fetchPauseLogs(active.id);
-        }
+        if (active.is_paused) fetchPauseLogs(active.id);
       } else {
-        setError("No active subscription found");
+        setError("no_active");
         setSubscription(null);
       }
     } catch {
-      setError("Failed to load subscription details. Please try again.");
+      setError("failed");
       setSubscription(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPauseLogs = async (subscriptionId: number) => {
+  const fetchPauseLogs = async (id: number) => {
     try {
-      const response = await getSubscriptionPauseLogs(subscriptionId);
-      if (response.success) {
-        setPauseLogs(response.pause_logs);
-      }
-    } catch {
-      // non-critical — pause log fetch failure doesn't break the screen
-    }
+      const res = await getSubscriptionPauseLogs(id);
+      if (res.success) setPauseLogs(res.pause_logs);
+    } catch {}
   };
 
-  // Returns the latest active pause log (action=pause, not yet resumed)
   const getActivePauseLog = (): PauseLog | null => {
-    const pauseEntries = pauseLogs.filter((l) => l.action === "pause" && !l.resumed_at);
-    if (pauseEntries.length === 0) return null;
-    return pauseEntries.sort(
+    const entries = pauseLogs.filter((l) => l.action === "pause" && !l.resumed_at);
+    if (!entries.length) return null;
+    return entries.sort(
       (a, b) => new Date(b.action_timestamp).getTime() - new Date(a.action_timestamp).getTime(),
     )[0];
   };
 
-  const formatDate = (dateString: string | undefined | null): string => {
-    if (!dateString) return "-";
+  const formatDate = (s?: string | null): string => {
+    if (!s) return "-";
     try {
-      const parts = dateString.split(".");
+      const parts = s.split(".");
       if (parts.length === 3) {
-        const [day, month, year] = parts;
-        return `${day} ${getMonthName(parseInt(month))} ${year}`;
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        return `${parts[0]} ${months[parseInt(parts[1]) - 1]} ${parts[2]}`;
       }
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return dateString;
-      return `${date.getDate()} ${getMonthName(date.getMonth() + 1)} ${date.getFullYear()}`;
-    } catch {
-      return dateString || "-";
-    }
-  };
-
-  const getMonthName = (month: number): string => {
-    const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return names[month - 1] || "";
-  };
-
-  const getStatusColor = (status: string): string => {
-    switch (status.toLowerCase()) {
-      case "active": return "#4CAF50";
-      case "completed": return "#FF9800";
-      case "cancelled": return "#F44336";
-      default: return "#999999";
-    }
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch { return s; }
   };
 
   const activePauseLog = getActivePauseLog();
-  const isPausedByAdmin = subscription?.is_paused && activePauseLog?.performed_by_type === "admin";
+  const isPausedByAdmin = !!(subscription?.is_paused) && activePauseLog?.performed_by_type === "admin";
+
+  const statusLabel = subscription?.is_paused
+    ? isPausedByAdmin ? "Paused by Admin" : "Paused"
+    : subscription
+      ? subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)
+      : "";
+
+  const statusColor = subscription?.is_paused
+    ? "#FF9800"
+    : subscription?.status === "active" ? "#4CAF50"
+    : subscription?.status === "completed" ? "#FF9800"
+    : "#F44336";
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={styles.headerContainer}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#344225" />
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Subscription Details</Text>
+          <Text style={styles.headerTitle}>My Subscription</Text>
           <View style={{ width: 40 }} />
         </View>
 
         {loading ? (
-          <View style={styles.loadingContainer}>
+          <View style={styles.center}>
             <ActivityIndicator size="large" color="#344225" />
             <Text style={styles.loadingText}>Loading subscription...</Text>
           </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color="#D64545" />
-            <Text style={styles.errorTitle}>No Active Subscription</Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.addButton} onPress={() => router.push("/auth/subscription")}>
-              <Text style={styles.addButtonText}>Add New Subscription</Text>
+        ) : error || !subscription ? (
+          <View style={styles.center}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="calendar-outline" size={40} color="#344225" />
+            </View>
+            <Text style={styles.emptyTitle}>No Active Subscription</Text>
+            <Text style={styles.emptyDesc}>
+              Start your healthy meal journey by creating a new plan
+            </Text>
+            <TouchableOpacity
+              style={styles.startBtn}
+              onPress={() => router.push("/auth/subscription")}
+            >
+              <Ionicons name="add" size={18} color="#344225" />
+              <Text style={styles.startBtnText}>Create Subscription</Text>
             </TouchableOpacity>
           </View>
-        ) : subscription ? (
+        ) : (
           <ScrollView
-            style={styles.scrollContainer}
-            contentContainerStyle={styles.scrollContent}
+            style={styles.scroll}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
-            {/* Admin Pause Banner */}
-            {isPausedByAdmin && (
+            {/* Pause banners */}
+            {isPausedByAdmin ? (
               <View style={styles.adminPauseBanner}>
-                <View style={styles.adminPauseBannerHeader}>
-                  <Ionicons name="pause-circle" size={22} color="#FFFFFF" />
-                  <Text style={styles.adminPauseBannerTitle}>Paused by Admin</Text>
+                <View style={styles.pauseBannerRow}>
+                  <Ionicons name="pause-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.adminPauseTitle}>Paused by Admin</Text>
                 </View>
-                <Text style={styles.adminPauseBannerText}>
+                <Text style={styles.adminPauseDesc}>
                   Your subscription has been paused by an administrator.
                 </Text>
                 {activePauseLog?.reason ? (
-                  <View style={styles.adminPauseDetail}>
-                    <Text style={styles.adminPauseDetailLabel}>Reason</Text>
-                    <Text style={styles.adminPauseDetailValue}>{activePauseLog.reason}</Text>
+                  <View style={styles.pauseDetailRow}>
+                    <Text style={styles.pauseDetailLabel}>Reason</Text>
+                    <Text style={styles.pauseDetailValue}>{activePauseLog.reason}</Text>
                   </View>
                 ) : null}
                 {subscription.paused_until ? (
-                  <View style={styles.adminPauseDetail}>
-                    <Text style={styles.adminPauseDetailLabel}>Paused Until</Text>
-                    <Text style={styles.adminPauseDetailValue}>{formatDate(subscription.paused_until)}</Text>
-                  </View>
-                ) : null}
-                {activePauseLog?.notes ? (
-                  <View style={styles.adminPauseDetail}>
-                    <Text style={styles.adminPauseDetailLabel}>Notes</Text>
-                    <Text style={styles.adminPauseDetailValue}>{activePauseLog.notes}</Text>
-                  </View>
-                ) : null}
-                {activePauseLog?.paused_days ? (
-                  <View style={styles.adminPauseDetail}>
-                    <Text style={styles.adminPauseDetailLabel}>Paused Days</Text>
-                    <Text style={styles.adminPauseDetailValue}>{activePauseLog.paused_days} days</Text>
+                  <View style={styles.pauseDetailRow}>
+                    <Text style={styles.pauseDetailLabel}>Paused Until</Text>
+                    <Text style={styles.pauseDetailValue}>{formatDate(subscription.paused_until)}</Text>
                   </View>
                 ) : null}
               </View>
-            )}
+            ) : null}
 
-            {/* User-paused banner (not admin) */}
-            {subscription.is_paused && !isPausedByAdmin && (
+            {!!(subscription.is_paused) && !isPausedByAdmin ? (
               <View style={styles.userPauseBanner}>
-                <Ionicons name="pause-circle-outline" size={20} color="#344225" />
-                <Text style={styles.userPauseBannerText}>
-                  Subscription is currently paused
-                  {subscription.paused_until ? ` until ${formatDate(subscription.paused_until)}` : ""}
+                <Ionicons name="pause-circle-outline" size={18} color="#344225" />
+                <Text style={styles.userPauseText}>
+                  {subscription.paused_until ? `Paused until ${formatDate(subscription.paused_until)}` : "Paused"}
                 </Text>
               </View>
-            )}
+            ) : null}
 
-            {/* Status Badge */}
-            <View style={styles.statusBadge}>
-              <View style={[styles.statusDot, { backgroundColor: subscription.is_paused ? "#FF9800" : getStatusColor(subscription.status) }]} />
-              <Text style={[styles.statusText, { color: subscription.is_paused ? "#FF9800" : getStatusColor(subscription.status) }]}>
-                {subscription.is_paused
-                  ? isPausedByAdmin ? "Paused by Admin" : "Paused"
-                  : subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
-              </Text>
-            </View>
+            {/* Hero Card */}
+            <View style={styles.heroCard}>
+              <View style={styles.heroTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.heroPlanName}>
+                    {subscription.subcrption_plans?.title || "Subscription Plan"}
+                  </Text>
+                  <Text style={styles.heroDuration}>
+                    {subscription.duration?.title || ""}
+                  </Text>
+                </View>
+                <View style={[styles.statusChip, { borderColor: statusColor }]}>
+                  <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                  <Text style={[styles.statusChipText, { color: statusColor }]}>{statusLabel}</Text>
+                </View>
+              </View>
 
-            {/* Plan Card */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Plan Information</Text>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Plan Name</Text>
-                <Text style={styles.infoValue}>{subscription.subcrption_plans?.title || "-"}</Text>
-              </View>
-              <View style={styles.divider} />
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Duration</Text>
-                <Text style={styles.infoValue}>{subscription.duration?.title || "-"}</Text>
-              </View>
-              <View style={styles.divider} />
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Price</Text>
-                <Text style={styles.infoPrice}>{subscription.price}</Text>
-              </View>
-            </View>
+              <View style={styles.heroDivider} />
 
-            {/* Date Card */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Subscription Period</Text>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Start Date</Text>
-                <Text style={styles.infoValue}>{formatDate(subscription.start_date)}</Text>
+              <View style={styles.heroBottom}>
+                <View style={styles.heroDateBlock}>
+                  <Text style={styles.heroDateLabel}>Start Date</Text>
+                  <Text style={styles.heroDateValue}>{formatDate(subscription.start_date)}</Text>
+                </View>
+                <View style={styles.heroArrow}>
+                  <Ionicons name="arrow-forward" size={16} color="#B8D5C5" />
+                </View>
+                <View style={styles.heroDateBlock}>
+                  <Text style={styles.heroDateLabel}>End Date</Text>
+                  <Text style={styles.heroDateValue}>{formatDate(subscription.end_date)}</Text>
+                </View>
+                <View style={styles.heroPriceBlock}>
+                  <Text style={styles.heroPriceLabel}>Total</Text>
+                  <Text style={styles.heroPriceValue}>{`${subscription.price} ${(subscription as any).currency || "KWD"}`}</Text>
+                </View>
               </View>
-              <View style={styles.divider} />
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>End Date</Text>
-                <Text style={styles.infoValue}>{formatDate(subscription.end_date)}</Text>
-              </View>
+
               {subscription.total_paused_days ? (
-                <>
-                  <View style={styles.divider} />
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Total Paused Days</Text>
-                    <Text style={styles.infoValue}>{subscription.total_paused_days} days</Text>
-                  </View>
-                </>
+                <View style={styles.pausedDaysBadge}>
+                  <Ionicons name="time-outline" size={13} color="#FAD979" />
+                  <Text style={styles.pausedDaysText}>
+                    {subscription.total_paused_days} day{subscription.total_paused_days !== 1 ? "s" : ""} paused
+                  </Text>
+                </View>
               ) : null}
             </View>
 
-            {/* Actions */}
-            <View style={styles.actionsContainer}>
-              <TouchableOpacity
-                style={styles.viewDetailsButton}
-                onPress={() =>
-                  router.push({
-                    pathname: "/subscription-full-details",
-                    params: { subscriptionId: subscription.id },
-                  })
-                }
-              >
-                <Ionicons name="information-circle-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.viewDetailsButtonText}>View Full Details</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.updateMealsButton}
-                onPress={() =>
-                  router.push({
-                    pathname: "/update-subscription-meals",
-                    params: { subscriptionId: subscription.id },
-                  })
-                }
-              >
+            {/* Action Buttons */}
+            <TouchableOpacity
+              style={styles.updateMealBtn}
+              onPress={() =>
+                router.push({
+                  pathname: "/update-subscription-meals",
+                  params: { subscriptionId: subscription.id },
+                })
+              }
+            >
+              <View style={styles.updateMealBtnIcon}>
                 <Ionicons name="create-outline" size={20} color="#344225" />
-                <Text style={styles.updateMealsButtonText}>Update Meal</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-outline" size={48} color="#B0C4B1" />
-            <Text style={styles.emptyTitle}>No Active Subscription</Text>
-            <Text style={styles.emptyText}>Start your meal journey by creating a new subscription</Text>
-            <TouchableOpacity style={styles.addButton} onPress={() => router.push("/auth/subscription")}>
-              <Text style={styles.addButtonText}>Create Subscription</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.updateMealBtnTitle}>Update Meals</Text>
+                <Text style={styles.updateMealBtnDesc}>Change your daily meal selections</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#6B7F75" />
             </TouchableOpacity>
-          </View>
+
+            <TouchableOpacity
+              style={styles.viewDetailsBtn}
+              onPress={() =>
+                router.push({
+                  pathname: "/subscription-full-details",
+                  params: { subscriptionId: subscription.id },
+                })
+              }
+            >
+              <View style={styles.viewDetailsBtnIcon}>
+                <Ionicons name="list-outline" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.viewDetailsBtnTitle}>View Full Details</Text>
+                <Text style={styles.viewDetailsBtnDesc}>See schedule, address & history</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#B8D5C5" />
+            </TouchableOpacity>
+          </ScrollView>
         )}
       </View>
 
@@ -282,123 +264,187 @@ export default function SubscriptionDetailsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
-  headerContainer: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 16,
     paddingBottom: 16,
-    backgroundColor: "#D4E8E0",
   },
-  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: "#344225", textAlign: "center", flex: 1 },
-  scrollContainer: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 140 },
-  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60 },
-  loadingText: { fontSize: 16, fontWeight: "500", color: "#6B7F75", marginTop: 12 },
-  errorContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, paddingVertical: 60 },
-  errorTitle: { fontSize: 18, fontWeight: "700", color: "#D64545", marginTop: 16 },
-  errorText: { fontSize: 14, fontWeight: "400", color: "#6B7F75", textAlign: "center", marginTop: 8 },
-  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, paddingVertical: 60 },
-  emptyTitle: { fontSize: 18, fontWeight: "700", color: "#344225", marginTop: 16 },
-  emptyText: { fontSize: 14, fontWeight: "400", color: "#6B7F75", textAlign: "center", marginTop: 8 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#344225",
+    flex: 1,
+    textAlign: "center",
+  },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  loadingText: { fontSize: 14, color: "#6B7F75", marginTop: 12 },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#B8D5C5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: "700", color: "#344225", marginBottom: 8 },
+  emptyDesc: { fontSize: 14, color: "#6B7F75", textAlign: "center", lineHeight: 20, marginBottom: 24 },
+  startBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FAD979",
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  startBtnText: { fontSize: 15, fontWeight: "700", color: "#344225" },
 
-  // Admin pause banner
+  // Pause banners
   adminPauseBanner: {
     backgroundColor: "#B94A00",
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
-    marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 14,
   },
-  adminPauseBannerHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  adminPauseBannerTitle: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
-  adminPauseBannerText: { fontSize: 13, color: "#FFD4B0", marginBottom: 10, lineHeight: 18 },
-  adminPauseDetail: {
+  pauseBannerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  adminPauseTitle: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
+  adminPauseDesc: { fontSize: 13, color: "#FFD4B0", marginBottom: 8, lineHeight: 18 },
+  pauseDetailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     paddingVertical: 5,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.15)",
   },
-  adminPauseDetailLabel: { fontSize: 12, color: "#FFD4B0", fontWeight: "500" },
-  adminPauseDetailValue: { fontSize: 12, color: "#FFFFFF", fontWeight: "600", flexShrink: 1, textAlign: "right", marginLeft: 8 },
-
-  // User pause banner
+  pauseDetailLabel: { fontSize: 12, color: "#FFD4B0" },
+  pauseDetailValue: { fontSize: 12, color: "#FFFFFF", fontWeight: "600" },
   userPauseBanner: {
-    backgroundColor: "#FFF3CD",
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 12,
-    marginBottom: 4,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    backgroundColor: "#FFF3CD",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: "#FAD979",
   },
-  userPauseBannerText: { fontSize: 13, color: "#344225", fontWeight: "500", flex: 1 },
+  userPauseText: { fontSize: 13, color: "#344225", fontWeight: "500", flex: 1 },
 
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    marginVertical: 16,
-  },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  statusText: { fontSize: 14, fontWeight: "600" },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+  // Hero card
+  heroCard: {
+    backgroundColor: "#344225",
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: "#344225", marginBottom: 16 },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8 },
-  infoLabel: { fontSize: 14, fontWeight: "500", color: "#6B7F75" },
-  infoValue: { fontSize: 14, fontWeight: "600", color: "#344225" },
-  infoPrice: { fontSize: 16, fontWeight: "700", color: "#2E7D32" },
-  divider: { height: 1, backgroundColor: "#E6EFE9", marginVertical: 12 },
-  actionsContainer: { gap: 12, marginBottom: 20 },
-  viewDetailsButton: {
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  heroPlanName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  heroDuration: { fontSize: 13, color: "#B8D5C5" },
+  statusChip: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#344225",
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    gap: 5,
+    borderWidth: 1.5,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
-  viewDetailsButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-  updateMealsButton: {
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusChipText: { fontSize: 12, fontWeight: "600" },
+  heroDivider: { height: 1, backgroundColor: "#4A6040", marginBottom: 16 },
+  heroBottom: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E6EFE9",
     gap: 8,
   },
-  updateMealsButtonText: { fontSize: 16, fontWeight: "600", color: "#344225" },
-  addButton: {
-    backgroundColor: "#344225",
-    paddingHorizontal: 32,
-    paddingVertical: 12,
+  heroDateBlock: { flex: 1 },
+  heroDateLabel: { fontSize: 11, color: "#8FA880", marginBottom: 4 },
+  heroDateValue: { fontSize: 13, fontWeight: "600", color: "#FFFFFF" },
+  heroArrow: { paddingHorizontal: 4 },
+  heroPriceBlock: { alignItems: "flex-end" },
+  heroPriceLabel: { fontSize: 11, color: "#8FA880", marginBottom: 4 },
+  heroPriceValue: { fontSize: 18, fontWeight: "700", color: "#FAD979" },
+  pausedDaysBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
-    marginTop: 16,
   },
-  addButtonText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF", textAlign: "center" },
+  pausedDaysText: { fontSize: 12, color: "#FAD979", fontWeight: "500" },
+
+  // Action buttons
+  updateMealBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#FAD979",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  updateMealBtnIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(52,66,37,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  updateMealBtnTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
+  updateMealBtnDesc: { fontSize: 12, color: "#5C6B45", marginTop: 2 },
+
+  viewDetailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#344225",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  viewDetailsBtnIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewDetailsBtnTitle: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
+  viewDetailsBtnDesc: { fontSize: 12, color: "#B8D5C5", marginTop: 2 },
 });

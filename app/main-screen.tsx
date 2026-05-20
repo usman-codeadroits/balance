@@ -118,7 +118,7 @@ export default function MainScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.titleContainer}>
+        <View style={[styles.titleContainer, { paddingTop: Math.max(insets.top, 16) }]}>
           <View style={styles.headerSpacer} />
           <View style={styles.headerLogoWrap}>
             <Image
@@ -160,36 +160,45 @@ export default function MainScreen() {
 
         <View style={styles.welcomeRow}>
           <Text style={styles.welcomeText}>
-            {greetingPrefix}{" "}
-            <Text style={styles.welcomeName}>{userName || t("main.user_fallback")}</Text>!
+            {greetingPrefix},{" "}
+            <Text style={styles.welcomeName}>{userName || t("main.user_fallback")}</Text>
           </Text>
         </View>
 
-        <View style={styles.actionsRow}>
+        {/* Subscription Card */}
+        {hasSubscription ? (
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() =>
-              router.push(
-                hasSubscription
-                  ? "/subscription-details"
-                  : "/auth/subscription"
-              )
-            }
+            style={styles.subCard}
+            onPress={() => router.push("/subscription-details")}
+            activeOpacity={0.85}
           >
-            <Text style={styles.actionButtonText}>
-              {hasSubscription ? t("main.view_subscription") : t("main.add_subscription")}
-            </Text>
-            {hasSubscription && !!subscriptionTitle && (
-              <Text style={styles.actionButtonSub}>{subscriptionTitle}</Text>
-            )}
+            <View style={styles.subCardLeft}>
+              <View style={styles.subActiveDot} />
+              <View>
+                <Text style={styles.subCardLabel}>{t("main.view_subscription")}</Text>
+                <Text style={styles.subCardTitle} numberOfLines={1}>{subscriptionTitle}</Text>
+              </View>
+            </View>
+            <View style={styles.subCardRight}>
+              <Text style={styles.subCardChevron}>›</Text>
+            </View>
           </TouchableOpacity>
+        ) : (
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => Alert.alert("Coming Soon", "This feature is coming soon!")}
+            style={styles.subCardEmpty}
+            onPress={() => router.push("/auth/subscription")}
+            activeOpacity={0.85}
           >
-            <Text style={styles.actionButtonText}>{t("main.user_reviews")}</Text>
+            <View style={styles.subCardEmptyIcon}>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.subCardEmptyTitle}>{t("main.add_subscription")}</Text>
+              <Text style={styles.subCardEmptyDesc}>Start your healthy meal journey</Text>
+            </View>
+            <Text style={styles.subCardChevronDark}>›</Text>
           </TouchableOpacity>
-        </View>
+        )}
 
         <ScrollView
           style={styles.scroll}
@@ -302,7 +311,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: "5%",
-    paddingTop: 8,
+    paddingTop: 16,
     paddingBottom: 12,
     backgroundColor: "#DCE6E0",
   },
@@ -347,42 +356,93 @@ const styles = StyleSheet.create({
   },
   welcomeRow: {
     paddingHorizontal: 16,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   welcomeText: {
-    fontSize: 16,
+    fontSize: 17,
     color: "#344225",
   },
   welcomeName: {
     fontWeight: "800",
     color: "#344225",
   },
-  actionsRow: {
+  // Active subscription card
+  subCard: {
     flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 14,
-  },
-  actionButton: {
-    flex: 1,
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#344225",
-    borderRadius: 10,
-    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  subCardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  subActiveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FAD979",
+  },
+  subCardLabel: {
+    fontSize: 11,
+    color: "#B8D5C5",
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  subCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  subCardRight: {
+    paddingLeft: 8,
+  },
+  subCardChevron: {
+    fontSize: 24,
+    color: "#FAD979",
+    fontWeight: "300",
+  },
+  // Empty subscription card
+  subCardEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#344225",
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  subCardEmptyIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
-  actionButtonText: {
-    color: "#F6F0DF",
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
+  subCardEmptyTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
-  actionButtonSub: {
-    color: "#DAD3C2",
-    fontSize: 11,
-    fontWeight: "500",
-    marginTop: 2,
-    textAlign: "center",
+  subCardEmptyDesc: {
+    fontSize: 12,
+    color: "#B8D5C5",
+    marginTop: 1,
+  },
+  subCardChevronDark: {
+    fontSize: 24,
+    color: "#FAD979",
+    fontWeight: "300",
   },
   scroll: {
     flex: 1,
