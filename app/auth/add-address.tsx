@@ -28,6 +28,7 @@ export default function AddAddressScreen() {
   const [houseBuliding, setHouseBuliding] = useState("");
   const [floorApartment, setFloorApartment] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [deliveryNotes, setDeliveryNotes] = useState("");
   const [addressCategory, setAddressCategory] = useState<"home" | "office">("home");
   const [isPrimary, setIsPrimary] = useState(true);
   const [deliveryTime, setDeliveryTime] = useState<"4pm-8pm" | "8pm-12am">("4pm-8pm");
@@ -93,6 +94,7 @@ export default function AddAddressScreen() {
       // Load personalization data before it is used in price calculation
       const hasPersonalizedPlanFlag = await AsyncStorage.getItem("hasPersonalizedPlan");
       const personalizedProteinStr = await AsyncStorage.getItem("personalizedProtein");
+      const personalizedCarbsStr = await AsyncStorage.getItem("personalizedCarbs");
       const personalizedProteinExtraPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
       const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
 
@@ -126,6 +128,7 @@ export default function AddAddressScreen() {
       // Personalization flags — resolved before any price calculation
       const isPersonalized = hasPersonalizedPlanFlag === "true";
       const protein = isPersonalized && personalizedProteinStr ? parseFloat(personalizedProteinStr) : 0;
+      const carbs = isPersonalized && personalizedCarbsStr ? parseFloat(personalizedCarbsStr) : 0;
 
       const basePrice =
         typeof selectedPlan.pricePerDay === "number"
@@ -222,7 +225,7 @@ export default function AddAddressScreen() {
         start_date: formattedStartDate,
         selected_days: selectedDaysArray,
         is_personalized: isPersonalized,
-        ...(isPersonalized && protein > 0 && { protein, carbs: protein }),
+        ...(isPersonalized && protein > 0 && { protein, carbs: carbs || protein }),
         meals: mealsArray,
         ...(appliedCoupon?.code && { coupon_code: appliedCoupon.code }),
         currency: selectedPlan.currency || "KWD",
@@ -235,6 +238,7 @@ export default function AddAddressScreen() {
           house_building: houseBuliding,
           floor_apartment: floorApartment,
           remarks,
+          ...(deliveryNotes.trim() && { delivery_notes: deliveryNotes.trim() }),
           category: addressCategory,
           is_primary: isPrimary,
           preferred_delivery_slot: preferredDeliverySlot,
@@ -345,6 +349,17 @@ export default function AddAddressScreen() {
             value={remarks}
             onChangeText={setRemarks}
             multiline
+          />
+
+          <TextInput
+            style={[styles.input, styles.inputMultiline]}
+            placeholder="Delivery notes (e.g. Ring bell twice, gate code 1234)"
+            placeholderTextColor="#6B7F75"
+            value={deliveryNotes}
+            onChangeText={setDeliveryNotes}
+            multiline
+            maxLength={1000}
+            textAlignVertical="top"
           />
 
           {/* Address Category */}
@@ -483,6 +498,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#B8D5C5",
+  },
+  inputMultiline: {
+    minHeight: 80,
+    paddingTop: 12,
   },
   pickerButton: {
     backgroundColor: "#FFFFFF",

@@ -23,6 +23,7 @@ export type Meal = {
   extras: string;
   is_active: number;
   type: string; // "is meal" or "is snack"
+  weekly_limit: number | null;
   image: {
     id: number;
     url: string;

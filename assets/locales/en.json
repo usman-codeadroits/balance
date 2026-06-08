@@ -55,6 +55,7 @@
   "history": {
     "title": "Order History",
     "active_subs": "Active Subscriptions",
+    "starting_soon": "Starting Soon",
     "recent_subs": "Recent Subscriptions",
     "no_subs": "No subscriptions found",
     "retry": "Retry",
@@ -91,6 +92,8 @@
     "good_evening": "Good evening",
     "view_subscription": "View subscription",
     "add_subscription": "Add New Subscription",
+    "plan_starts_soon": "Plan starts soon",
+    "renewal_banner_title": "Your plan renews soon",
     "user_reviews": "User Reviews",
     "loading_meals": "Loading meals...",
     "no_meals": "No meals found",
@@ -291,7 +294,8 @@
     "select_error": "Please select a start date",
     "invalid_date_title": "Invalid Date",
     "invalid_date_msg": "Subscription can only start from tomorrow onwards",
-    "continue": "Continue"
+    "continue": "Continue",
+    "availability_note": "Note: Orders require 2 days to prepare. The earliest available start date is 2 days from today."
   },
   "plan_page": {
     "title_selected": "You selected {{title}}",
@@ -321,6 +325,7 @@
     "select_carbs": "Select your Carbs",
     "carbs_desc": "Carbs are necessary for energy and workout fuel, select your daily target",
     "carbs_placeholder": "Select your serving size of Carbs",
+    "carbs_free": "Free",
     "error_missing_fields": "Please select both protein and carbs",
     "error_saving": "Failed to save plan. Please try again.",
     "continue": "Continue"
@@ -478,6 +483,8 @@
       "success_msg": "Payment completed successfully.",
       "pending_title": "Payment Pending",
       "pending_msg": "Your subscription is active but payment is pending. We'll take you to Home where you can tap Pay Now to finish.",
+      "queued_title": "Plan Queued",
+      "queued_msg": "Your plan is queued and will start on {{date}} after your current plan ends.",
       "failed_title": "Payment Failed",
       "failed_msg": "Payment could not be processed. Please try again.",
       "error_title": "Payment Error",

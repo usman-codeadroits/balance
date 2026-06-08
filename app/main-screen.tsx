@@ -1,10 +1,12 @@
-import { getMeals, logoutUser, type Meal } from "@/api";
+import { getMeals, getMySubscriptions, logoutUser, type Meal } from "@/api";
+import { getSubscriptionRenewal } from "@/api/services/subscriptions";
+import type { QueuedRenewal, QueuedSubscription } from "@/api/services/users";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { resetAppCache } from "@/utils/reset-app-cache";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -32,6 +34,9 @@ export default function MainScreen() {
   const [greetingPrefix, setGreetingPrefix] = useState(t("main.good_morning"));
   const [hasSubscription, setHasSubscription] = useState(false);
   const [subscriptionTitle, setSubscriptionTitle] = useState("");
+  const [activeSubscriptionId, setActiveSubscriptionId] = useState<number | null>(null);
+  const [queuedRenewal, setQueuedRenewal] = useState<QueuedRenewal | null>(null);
+  const [queuedSubscriptions, setQueuedSubscriptions] = useState<QueuedSubscription[]>([]);
 
   useEffect(() => {
     // Disable back button
@@ -63,6 +68,13 @@ export default function MainScreen() {
 
         setHasSubscription(!!subscription);
         setSubscriptionTitle(subscription?.plan?.title || "");
+        if (subscription?.id) setActiveSubscriptionId(Number(subscription.id));
+
+        const storedRenewal = await AsyncStorage.getItem("queuedRenewal");
+        setQueuedRenewal(storedRenewal ? JSON.parse(storedRenewal) : null);
+
+        const storedQueued = await AsyncStorage.getItem("queuedSubscriptions");
+        setQueuedSubscriptions(storedQueued ? JSON.parse(storedQueued) : []);
 
         setLoading(true);
         const data = await getMeals();
@@ -101,6 +113,64 @@ export default function MainScreen() {
       { cancelable: true },
     );
   };
+
+  // Refresh renewal + queued data from API every time the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const refreshRenewalData = async () => {
+        try {
+          const subsResponse = await getMySubscriptions();
+          if (!subsResponse.success) return;
+
+          const active = subsResponse.data.active?.[0];
+          setQueuedSubscriptions(subsResponse.data.queued || []);
+
+          if (!active) {
+            setHasSubscription(false);
+            setQueuedRenewal(null);
+            await AsyncStorage.setItem("queuedRenewal", JSON.stringify(null));
+            return;
+          }
+
+          setHasSubscription(true);
+          setSubscriptionTitle(active.subcrption_plans?.title || "");
+          setActiveSubscriptionId(active.id);
+
+          try {
+            const renewalRes = await getSubscriptionRenewal(active.id);
+            const detail = renewalRes.data?.renewal ?? null;
+
+            if (detail) {
+              // Map RenewalDetail → QueuedRenewal shape used by banner
+              const mapped: QueuedRenewal = {
+                id: detail.id,
+                plan_id: detail.plan.id,
+                plan_title: detail.plan.title,
+                selected_days: detail.selected_days,
+                start_date: detail.start_date,
+                end_date: detail.end_date,
+                price: detail.price,
+                currency: detail.currency,
+                payment: detail.payment,
+                status: detail.status,
+              };
+              setQueuedRenewal(mapped);
+              await AsyncStorage.setItem("queuedRenewal", JSON.stringify(mapped));
+            } else {
+              setQueuedRenewal(null);
+              await AsyncStorage.setItem("queuedRenewal", JSON.stringify(null));
+            }
+          } catch {
+            // Renewal API failed — keep cached value, don't crash
+          }
+        } catch {
+          // Subscriptions API failed — keep cached values, don't crash
+        }
+      };
+
+      refreshRenewalData();
+    }, []),
+  );
 
   const filteredMeals = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -183,6 +253,23 @@ export default function MainScreen() {
               <Text style={styles.subCardChevron}>›</Text>
             </View>
           </TouchableOpacity>
+        ) : queuedSubscriptions.length > 0 ? (
+          <TouchableOpacity
+            style={styles.subCardQueued}
+            onPress={() => router.push("/(tabs)/order-history" as any)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.subCardLeft}>
+              <Ionicons name="time-outline" size={18} color="#FAD979" />
+              <View>
+                <Text style={styles.subCardLabel}>{t("main.plan_starts_soon")}</Text>
+                <Text style={styles.subCardTitle} numberOfLines={1}>
+                  {queuedSubscriptions[0].plan_title}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.subCardChevron}>›</Text>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={styles.subCardEmpty}
@@ -197,6 +284,31 @@ export default function MainScreen() {
               <Text style={styles.subCardEmptyDesc}>Start your healthy meal journey</Text>
             </View>
             <Text style={styles.subCardChevronDark}>›</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Renewal Banner — shown only when backend has created a queued renewal (≤3 days before plan ends) */}
+        {queuedRenewal && activeSubscriptionId && (
+          <TouchableOpacity
+            style={styles.renewalBanner}
+            onPress={() =>
+              router.push({
+                pathname: "/renewal-details",
+                params: { subscriptionId: activeSubscriptionId },
+              } as any)
+            }
+            activeOpacity={0.85}
+          >
+            <View style={styles.renewalBannerLeft}>
+              <Ionicons name="refresh-circle-outline" size={22} color="#FAD979" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.renewalBannerTitle}>{t("main.renewal_banner_title")}</Text>
+                <Text style={styles.renewalBannerDesc} numberOfLines={1}>
+                  {`${queuedRenewal.plan_title} · ${queuedRenewal.currency} ${Number(queuedRenewal.price).toFixed(3)} · ${queuedRenewal.start_date}`}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#FAD979" />
           </TouchableOpacity>
         )}
 
@@ -409,6 +521,18 @@ const styles = StyleSheet.create({
     color: "#FAD979",
     fontWeight: "300",
   },
+  // Queued subscription card (no active plan, but one starting soon)
+  subCardQueued: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#4A6040",
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
   // Empty subscription card
   subCardEmpty: {
     flexDirection: "row",
@@ -420,6 +544,36 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
+  },
+  // Renewal banner
+  renewalBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#4A6040",
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#FAD979",
+  },
+  renewalBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  renewalBannerTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FAD979",
+    marginBottom: 2,
+  },
+  renewalBannerDesc: {
+    fontSize: 11,
+    color: "#B8D5C5",
   },
   subCardEmptyIcon: {
     width: 36,

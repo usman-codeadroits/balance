@@ -45,15 +45,19 @@ export {
 } from "./services/subscriptionPlans";
 export type { MealPlan } from "./services/subscriptionPlans";
 export {
+    cancelRenewal,
     checkoutSubscription,
     getActiveSubscription, getMySubscriptions,
     getSubscriptionDetails, getSubscriptionMeals,
     getSubscriptionPauseLogs,
+    getSubscriptionRenewal,
     getUserSubscriptions,
+    updateRenewalPlan,
     updateSubscriptionMeal
 } from "./services/subscriptions";
 export type {
-    CheckoutRequest, CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, PauseLog, PauseLogsResponse, Subscription, Subscription, SubscriptionDetailsResponse, SubscriptionMealsResponse, SubscriptionMealsResponse, UpdateMealRequest, UpdateMealRequest, UpdateMealResponse, UpdateMealResponse, UserSubscriptionDetails, UserSubscriptionSummary
+    CancelRenewalResponse,
+    CheckoutRequest, CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, PauseLog, PauseLogsResponse, RenewalDetail, Subscription, Subscription, SubscriptionDetailsResponse, SubscriptionMealsResponse, SubscriptionMealsResponse, SubscriptionRenewalResponse, UpdateMealRequest, UpdateMealRequest, UpdateMealResponse, UpdateMealResponse, UpdateRenewalPlanResponse, UserSubscriptionDetails, UserSubscriptionSummary
 } from "./services/subscriptions";
 export {
     createUser,
@@ -63,5 +67,5 @@ export {
     registerUser,
     updateUser
 } from "./services/users";
-export type { LoginRequest, RegisterUserRequest, User } from "./services/users";
+export type { ActiveSubscription, LoginRequest, QueuedRenewal, QueuedSubscription, RegisterUserRequest, User } from "./services/users";
 

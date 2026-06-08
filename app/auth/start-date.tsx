@@ -20,9 +20,11 @@ export default function StartDateScreen() {
   const { t } = useTranslation();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(today);
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const minDate = new Date(today);
+  minDate.setDate(today.getDate() + 2);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(minDate);
+  const [currentMonth, setCurrentMonth] = useState(minDate.getMonth());
+  const [currentYear, setCurrentYear] = useState(minDate.getFullYear());
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
@@ -46,7 +48,7 @@ export default function StartDateScreen() {
   const isDateDisabled = (day: number): boolean => {
     const checkDate = new Date(currentYear, currentMonth, day);
     checkDate.setHours(0, 0, 0, 0);
-    return checkDate < today;
+    return checkDate < minDate;
   };
 
   const handleDateSelect = (day: number) => {
@@ -103,13 +105,13 @@ export default function StartDateScreen() {
   };
 
   const handlePreviousMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear(currentYear - 1);
-    } else {
-      setCurrentMonth(currentMonth - 1);
-    }
-    setSelectedDate(null);
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    // Do not navigate before the month that contains minDate
+    if (prevYear < minDate.getFullYear()) return;
+    if (prevYear === minDate.getFullYear() && prevMonth < minDate.getMonth()) return;
+    setCurrentMonth(prevMonth);
+    setCurrentYear(prevYear);
   };
 
   const handleNextMonth = () => {
@@ -176,6 +178,12 @@ export default function StartDateScreen() {
               </Text>
             </View>
           )}
+
+          {/* Availability Note */}
+          <View style={styles.noteContainer}>
+            <Ionicons name="information-circle-outline" size={18} color="#5A7C65" />
+            <Text style={styles.noteText}>{t("start_date_screen.availability_note")}</Text>
+          </View>
 
           {/* Calendar */}
           <View style={styles.calendarContainer}>
@@ -306,6 +314,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     color: "#344225",
+  },
+  noteContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#C8DFCF",
+    borderRadius: 10,
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 12,
+    gap: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#5A7C65",
+  },
+  noteText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#344225",
+    lineHeight: 18,
   },
   calendarContainer: {
     paddingHorizontal: 24,

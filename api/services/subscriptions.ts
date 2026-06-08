@@ -380,8 +380,51 @@ export type MySubscriptionsResponse = {
   success: boolean;
   data: {
     active: UserSubscriptionSummary[];
+    queued: UserSubscriptionSummary[];
     recent: UserSubscriptionSummary[];
   };
+};
+
+export type RenewalDetail = {
+  id: number;
+  plan: { id: number; title: string; price: number };
+  selected_days: string;
+  start_date: string;
+  end_date: string;
+  price: number;
+  currency: string;
+  payment: string;
+  status: string;
+};
+
+export type SubscriptionRenewalResponse = {
+  data: {
+    subscription_id: number;
+    auto_renew: boolean;
+    renewal_notified_at: string | null;
+    renewal: RenewalDetail | null;
+  };
+};
+
+export type UpdateRenewalPlanRequest = {
+  subcrption_plans_id: number;
+};
+
+export type UpdateRenewalPlanResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    renewal_id: number;
+    plan: { id: number; title: string; price: number };
+    start_date: string;
+    end_date: string;
+    price: number;
+  };
+};
+
+export type CancelRenewalResponse = {
+  success: boolean;
+  message: string;
 };
 
 export type SubscriptionAddress = {
@@ -399,6 +442,9 @@ export type SubscriptionMeal = {
     id: number;
     title: string;
     calories: number;
+    protein_g?: number;
+    carbs_g?: number;
+    fat_g?: number;
   };
 };
 
@@ -488,5 +534,69 @@ export const getSubscriptionPauseLogs = async (
       throw new Error(`Failed to fetch pause logs: ${error.message}`);
     }
     throw new Error("Failed to fetch pause logs: Unknown error");
+  }
+};
+
+/**
+ * Get renewal details for an active subscription
+ * @param subscriptionId - The active subscription ID
+ */
+export const getSubscriptionRenewal = async (
+  subscriptionId: number,
+): Promise<SubscriptionRenewalResponse> => {
+  try {
+    const response = await apiClient.get<SubscriptionRenewalResponse>(
+      `${API_ENDPOINTS.SUBSCRIPTION_RENEWAL}/${subscriptionId}/renewal`,
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch renewal details: ${error.message}`);
+    }
+    throw new Error("Failed to fetch renewal details: Unknown error");
+  }
+};
+
+/**
+ * Update the plan for a queued renewal
+ * @param subscriptionId - The active subscription ID
+ * @param planId - The new plan ID
+ */
+export const updateRenewalPlan = async (
+  subscriptionId: number,
+  planId: number,
+): Promise<UpdateRenewalPlanResponse> => {
+  try {
+    const response = await apiClient.put<UpdateRenewalPlanResponse>(
+      `${API_ENDPOINTS.SUBSCRIPTION_RENEWAL}/${subscriptionId}/renewal-plan`,
+      { subcrption_plans_id: planId },
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update renewal plan: ${error.message}`);
+    }
+    throw new Error("Failed to update renewal plan: Unknown error");
+  }
+};
+
+/**
+ * Cancel auto-renewal for an active subscription
+ * @param subscriptionId - The active subscription ID
+ */
+export const cancelRenewal = async (
+  subscriptionId: number,
+): Promise<CancelRenewalResponse> => {
+  try {
+    const response = await apiClient.post<CancelRenewalResponse>(
+      `${API_ENDPOINTS.SUBSCRIPTION_RENEWAL}/${subscriptionId}/cancel-renewal`,
+      {},
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to cancel renewal: ${error.message}`);
+    }
+    throw new Error("Failed to cancel renewal: Unknown error");
   }
 };

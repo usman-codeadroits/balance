@@ -47,6 +47,7 @@ export default function OrderHistoryScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [activeSubscriptions, setActiveSubscriptions] = useState<UserSubscriptionSummary[]>([]);
+  const [queuedSubscriptions, setQueuedSubscriptions] = useState<UserSubscriptionSummary[]>([]);
   const [recentSubscriptions, setRecentSubscriptions] = useState<UserSubscriptionSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export default function OrderHistoryScreen() {
       const response = await getMySubscriptions();
       if (response.success) {
         setActiveSubscriptions(response.data.active || []);
+        setQueuedSubscriptions(response.data.queued || []);
         setRecentSubscriptions(response.data.recent || []);
       } else {
         setError("Failed to load subscriptions");
@@ -71,13 +73,14 @@ export default function OrderHistoryScreen() {
     } catch {
       setError("Failed to load subscriptions. Please try again.");
       setActiveSubscriptions([]);
+      setQueuedSubscriptions([]);
       setRecentSubscriptions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const hasAny = activeSubscriptions.length > 0 || recentSubscriptions.length > 0;
+  const hasAny = activeSubscriptions.length > 0 || queuedSubscriptions.length > 0 || recentSubscriptions.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -130,6 +133,26 @@ export default function OrderHistoryScreen() {
                 </View>
                 {activeSubscriptions.map((sub) => (
                   <SubscriptionCard key={sub.id} sub={sub} isActive />
+                ))}
+              </View>
+            ) : null}
+
+            {/* Starting Soon — queued subscriptions */}
+            {queuedSubscriptions.length > 0 ? (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <View style={[styles.sectionDot, { backgroundColor: "#FAD979" }]} />
+                  <Text style={styles.sectionTitle}>Starting Soon</Text>
+                  <View style={styles.sectionCountBadge}>
+                    <Text style={styles.sectionCountText}>{queuedSubscriptions.length}</Text>
+                  </View>
+                </View>
+                {queuedSubscriptions.map((sub) => (
+                  <QueuedSubscriptionCard
+                    key={sub.id}
+                    sub={sub}
+                    activeSubscriptionId={activeSubscriptions[0]?.id}
+                  />
                 ))}
               </View>
             ) : null}
@@ -222,6 +245,58 @@ function SubscriptionCard({ sub, isActive }: CardProps) {
   );
 }
 
+function QueuedSubscriptionCard({ sub, activeSubscriptionId }: { sub: UserSubscriptionSummary; activeSubscriptionId?: number }) {
+  return (
+    <TouchableOpacity
+      style={[styles.card, styles.cardQueued]}
+      activeOpacity={activeSubscriptionId ? 0.8 : 1}
+      onPress={() => {
+        if (activeSubscriptionId) {
+          router.push({
+            pathname: "/renewal-details",
+            params: { subscriptionId: activeSubscriptionId },
+          } as any);
+        }
+      }}
+    >
+      <View style={[styles.cardStrip, { backgroundColor: "#4A6040" }]}>
+        <Text style={[styles.cardPlanName, { color: "#FAD979" }]} numberOfLines={1}>
+          {sub.subcrption_plans?.title || "Meal Plan"}
+        </Text>
+        <View style={[styles.statusChip, { borderColor: "#FAD979" }]}>
+          <View style={[styles.statusDot, { backgroundColor: "#FAD979" }]} />
+          <Text style={[styles.statusChipText, { color: "#FAD979" }]}>Starting Soon</Text>
+        </View>
+      </View>
+      <View style={styles.cardBody}>
+        <View style={styles.cardRow}>
+          <View style={styles.cardCol}>
+            <Text style={styles.cardColLabel}>Start Date</Text>
+            <Text style={styles.cardColValue}>{formatDate(sub.start_date)}</Text>
+          </View>
+          <View style={styles.cardColSep} />
+          <View style={styles.cardCol}>
+            <Text style={styles.cardColLabel}>End Date</Text>
+            <Text style={styles.cardColValue}>{formatDate(sub.end_date)}</Text>
+          </View>
+        </View>
+        <View style={styles.cardDivider} />
+        <View style={styles.cardFooter}>
+          <View style={styles.cardFooterLeft}>
+            <Ionicons name="calendar-outline" size={13} color="#6B7F75" />
+            <Text style={styles.cardDateRange}>
+              {`${formatDate(sub.start_date)} – ${formatDate(sub.end_date)}`}
+            </Text>
+          </View>
+          <View style={[styles.priceBadge, { backgroundColor: "#FAD979" }]}>
+            <Text style={[styles.priceText, { color: "#344225" }]}>{formatPrice(sub)}</Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
@@ -275,6 +350,7 @@ const styles = StyleSheet.create({
   },
   cardActive: {},
   cardPaused: { borderWidth: 1.5, borderColor: "#FF9800" },
+  cardQueued: { borderWidth: 1.5, borderColor: "#FAD979" },
 
   cardStrip: {
     flexDirection: "row",

@@ -29,7 +29,7 @@ export default function ProfileScreen() {
       id: 1,
       title: t("profile.my_information"),
       icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
-      route: "/my-information",
+      route: "/my-profile",
     },
     {
       id: 2,
@@ -73,12 +73,12 @@ export default function ProfileScreen() {
       icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
       route: "/contact-us",
     },
-    // {
-    //   id: 9,
-    //   title: t("profile.change_language"),
-    //   icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
-    //   route: "/change-language",
-    // },
+    {
+      id: 9,
+      title: t("profile.change_language"),
+      icon: I18nManager.isRTL ? "chevron-back" : "chevron-forward",
+      route: "/change-language",
+    },
   ];
 
   const handleLogout = async () => {

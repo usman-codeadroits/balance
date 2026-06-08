@@ -7,7 +7,7 @@ import {
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +22,16 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const normalizeCategoryName = (category: unknown): string => {
+  if (typeof category === "string") return category;
+  if (category && typeof category === "object") {
+    const c = category as { name?: unknown; title?: unknown };
+    if (typeof c.name === "string") return c.name;
+    if (typeof c.title === "string") return c.title;
+  }
+  return "";
+};
 
 interface SlotState {
   day: string;
@@ -39,6 +49,7 @@ export default function UpdateSubscriptionMealsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [slots, setSlots] = useState<SlotState[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerContext, setPickerContext] = useState<{
     day: string;
@@ -132,6 +143,7 @@ export default function UpdateSubscriptionMealsScreen() {
   ) => {
     setPickerContext({ day, type, subscriptionMealId, slotIndex });
     setSearchQuery("");
+    setSelectedCategory(null);
     setPickerVisible(true);
   };
 
@@ -174,13 +186,38 @@ export default function UpdateSubscriptionMealsScreen() {
     }
   };
 
-  const filteredMeals = pickerContext
-    ? allMeals.filter((meal) => {
-        const matchesType = meal.type === pickerContext.type;
-        const matchesSearch = meal.title.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesType && matchesSearch;
-      })
+  const typeFilteredMeals = pickerContext
+    ? allMeals.filter((meal) => meal.type === pickerContext.type)
     : [];
+
+  const pickerCategories = Array.from(
+    new Map(
+      typeFilteredMeals.map((meal) => [
+        meal.category_id,
+        { id: meal.category_id, name: normalizeCategoryName(meal.category) },
+      ]),
+    ).values(),
+  ).filter((c) => c.name.length > 0);
+
+  const filteredMeals = typeFilteredMeals.filter((meal) => {
+    const matchesCategory = selectedCategory == null || meal.category_id === selectedCategory;
+    const matchesSearch = meal.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  // Count how many times each meal_id appears across all slots, excluding the slot being replaced
+  const weeklyUsageCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    slots.forEach((s, i) => {
+      if (s.mealId != null && i !== pickerContext?.slotIndex) {
+        counts[s.mealId] = (counts[s.mealId] ?? 0) + 1;
+      }
+    });
+    return counts;
+  }, [slots, pickerContext?.slotIndex]);
+
+  const isMealAtLimit = (meal: Meal) =>
+    meal.weekly_limit != null && (weeklyUsageCounts[meal.id] ?? 0) >= meal.weekly_limit;
 
   const planCounts = details ? getPlanCounts(details) : { meals: 1, snacks: 0 };
   const days = details?.subscription_days || [];
@@ -363,6 +400,36 @@ export default function UpdateSubscriptionMealsScreen() {
                 />
               </View>
 
+              {/* Category chips */}
+              {pickerCategories.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryScroll}
+                  style={styles.categoryRow}
+                >
+                  <TouchableOpacity
+                    style={[styles.categoryChip, selectedCategory == null && styles.categoryChipActive]}
+                    onPress={() => setSelectedCategory(null)}
+                  >
+                    <Text style={[styles.categoryChipText, selectedCategory == null && styles.categoryChipTextActive]}>
+                      All
+                    </Text>
+                  </TouchableOpacity>
+                  {pickerCategories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[styles.categoryChip, selectedCategory === cat.id && styles.categoryChipActive]}
+                      onPress={() => setSelectedCategory(cat.id)}
+                    >
+                      <Text style={[styles.categoryChipText, selectedCategory === cat.id && styles.categoryChipTextActive]}>
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+
               {savingSlot ? (
                 <View style={styles.modalSaving}>
                   <ActivityIndicator size="small" color="#344225" />
@@ -370,32 +437,40 @@ export default function UpdateSubscriptionMealsScreen() {
                 </View>
               ) : (
                 <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
-                  {filteredMeals.map((meal) => (
+                  {filteredMeals.map((meal) => {
+                    const atLimit = isMealAtLimit(meal);
+                    return (
                     <TouchableOpacity
                       key={meal.id}
-                      style={styles.modalMealRow}
-                      onPress={() => handleSelectMeal(meal)}
-                      activeOpacity={0.7}
+                      style={[styles.modalMealRow, atLimit && styles.modalMealRowDisabled]}
+                      onPress={() => !atLimit && handleSelectMeal(meal)}
+                      activeOpacity={atLimit ? 1 : 0.7}
                     >
                       {meal.image_url || meal.image_thumb_url ? (
                         <Image
                           source={{ uri: meal.image_url || meal.image_thumb_url }}
-                          style={styles.modalMealThumb}
+                          style={[styles.modalMealThumb, atLimit && { opacity: 0.4 }]}
                         />
                       ) : (
-                        <View style={[styles.modalMealThumb, styles.thumbPlaceholder]}>
+                        <View style={[styles.modalMealThumb, styles.thumbPlaceholder, atLimit && { opacity: 0.4 }]}>
                           <Ionicons name="restaurant-outline" size={20} color="#6B7F75" />
                         </View>
                       )}
                       <View style={styles.modalMealInfo}>
-                        <Text style={styles.modalMealName} numberOfLines={2}>{meal.title}</Text>
+                        <Text style={[styles.modalMealName, atLimit && { color: "#B8D5C5" }]} numberOfLines={2}>{meal.title}</Text>
                         <Text style={styles.modalMealMeta}>
                           {`${meal.calories} kcal · P ${meal.protein_g}g · C ${meal.carbs_g}g`}
                         </Text>
+                        {atLimit && (
+                          <View style={styles.limitBadge}>
+                            <Text style={styles.limitBadgeText}>Weekly limit reached ({meal.weekly_limit}/wk)</Text>
+                          </View>
+                        )}
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color="#B8D5C5" />
+                      {!atLimit && <Ionicons name="chevron-forward" size={16} color="#B8D5C5" />}
                     </TouchableOpacity>
-                  ))}
+                    );
+                  })}
                   {filteredMeals.length === 0 ? (
                     <View style={styles.modalEmpty}>
                       <Ionicons name="search-outline" size={36} color="#B8D5C5" />
@@ -623,4 +698,31 @@ const styles = StyleSheet.create({
   modalMealMeta: { fontSize: 12, color: "#6B7F75" },
   modalEmpty: { paddingVertical: 40, alignItems: "center", gap: 8 },
   modalEmptyText: { fontSize: 14, color: "#6B7F75" },
+  modalMealRowDisabled: { backgroundColor: "#F7F9F8" },
+  limitBadge: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    backgroundColor: "#FDE8E8",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  limitBadgeText: { fontSize: 10, fontWeight: "700", color: "#C0392B" },
+
+  categoryRow: { marginBottom: 12 },
+  categoryScroll: { gap: 8, paddingHorizontal: 2 },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "#EEF4F0",
+    borderWidth: 1,
+    borderColor: "#D0DDD5",
+  },
+  categoryChipActive: {
+    backgroundColor: "#344225",
+    borderColor: "#344225",
+  },
+  categoryChipText: { fontSize: 13, fontWeight: "500", color: "#4A6040" },
+  categoryChipTextActive: { color: "#FFFFFF", fontWeight: "700" },
 });

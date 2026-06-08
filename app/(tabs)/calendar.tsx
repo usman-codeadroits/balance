@@ -1,4 +1,9 @@
 import { getMySubscriptions } from "@/api/services/subscriptions";
+import {
+  getPauseRequests,
+  submitPauseRequest,
+  type PauseRequest,
+} from "@/api/services/pauseRequests";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -6,10 +11,15 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -23,6 +33,7 @@ const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"
 const WEEKDAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 interface SubscriptionRange {
+  id: number;
   startDate: string;
   endDate: string;
   planTitle?: string;
@@ -48,7 +59,6 @@ interface MonthGrid {
 
 const parseDateSafe = (value?: string): Date | null => {
   if (!value) return null;
-  // Handle "DD.MM.YYYY"
   const parts = value.split(".");
   if (parts.length === 3) {
     const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
@@ -97,6 +107,13 @@ const generateMonthsBetween = (start: Date, end: Date): MonthGrid[] => {
 const formatDisplayDate = (d: Date) =>
   `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 
+const formatApiDate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 const getDaysRemaining = (end: Date): number => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -109,11 +126,34 @@ const getTotalDays = (start: Date, end: Date): number => {
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 };
 
+const addDays = (d: Date, n: number): Date => {
+  const result = new Date(d);
+  result.setDate(result.getDate() + n);
+  return result;
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  pending: "#F5A623",
+  approved: "#1A6F46",
+  rejected: "#C0392B",
+};
+
 export default function CalendarScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [range, setRange] = useState<SubscriptionRange | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Pause modal state
+  const [pauseModalVisible, setPauseModalVisible] = useState(false);
+  const [pauseStartDate, setPauseStartDate] = useState<Date>(addDays(new Date(), 1));
+  const [pauseEndDate, setPauseEndDate] = useState<Date>(addDays(new Date(), 4));
+  const [pauseReason, setPauseReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Pause requests list
+  const [pauseRequests, setPauseRequests] = useState<PauseRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
 
   const loadSubscription = useCallback(async () => {
     try {
@@ -130,12 +170,14 @@ export default function CalendarScreen() {
         if (valid.length > 0) {
           const { sub, start, end } = valid[0];
           setRange({
+            id: sub.id,
             startDate: start!.toISOString(),
             endDate: end!.toISOString(),
             planTitle: sub.subcrption_plans?.title,
             currency: (sub as any).currency || "KWD",
             price: sub.price,
           });
+          loadPauseRequests(sub.id);
         } else {
           setRange(null);
         }
@@ -148,6 +190,18 @@ export default function CalendarScreen() {
       setLoading(false);
     }
   }, []);
+
+  const loadPauseRequests = async (subscriptionId: number) => {
+    try {
+      setRequestsLoading(true);
+      const res = await getPauseRequests(subscriptionId);
+      if (res.success) setPauseRequests(res.data || []);
+    } catch {
+      setPauseRequests([]);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
 
   useEffect(() => { loadSubscription(); }, [loadSubscription]);
   useFocusEffect(useCallback(() => { loadSubscription(); }, [loadSubscription]));
@@ -162,6 +216,90 @@ export default function CalendarScreen() {
   const daysRemaining = endDate ? getDaysRemaining(endDate) : 0;
   const totalDays = (startDate && endDate) ? getTotalDays(startDate, endDate) : 0;
   const progressPercent = totalDays > 0 ? Math.min(100, Math.round(((totalDays - daysRemaining) / totalDays) * 100)) : 0;
+
+  const pauseDays = useMemo(() => {
+    const diff = pauseEndDate.getTime() - pauseStartDate.getTime();
+    return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+  }, [pauseStartDate, pauseEndDate]);
+
+  const hasApprovedPause = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return pauseRequests.some(
+      (r) => r.status === "approved" && new Date(r.pause_end_date) >= today,
+    );
+  }, [pauseRequests]);
+
+  const openPauseModal = () => {
+    if (startDate && endDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      // Default start = subscription start (but not before today)
+      const defaultStart = startDate >= today ? new Date(startDate) : new Date(today);
+      defaultStart.setHours(0, 0, 0, 0);
+      // Default end = subscription end
+      const defaultEnd = new Date(endDate);
+      defaultEnd.setHours(0, 0, 0, 0);
+      setPauseStartDate(defaultStart);
+      setPauseEndDate(defaultEnd);
+    }
+    setPauseReason("");
+    setPauseModalVisible(true);
+  };
+
+  const handleSubmitPause = async () => {
+    if (!range) return;
+    if (!pauseReason.trim()) {
+      Alert.alert("Required", "Please enter a reason for your pause request.");
+      return;
+    }
+    if (pauseEndDate < pauseStartDate) {
+      Alert.alert("Invalid dates", "End date cannot be before start date.");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      // Backend requires end > start strictly; for a single-day pause send start+1
+      const apiEndDate =
+        pauseEndDate.toDateString() === pauseStartDate.toDateString()
+          ? addDays(pauseStartDate, 1)
+          : pauseEndDate;
+      const res = await submitPauseRequest(range.id, {
+        pause_start_date: formatApiDate(pauseStartDate),
+        pause_end_date: formatApiDate(apiEndDate),
+        reason: pauseReason.trim(),
+      });
+      setPauseModalVisible(false);
+      Alert.alert("Request Submitted", res.message || "Your pause request has been submitted. Please wait for admin approval.");
+      loadPauseRequests(range.id);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to submit pause request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const adjustStartDate = (days: number) => {
+    if (!startDate || !endDate) return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minStart = startDate >= today ? new Date(startDate) : new Date(today);
+    minStart.setHours(0, 0, 0, 0);
+    const next = addDays(pauseStartDate, days);
+    if (next < minStart) return;
+    if (next > pauseEndDate) return;
+    setPauseStartDate(next);
+  };
+
+  const adjustEndDate = (days: number) => {
+    if (!endDate) return;
+    const maxEnd = new Date(endDate);
+    maxEnd.setHours(0, 0, 0, 0);
+    const next = addDays(pauseEndDate, days);
+    if (next < pauseStartDate) return;
+    if (next > maxEnd) return;
+    setPauseEndDate(next);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -202,10 +340,6 @@ export default function CalendarScreen() {
                 <Text style={styles.heroLabel}>Subscription Period</Text>
                 <Text style={styles.heroPlan}>{range?.planTitle || "Meal Plan"}</Text>
               </View>
-              <View style={styles.daysRemainingBadge}>
-                <Text style={styles.daysRemainingNum}>{daysRemaining}</Text>
-                <Text style={styles.daysRemainingLabel}>days left</Text>
-              </View>
             </View>
 
             <View style={styles.heroDivider} />
@@ -224,13 +358,23 @@ export default function CalendarScreen() {
               </View>
             </View>
 
-            {/* Progress bar */}
-            <View style={styles.progressWrap}>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-              </View>
-              <Text style={styles.progressLabel}>{`${progressPercent}% completed`}</Text>
-            </View>
+            <View style={styles.heroDivider} />
+
+            {/* Pause button */}
+            <TouchableOpacity
+              style={[styles.pauseBtn, hasApprovedPause && styles.pauseBtnDisabled]}
+              onPress={hasApprovedPause ? undefined : openPauseModal}
+              disabled={hasApprovedPause}
+            >
+              <Ionicons
+                name={hasApprovedPause ? "pause-circle" : "pause-circle-outline"}
+                size={18}
+                color={hasApprovedPause ? "#8FA880" : "#FAD979"}
+              />
+              <Text style={[styles.pauseBtnText, hasApprovedPause && styles.pauseBtnTextDisabled]}>
+                {hasApprovedPause ? "Pause Already Approved" : "Request Subscription Pause"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Legend */}
@@ -256,15 +400,11 @@ export default function CalendarScreen() {
                 <Text style={styles.monthTitle}>{month.monthName}</Text>
                 <Text style={styles.monthYear}>{month.year}</Text>
               </View>
-
-              {/* Weekday headers */}
               <View style={styles.weekRow}>
                 {WEEKDAYS.map((wd) => (
                   <Text key={wd} style={styles.weekdayLabel}>{wd}</Text>
                 ))}
               </View>
-
-              {/* Days grid */}
               <View style={styles.daysGrid}>
                 {month.cells.map((cell) => {
                   if (cell.day === null) {
@@ -298,10 +438,141 @@ export default function CalendarScreen() {
               </View>
             </View>
           ))}
+
+          {/* Pause Requests Section */}
+          <View style={styles.pauseSection}>
+            <Text style={styles.pauseSectionTitle}>Pause Requests</Text>
+            {requestsLoading ? (
+              <ActivityIndicator size="small" color="#344225" style={{ marginTop: 12 }} />
+            ) : pauseRequests.length === 0 ? (
+              <View style={styles.noPauseWrap}>
+                <Text style={styles.noPauseText}>No pause requests yet.</Text>
+              </View>
+            ) : (
+              pauseRequests.map((req) => (
+                <View key={req.id} style={styles.pauseRequestCard}>
+                  <View style={styles.pauseRequestHeader}>
+                    <Text style={styles.pauseRequestDates}>
+                      {req.pause_start_date} → {req.pause_end_date}
+                    </Text>
+                    <View style={[styles.statusBadge, { backgroundColor: STATUS_COLOR[req.status] + "22" }]}>
+                      <Text style={[styles.statusText, { color: STATUS_COLOR[req.status] }]}>
+                        {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.pauseRequestMeta}>{req.pause_days} day{req.pause_days !== 1 ? "s" : ""} · Submitted {req.created_at?.split(" ")[0]}</Text>
+                  <Text style={styles.pauseRequestReason}>{req.reason}</Text>
+                  {req.admin_notes ? (
+                    <View style={styles.adminNotesWrap}>
+                      <Text style={styles.adminNotesLabel}>Admin notes:</Text>
+                      <Text style={styles.adminNotesText}>{req.admin_notes}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </View>
         </ScrollView>
       )}
 
       <BottomTabNav activeTab="calendar" onHomePress={() => router.replace("/main-screen")} />
+
+      {/* Pause Request Modal */}
+      <Modal
+        visible={pauseModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPauseModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalSheet}>
+            {/* Modal header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Request Pause</Text>
+              <TouchableOpacity onPress={() => setPauseModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#344225" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalNote}>
+                Your request will be reviewed by our team. You will be notified once it is approved or rejected.
+              </Text>
+
+              {/* Pause start date */}
+              <Text style={styles.fieldLabel}>Pause Start Date</Text>
+              <View style={styles.dateRow}>
+                <TouchableOpacity style={styles.dateArrow} onPress={() => adjustStartDate(-1)}>
+                  <Ionicons name="chevron-back" size={20} color="#344225" />
+                </TouchableOpacity>
+                <View style={styles.dateDisplay}>
+                  <Text style={styles.dateDisplayText}>{formatDisplayDate(pauseStartDate)}</Text>
+                </View>
+                <TouchableOpacity style={styles.dateArrow} onPress={() => adjustStartDate(1)}>
+                  <Ionicons name="chevron-forward" size={20} color="#344225" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Pause end date */}
+              <Text style={styles.fieldLabel}>Pause End Date</Text>
+              <View style={styles.dateRow}>
+                <TouchableOpacity style={styles.dateArrow} onPress={() => adjustEndDate(-1)}>
+                  <Ionicons name="chevron-back" size={20} color="#344225" />
+                </TouchableOpacity>
+                <View style={styles.dateDisplay}>
+                  <Text style={styles.dateDisplayText}>{formatDisplayDate(pauseEndDate)}</Text>
+                </View>
+                <TouchableOpacity style={styles.dateArrow} onPress={() => adjustEndDate(1)}>
+                  <Ionicons name="chevron-forward" size={20} color="#344225" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Days count */}
+              <View style={styles.daysCountWrap}>
+                <Ionicons name="time-outline" size={15} color="#5A7C65" />
+                <Text style={styles.daysCountText}>
+                  Pause duration: <Text style={styles.daysCountBold}>{pauseDays} day{pauseDays !== 1 ? "s" : ""}</Text>
+                </Text>
+              </View>
+
+              {/* Reason */}
+              <Text style={styles.fieldLabel}>Reason</Text>
+              <TextInput
+                style={styles.reasonInput}
+                placeholder="Enter your reason (e.g. travelling abroad, medical leave...)"
+                placeholderTextColor="#9DB8AC"
+                value={pauseReason}
+                onChangeText={setPauseReason}
+                multiline
+                numberOfLines={4}
+                maxLength={1000}
+                textAlignVertical="top"
+              />
+              <Text style={styles.charCount}>{pauseReason.length}/1000</Text>
+
+              {/* Submit */}
+              <TouchableOpacity
+                style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+                onPress={handleSubmitPause}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="send-outline" size={16} color="#344225" />
+                    <Text style={styles.submitBtnText}>Submit Pause Request</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -334,15 +605,15 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: "#D4E8E0" },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20 },
 
-  heroCard: { backgroundColor: "#344225", borderRadius: 22, padding: 20, marginBottom: 14 },
+  heroCard: { backgroundColor: "#344225", borderRadius: 22, padding: 20, marginBottom: 14, minHeight: 160 },
   heroTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
   heroLabel: { fontSize: 11, color: "#8FA880", fontWeight: "500", marginBottom: 4 },
   heroPlan: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
   daysRemainingBadge: { alignItems: "center", backgroundColor: "#FAD979", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },
   daysRemainingNum: { fontSize: 22, fontWeight: "800", color: "#344225" },
   daysRemainingLabel: { fontSize: 10, fontWeight: "600", color: "#344225" },
-  heroDivider: { height: 1, backgroundColor: "#4A6040", marginBottom: 16 },
-  heroDateRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  heroDivider: { height: 1, backgroundColor: "#4A6040", marginVertical: 14 },
+  heroDateRow: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
   heroDateBlock: { flex: 1 },
   heroDateLabel: { fontSize: 10, color: "#8FA880", marginBottom: 3 },
   heroDateValue: { fontSize: 13, fontWeight: "600", color: "#FFFFFF" },
@@ -351,6 +622,24 @@ const styles = StyleSheet.create({
   progressTrack: { height: 6, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", backgroundColor: "#FAD979", borderRadius: 3 },
   progressLabel: { fontSize: 11, color: "#B8D5C5", textAlign: "right" },
+  pauseBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(250,217,121,0.12)",
+    borderRadius: 10,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#FAD979",
+  },
+  pauseBtnText: { fontSize: 14, fontWeight: "600", color: "#FAD979" },
+  pauseBtnDisabled: {
+    backgroundColor: "rgba(143,168,128,0.1)",
+    borderColor: "#8FA880",
+    opacity: 0.7,
+  },
+  pauseBtnTextDisabled: { color: "#8FA880" },
 
   legendRow: {
     flexDirection: "row",
@@ -392,9 +681,115 @@ const styles = StyleSheet.create({
   todayDot: {
     position: "absolute",
     bottom: 3,
-    width: 4,
-    height: 4,
+    width: 4, height: 4,
     borderRadius: 2,
     backgroundColor: "#FAD979",
   },
+
+  // Pause requests section
+  pauseSection: { marginTop: 8, marginBottom: 8 },
+  pauseSectionTitle: { fontSize: 16, fontWeight: "700", color: "#344225", marginBottom: 12 },
+  noPauseWrap: {
+    backgroundColor: "#FFFFFF", borderRadius: 12, padding: 20, alignItems: "center",
+  },
+  noPauseText: { fontSize: 14, color: "#6B7F75" },
+  pauseRequestCard: {
+    backgroundColor: "#FFFFFF", borderRadius: 14, padding: 16, marginBottom: 10,
+  },
+  pauseRequestHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  pauseRequestDates: { fontSize: 13, fontWeight: "600", color: "#344225", flex: 1, marginRight: 8 },
+  statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  statusText: { fontSize: 12, fontWeight: "700" },
+  pauseRequestMeta: { fontSize: 11, color: "#9DB8AC", marginBottom: 6 },
+  pauseRequestReason: { fontSize: 13, color: "#4A6040", lineHeight: 18 },
+  adminNotesWrap: { marginTop: 8, backgroundColor: "#F5F5F5", borderRadius: 8, padding: 10 },
+  adminNotesLabel: { fontSize: 11, fontWeight: "700", color: "#6B7F75", marginBottom: 2 },
+  adminNotesText: { fontSize: 12, color: "#344225" },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#D4E8E0",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: "90%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  modalTitle: { fontSize: 20, fontWeight: "700", color: "#344225" },
+  modalNote: {
+    fontSize: 13,
+    color: "#5A7C65",
+    lineHeight: 18,
+    backgroundColor: "#C8DFCF",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 3,
+    borderLeftColor: "#344225",
+  },
+  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#344225", marginBottom: 8 },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#B8D5C5",
+  },
+  dateArrow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "#EAF3EE",
+  },
+  dateDisplay: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  dateDisplayText: { fontSize: 15, fontWeight: "600", color: "#344225" },
+  daysCountWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 20,
+    marginTop: -8,
+  },
+  daysCountText: { fontSize: 13, color: "#5A7C65" },
+  daysCountBold: { fontWeight: "700", color: "#344225" },
+  reasonInput: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    color: "#344225",
+    borderWidth: 1,
+    borderColor: "#B8D5C5",
+    minHeight: 110,
+    marginBottom: 4,
+  },
+  charCount: { fontSize: 11, color: "#9DB8AC", textAlign: "right", marginBottom: 20 },
+  submitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FAD979",
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginBottom: 8,
+  },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: { fontSize: 15, fontWeight: "700", color: "#344225" },
 });

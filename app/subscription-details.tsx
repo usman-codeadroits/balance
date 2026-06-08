@@ -1,4 +1,4 @@
-import { getMySubscriptions, getSubscriptionPauseLogs, type PauseLog, type UserSubscriptionSummary } from "@/api/services/subscriptions";
+import { getMySubscriptions, getSubscriptionDetails, getSubscriptionPauseLogs, getSubscriptionRenewal, type PauseLog, type RenewalDetail, type UserSubscriptionDetails, type UserSubscriptionSummary } from "@/api/services/subscriptions";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -16,7 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function SubscriptionDetailsScreen() {
   const [subscription, setSubscription] = useState<UserSubscriptionSummary | null>(null);
+  const [details, setDetails] = useState<UserSubscriptionDetails | null>(null);
   const [pauseLogs, setPauseLogs] = useState<PauseLog[]>([]);
+  const [renewalDetail, setRenewalDetail] = useState<RenewalDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
@@ -36,6 +38,19 @@ export default function SubscriptionDetailsScreen() {
         const active = response.data.active[0];
         setSubscription(active);
         if (active.is_paused) fetchPauseLogs(active.id);
+        // Load full details and renewal in parallel
+        try {
+          const [det, renewalRes] = await Promise.allSettled([
+            getSubscriptionDetails(active.id),
+            getSubscriptionRenewal(active.id),
+          ]);
+          if (det.status === "fulfilled" && det.value.success && det.value.data) {
+            setDetails(det.value.data);
+          }
+          if (renewalRes.status === "fulfilled" && renewalRes.value.data?.renewal) {
+            setRenewalDetail(renewalRes.value.data.renewal);
+          }
+        } catch {}
       } else {
         setError("no_active");
         setSubscription(null);
@@ -92,6 +107,39 @@ export default function SubscriptionDetailsScreen() {
     : subscription?.status === "active" ? "#4CAF50"
     : subscription?.status === "completed" ? "#FF9800"
     : "#F44336";
+
+  // Macro calculations from detailed subscription data
+  type MacroTotals = { cal: number; protein: number; carbs: number; fat: number };
+  const perDayMacros: { day: string; macros: MacroTotals }[] = (details?.subscription_days || []).map((day) => {
+    const totals: MacroTotals = { cal: 0, protein: 0, carbs: 0, fat: 0 };
+    (day.subscription_meals || []).forEach((sm) => {
+      totals.cal += sm.meal?.calories ?? 0;
+      totals.protein += sm.meal?.protein_g ?? 0;
+      totals.carbs += sm.meal?.carbs_g ?? 0;
+      totals.fat += sm.meal?.fat_g ?? 0;
+    });
+    return { day: day.day, macros: totals };
+  });
+
+  const totalMacros: MacroTotals = perDayMacros.reduce(
+    (acc, d) => ({
+      cal: acc.cal + d.macros.cal,
+      protein: acc.protein + d.macros.protein,
+      carbs: acc.carbs + d.macros.carbs,
+      fat: acc.fat + d.macros.fat,
+    }),
+    { cal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+
+  const dayCount = perDayMacros.length;
+  const avgDayMacros: MacroTotals = dayCount > 0
+    ? {
+        cal: Math.round(totalMacros.cal / dayCount),
+        protein: Math.round(totalMacros.protein / dayCount),
+        carbs: Math.round(totalMacros.carbs / dayCount),
+        fat: Math.round(totalMacros.fat / dayCount),
+      }
+    : { cal: 0, protein: 0, carbs: 0, fat: 0 };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -252,6 +300,109 @@ export default function SubscriptionDetailsScreen() {
               </View>
               <Ionicons name="chevron-forward" size={18} color="#B8D5C5" />
             </TouchableOpacity>
+
+            {/* Renewal button — shown only when backend has a queued renewal for this subscription */}
+            {renewalDetail && (
+              <TouchableOpacity
+                style={styles.renewalBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: "/renewal-details",
+                    params: { subscriptionId: subscription.id },
+                  } as any)
+                }
+              >
+                <View style={styles.renewalBtnIcon}>
+                  <Ionicons name="refresh-circle-outline" size={20} color="#344225" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.renewalBtnTitle}>Renewal Plan</Text>
+                  <Text style={styles.renewalBtnDesc}>
+                    {`${renewalDetail.plan?.title} · starts ${renewalDetail.start_date}`}
+                  </Text>
+                </View>
+                <View style={styles.renewalArrowWrap}>
+                  <Ionicons name="chevron-forward" size={18} color="#344225" />
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Nutrition Summary */}
+            {details && perDayMacros.length > 0 && (
+              <View style={styles.macroCard}>
+                <View style={styles.macroCardHeader}>
+                  <Ionicons name="nutrition-outline" size={18} color="#344225" />
+                  <Text style={styles.macroCardTitle}>Nutrition Summary</Text>
+                </View>
+
+                {/* Per-day breakdown */}
+                <Text style={styles.macroSectionLabel}>Per Day</Text>
+                {perDayMacros.map(({ day, macros }) => (
+                  <View key={day} style={styles.macroDayRow}>
+                    <Text style={styles.macroDayName}>
+                      {day.charAt(0).toUpperCase() + day.slice(1)}
+                    </Text>
+                    <View style={styles.macroPillRow}>
+                      <View style={[styles.macroPill, { backgroundColor: "#FFF3CD" }]}>
+                        <Text style={styles.macroPillVal}>{macros.cal}</Text>
+                        <Text style={styles.macroPillLabel}>kcal</Text>
+                      </View>
+                      <View style={[styles.macroPill, { backgroundColor: "#D4E8E0" }]}>
+                        <Text style={styles.macroPillVal}>{macros.protein}g</Text>
+                        <Text style={styles.macroPillLabel}>protein</Text>
+                      </View>
+                      <View style={[styles.macroPill, { backgroundColor: "#EEF4F0" }]}>
+                        <Text style={styles.macroPillVal}>{macros.carbs}g</Text>
+                        <Text style={styles.macroPillLabel}>carbs</Text>
+                      </View>
+                      <View style={[styles.macroPill, { backgroundColor: "#FDE8D8" }]}>
+                        <Text style={styles.macroPillVal}>{macros.fat}g</Text>
+                        <Text style={styles.macroPillLabel}>fat</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+
+                {dayCount > 1 && (
+                  <>
+                    <View style={styles.macroDivider} />
+                    {/* Average per day */}
+                    <Text style={styles.macroSectionLabel}>Daily Average</Text>
+                    <View style={styles.macroTotalGrid}>
+                      {[
+                        { label: "Calories", val: `${avgDayMacros.cal}`, unit: "kcal", bg: "#FFF3CD" },
+                        { label: "Protein",  val: `${avgDayMacros.protein}g`, unit: "", bg: "#D4E8E0" },
+                        { label: "Carbs",    val: `${avgDayMacros.carbs}g`,   unit: "", bg: "#EEF4F0" },
+                        { label: "Fat",      val: `${avgDayMacros.fat}g`,     unit: "", bg: "#FDE8D8" },
+                      ].map((item) => (
+                        <View key={item.label} style={[styles.macroTotalBox, { backgroundColor: item.bg }]}>
+                          <Text style={styles.macroTotalVal}>{item.val}</Text>
+                          <Text style={styles.macroTotalLabel}>{item.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                <View style={styles.macroDivider} />
+
+                {/* Grand total */}
+                <Text style={styles.macroSectionLabel}>Total ({dayCount} day{dayCount !== 1 ? "s" : ""})</Text>
+                <View style={styles.macroTotalGrid}>
+                  {[
+                    { label: "Calories", val: `${totalMacros.cal}`, bg: "#FFF3CD" },
+                    { label: "Protein",  val: `${totalMacros.protein}g`, bg: "#D4E8E0" },
+                    { label: "Carbs",    val: `${totalMacros.carbs}g`,   bg: "#EEF4F0" },
+                    { label: "Fat",      val: `${totalMacros.fat}g`,     bg: "#FDE8D8" },
+                  ].map((item) => (
+                    <View key={item.label} style={[styles.macroTotalBox, { backgroundColor: item.bg }]}>
+                      <Text style={styles.macroTotalVal}>{item.val}</Text>
+                      <Text style={styles.macroTotalLabel}>{item.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </ScrollView>
         )}
       </View>
@@ -447,4 +598,82 @@ const styles = StyleSheet.create({
   },
   viewDetailsBtnTitle: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
   viewDetailsBtnDesc: { fontSize: 12, color: "#B8D5C5", marginTop: 2 },
+
+  renewalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#FAD979",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  renewalBtnIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(52,66,37,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  renewalBtnTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
+  renewalBtnDesc: { fontSize: 12, color: "#5C6B45", marginTop: 2 },
+  renewalArrowWrap: { paddingLeft: 4 },
+
+  // Macro card
+  macroCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+  },
+  macroCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  macroCardTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
+  macroSectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6B7F75",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  macroDayRow: {
+    marginBottom: 10,
+  },
+  macroDayName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#344225",
+    marginBottom: 4,
+  },
+  macroPillRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  macroPill: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  macroPillVal: { fontSize: 12, fontWeight: "700", color: "#344225" },
+  macroPillLabel: { fontSize: 9, color: "#6B7F75", marginTop: 1 },
+  macroDivider: { height: 1, backgroundColor: "#EEF4F0", marginVertical: 12 },
+  macroTotalGrid: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  macroTotalBox: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  macroTotalVal: { fontSize: 13, fontWeight: "700", color: "#344225" },
+  macroTotalLabel: { fontSize: 10, color: "#6B7F75", marginTop: 2 },
 });

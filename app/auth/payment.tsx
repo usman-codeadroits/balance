@@ -403,11 +403,21 @@ export default function PaymentScreen() {
 
       await persistSubscriptionLocally(subscriptionData, paymentStatus, checkoutDraft.payload);
 
+      const isQueued = subscriptionData.status === "queued";
       const isCash = paymentInfo?.method === "cash" || payload?.payment_method === "cash";
-      const successTitle = isCash ? "Order Placed" : t("payment.alerts.success_title");
-      const successMsg = isCash
-        ? "Order placed successfully. Cash will be collected on delivery."
-        : t("payment.alerts.success_msg");
+
+      let successTitle: string;
+      let successMsg: string;
+      if (isQueued) {
+        successTitle = t("payment.alerts.queued_title");
+        successMsg = t("payment.alerts.queued_msg", { date: subscriptionData.start_date ?? "" });
+      } else if (isCash) {
+        successTitle = "Order Placed";
+        successMsg = "Order placed successfully. Cash will be collected on delivery.";
+      } else {
+        successTitle = t("payment.alerts.success_title");
+        successMsg = t("payment.alerts.success_msg");
+      }
 
       Alert.alert(successTitle, successMsg, [
         { text: t("nav.home"), onPress: () => router.replace("/(tabs)/" as any) },

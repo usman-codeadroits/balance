@@ -30,7 +30,13 @@ export default function BuildPlanScreen() {
   const [selectedProtein, setSelectedProtein] = useState<string | null>(null);
   const [selectedCarbs, setSelectedCarbs] = useState<string | null>(null);
   const [showProteinDropdown, setShowProteinDropdown] = useState(false);
+  const [showCarbsDropdown, setShowCarbsDropdown] = useState(false);
   const [proteinApiOptions, setProteinApiOptions] = useState<ProteinOption[]>([]);
+
+  const carbsOptions = [
+    { grams: 150, label: "150 g" },
+    { grams: 200, label: "200 g" },
+  ];
   const [optionsLoading, setOptionsLoading] = useState(true);
   useStaticScreen();
   const insets = useSafeAreaInsets();
@@ -71,9 +77,6 @@ export default function BuildPlanScreen() {
   const handleProteinSelect = (proteinGrams: string) => {
     setSelectedProtein(proteinGrams);
     setShowProteinDropdown(false);
-    if (proteinGrams === "150") setSelectedCarbs("150");
-    else if (proteinGrams === "200") setSelectedCarbs("200");
-
     const option = proteinApiOptions.find(
       (opt) => String(opt.protein_grams) === proteinGrams,
     );
@@ -82,8 +85,18 @@ export default function BuildPlanScreen() {
     }
   };
 
+  const handleCarbsSelect = (carbsGrams: string) => {
+    setSelectedCarbs(carbsGrams);
+    setShowCarbsDropdown(false);
+  };
+
+  const getCarbsLabel = () => {
+    if (!selectedCarbs) return t("build_plan.carbs_placeholder");
+    return `${selectedCarbs} g (${t("build_plan.carbs_free")})`;
+  };
+
   const handleContinue = async () => {
-    if (!selectedProtein) {
+    if (!selectedProtein || !selectedCarbs) {
       alert(t("build_plan.error_missing_fields"));
       return;
     }
@@ -135,15 +148,18 @@ return (
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Select Protein & Carbs Section */}
+            {/* Select Protein Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Select Your Proteins and Carbs</Text>
+              <Text style={styles.sectionTitle}>{t("build_plan.select_protein")}</Text>
               <Text style={styles.sectionDescription}>
                 {t("build_plan.protein_desc")}
               </Text>
               <TouchableOpacity
                 style={styles.dropdown}
-                onPress={() => setShowProteinDropdown(!showProteinDropdown)}
+                onPress={() => {
+                  setShowProteinDropdown(!showProteinDropdown);
+                  setShowCarbsDropdown(false);
+                }}
               >
                 <Text
                   style={[
@@ -190,6 +206,65 @@ return (
                         ]}
                       >
                         +{parseFloat(option.extra_price_per_meal).toFixed(3)} KWD/meal
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Select Carbs Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("build_plan.select_carbs")}</Text>
+              <Text style={styles.sectionDescription}>
+                {t("build_plan.carbs_desc")}
+              </Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => {
+                  setShowCarbsDropdown(!showCarbsDropdown);
+                  setShowProteinDropdown(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    !selectedCarbs && styles.dropdownPlaceholder,
+                  ]}
+                >
+                  {getCarbsLabel()}
+                </Text>
+                <Ionicons
+                  name={showCarbsDropdown ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#344225"
+                />
+              </TouchableOpacity>
+              {showCarbsDropdown && (
+                <View style={styles.dropdownCard}>
+                  {carbsOptions.map((option, index) => (
+                    <TouchableOpacity
+                      key={option.grams}
+                      style={[
+                        styles.dropdownRow,
+                        selectedCarbs === String(option.grams) &&
+                          styles.dropdownRowSelected,
+                        index === carbsOptions.length - 1 &&
+                          styles.dropdownRowLast,
+                      ]}
+                      onPress={() => handleCarbsSelect(String(option.grams))}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownRowText,
+                          selectedCarbs === String(option.grams) &&
+                            styles.dropdownRowTextSelected,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text style={styles.dropdownRowFree}>
+                        {t("build_plan.carbs_free")}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -331,6 +406,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7F75",
     fontWeight: "400",
+  },
+  dropdownRowFree: {
+    fontSize: 12,
+    color: "#1A6F46",
+    fontWeight: "600",
   },
   bottomSection: {
     paddingHorizontal: "5%",

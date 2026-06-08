@@ -72,6 +72,7 @@ export type LoginResponse = {
   user?: User;
   data?: User; // legacy field alias
   active_subscription?: ActiveSubscription | null;
+  queued_subscriptions?: QueuedSubscription[];
   subscriptions?: any[]; // legacy
   message?: string;
 };
@@ -79,6 +80,32 @@ export type LoginResponse = {
 export type CheckUserRequest = {
   phone_number: string;
   otp: number | string;
+};
+
+export type QueuedRenewal = {
+  id: number;
+  plan_id: number;
+  plan_title: string;
+  selected_days: string;
+  start_date: string;
+  end_date: string;
+  price: number;
+  currency: string;
+  payment: string;
+  status: string;
+};
+
+export type QueuedSubscription = {
+  id: number;
+  plan_id: number;
+  plan_title: string;
+  selected_days: string;
+  start_date: string;
+  end_date: string;
+  price: number;
+  currency: string;
+  payment: string;
+  status: string;
 };
 
 export type ActiveSubscription = {
@@ -104,6 +131,9 @@ export type ActiveSubscription = {
   paused_at?: string | null;
   paused_until?: string | null;
   total_paused_days?: number;
+  auto_renew?: boolean;
+  renewal_notified_at?: string | null;
+  queued_renewal?: QueuedRenewal | null;
 };
 
 export type CheckUserData = {

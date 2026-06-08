@@ -331,7 +331,15 @@ export default function OTPScreen() {
                 const subscriptionData = data.active_subscription || data.subscription;
                 if (subscriptionData) {
                   await storeActiveSubscription(subscriptionData);
+
+                  // Store queued_renewal from active_subscription
+                  const queuedRenewal = subscriptionData.queued_renewal ?? null;
+                  await AsyncStorage.setItem("queuedRenewal", JSON.stringify(queuedRenewal));
                 }
+
+                // Store queued_subscriptions from top-level login response
+                const queuedSubscriptions = data.queued_subscriptions ?? [];
+                await AsyncStorage.setItem("queuedSubscriptions", JSON.stringify(queuedSubscriptions));
 
                 // Clear onboarding storage
                 await clearOnboardingStorage();

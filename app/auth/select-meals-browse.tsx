@@ -9,7 +9,7 @@ import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -63,6 +63,7 @@ export default function SelectMealsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [hasPersonalizedPlan, setHasPersonalizedPlan] =
     useState<boolean>(false);
+  const [currentDayMeals, setCurrentDayMeals] = useState<{ [key: number]: DayMeals }>({});
   const [proteinGrams, setProteinGrams] = useState(0);
   const [proteinExtraPerMeal, setProteinExtraPerMeal] = useState(0);
   const [loadingExisting, setLoadingExisting] = useState<boolean>(false);
@@ -121,6 +122,12 @@ export default function SelectMealsScreen() {
       const daysData = await AsyncStorage.getItem("selectedDays");
       if (daysData) {
         setSelectedDays(JSON.parse(daysData));
+      }
+
+      // Load already-selected meals to compute weekly usage counts
+      const savedDayMeals = await AsyncStorage.getItem("selectedDayMeals");
+      if (savedDayMeals) {
+        setCurrentDayMeals(JSON.parse(savedDayMeals));
       }
 
       // Only fetch existing subscription meals in update mode:
@@ -520,6 +527,7 @@ export default function SelectMealsScreen() {
       }
 
       await AsyncStorage.setItem("selectedDayMeals", JSON.stringify(dayMeals));
+      setCurrentDayMeals(dayMeals);
 
       // Navigate back
       router.back();
@@ -559,6 +567,28 @@ export default function SelectMealsScreen() {
   const getPlanDisplayPrice = (): string => {
     return `KWD ${(getBasePlanPrice() + proteinExtraCharge).toFixed(3)}`;
   };
+
+  // Count selections across all days, excluding the slot currently being filled
+  const selectedCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    Object.entries(currentDayMeals).forEach(([dIdxStr, dm]) => {
+      const di = parseInt(dIdxStr, 10);
+      dm.meals.forEach((m, mi) => {
+        if (m && !(di === dayIndex && mi === mealIndex && type === "meal")) {
+          counts[m.id] = (counts[m.id] ?? 0) + 1;
+        }
+      });
+      dm.snacks.forEach((s, si) => {
+        if (s && !(di === dayIndex && si === mealIndex && type === "snack")) {
+          counts[s.id] = (counts[s.id] ?? 0) + 1;
+        }
+      });
+    });
+    return counts;
+  }, [currentDayMeals, dayIndex, mealIndex, type]);
+
+  const isMealAtLimit = (meal: Meal): boolean =>
+    meal.weekly_limit != null && (selectedCounts[meal.id.toString()] ?? 0) >= meal.weekly_limit;
 
   const isLoadingState = loading || loadingExisting;
 
@@ -699,30 +729,36 @@ export default function SelectMealsScreen() {
                 <View style={styles.itemsGrid}>
                   {filteredItems.map((meal) => {
                     const item = convertMealToItem(meal);
+                    const atLimit = isMealAtLimit(meal);
                     return (
-                      <View key={meal.id} style={styles.itemCard}>
-                        {!hasPersonalizedPlan && (
+                      <View key={meal.id} style={[styles.itemCard, atLimit && styles.itemCardDisabled]}>
+                        {!hasPersonalizedPlan && !atLimit && (
                           <View style={styles.caloriesBadge}>
                             <Text style={styles.caloriesText}>
                               {item.calories} {t("select_meals.kcal")}
                             </Text>
                           </View>
                         )}
+                        {atLimit && (
+                          <View style={styles.limitBadge}>
+                            <Text style={styles.limitBadgeText}>Limit {meal.weekly_limit}/wk</Text>
+                          </View>
+                        )}
                         {item.imageUrl ? (
                           <Image
                             source={{ uri: item.imageUrl }}
-                            style={styles.itemImage}
+                            style={[styles.itemImage, atLimit && { opacity: 0.4 }]}
                             resizeMode="cover"
                           />
                         ) : (
                           <Image
                             source={require("@/assets/images/meal.jpg")}
-                            style={styles.itemImage}
+                            style={[styles.itemImage, atLimit && { opacity: 0.4 }]}
                             resizeMode="cover"
                           />
                         )}
                         <View style={styles.itemInfo}>
-                          <Text style={styles.itemName}>{item.name}</Text>
+                          <Text style={[styles.itemName, atLimit && { color: "#B8D5C5" }]}>{item.name}</Text>
                           {!hasPersonalizedPlan && (
                             <>
                               <View style={styles.nutritionRow}>
@@ -776,10 +812,13 @@ export default function SelectMealsScreen() {
                             </>
                           )}
                           <TouchableOpacity
-                            style={styles.addButton}
-                            onPress={() => handleAddItem(meal)}
+                            style={[styles.addButton, atLimit && styles.addButtonDisabled]}
+                            onPress={() => !atLimit && handleAddItem(meal)}
+                            disabled={atLimit}
                           >
-                            <Text style={styles.addButtonText}>{t("select_meals.add_button")}</Text>
+                            <Text style={styles.addButtonText}>
+                              {atLimit ? "Limit Reached" : t("select_meals.add_button")}
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1060,10 +1099,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
+  addButtonDisabled: {
+    backgroundColor: "#B8D5C5",
+  },
   addButtonText: {
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
+  },
+  itemCardDisabled: {
+    opacity: 0.85,
+    borderWidth: 1,
+    borderColor: "#E0EAE5",
+  },
+  limitBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "rgba(192,57,43,0.85)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  limitBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "700",
   },
   loadingContainer: {
     alignItems: "center",

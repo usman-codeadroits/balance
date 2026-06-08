@@ -209,7 +209,10 @@ export default function SubscriptionScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t("subscription_screen.title")}</Text>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerTitle}>{t("subscription_screen.title")}</Text>
+            <Text style={styles.headerSubtitle}>Explore our healthy subscription plans</Text>
+          </View>
         </View>
 
         {/* Scrollable Plans */}
@@ -218,6 +221,17 @@ export default function SubscriptionScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Disclaimer */}
+          <View style={styles.disclaimerCard}>
+            <Ionicons name="information-circle-outline" size={18} color="#5A7C65" style={{ marginTop: 1 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.disclaimerLabel}>Disclaimer</Text>
+              <Text style={styles.disclaimerText}>
+                2 Beef and 2 Salmon items available per week based on US dietary preference.
+              </Text>
+            </View>
+          </View>
+
           {/* Active Subscription Warning */}
           {!checkingSubscription && activeSubscription && (
             <View style={styles.activeSubscriptionCard}>
@@ -377,11 +391,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  headerTextBlock: {
+    flex: 1,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#344225",
     textAlign: "left",
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: "#5A7C65",
+    marginTop: 4,
+    textAlign: "left",
+  },
+  disclaimerCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#C8DFCF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: "#344225",
+  },
+  disclaimerLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 2,
+  },
+  disclaimerText: {
+    fontSize: 12,
+    color: "#344225",
+    lineHeight: 17,
   },
   scrollContainer: {
     flex: 1,
