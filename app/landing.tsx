@@ -51,7 +51,7 @@ export default function LandingScreen() {
     });
   }, [meals, searchQuery]);
 
-  const cardWidth = (width - width * 0.1 - 12) / 2;
+  const cardWidth = (width - 32 - 12) / 2;
 
   const renderCard = ({ item: meal }: { item: Meal }) => (
     <View style={[styles.card, { width: cardWidth }]}>
@@ -104,7 +104,6 @@ export default function LandingScreen() {
         <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
           <Ionicons name="menu" size={26} color="#344225" />
         </TouchableOpacity>
-
         <View style={styles.logoWrap}>
           <Image
             source={require("@/assets/images/balance-text.png")}
@@ -112,7 +111,6 @@ export default function LandingScreen() {
             resizeMode="contain"
           />
         </View>
-
         <TouchableOpacity
           style={styles.iconBtn}
           activeOpacity={0.7}
@@ -122,7 +120,7 @@ export default function LandingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Search */}
+      {/* Search — fixed above the list */}
       <View style={styles.searchWrap}>
         <TextInput
           style={styles.searchInput}
@@ -150,7 +148,7 @@ export default function LandingScreen() {
         <Text style={styles.greetingText}>Glad to see you!</Text>
       </View>
 
-      {/* Meal grid */}
+      {/* Meal grid — flex: 1 so it scrolls and doesn't push the nav off screen */}
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#344225" />
@@ -161,6 +159,7 @@ export default function LandingScreen() {
         </View>
       ) : (
         <FlatList
+          style={styles.list}
           data={filteredMeals}
           renderItem={renderCard}
           keyExtractor={(item) => item.id.toString()}
@@ -173,7 +172,7 @@ export default function LandingScreen() {
         />
       )}
 
-      {/* Static bottom nav — in normal flow, no active state, no navigation */}
+      {/* Bottom nav — each item redirects to auth */}
       <View style={[styles.navOuter, { paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.navBar}>
           {[
@@ -182,10 +181,15 @@ export default function LandingScreen() {
             { icon: "calendar" as const, label: "Calendar" },
             { icon: "person" as const, label: "Profile" },
           ].map((item) => (
-            <View key={item.label} style={styles.navItem}>
+            <TouchableOpacity
+              key={item.label}
+              style={styles.navItem}
+              onPress={() => router.replace("/auth")}
+              activeOpacity={0.7}
+            >
               <Ionicons name={item.icon} size={26} color="#FFFFFF" />
               <Text style={styles.navLabel}>{item.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -196,12 +200,12 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  backgroundColor: "#DCE6E0",
+    backgroundColor: "#DCE6E0",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: "5%",
+    paddingHorizontal: 16,
     paddingVertical: 10,
   },
   iconBtn: {
@@ -219,8 +223,8 @@ const styles = StyleSheet.create({
     height: 32,
   },
   searchWrap: {
-    marginHorizontal: "5%",
-    marginBottom: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
   },
   searchInput: {
     backgroundColor: "#FFFFFF",
@@ -239,13 +243,24 @@ const styles = StyleSheet.create({
     top: 12,
   },
   greetingRow: {
-    paddingHorizontal: "5%",
+    paddingHorizontal: 16,
     marginBottom: 12,
   },
   greetingText: {
     fontSize: 16,
     color: "#344225",
     fontWeight: "500",
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  columnWrapper: {
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   loadingWrap: {
     flex: 1,
@@ -255,14 +270,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: "#6B7F75",
-  },
-  listContent: {
-    paddingHorizontal: "5%",
-    paddingBottom: 12,
-  },
-  columnWrapper: {
-    justifyContent: "space-between",
-    marginBottom: 12,
   },
   navOuter: {
     paddingHorizontal: 16,

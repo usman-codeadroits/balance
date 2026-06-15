@@ -1,4 +1,4 @@
-import { getAllergies, updateAllergies } from '@/api/services/allergies';
+import { clearDislikes, getDislikes } from '@/api/services/dislikes';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -14,21 +14,21 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function AllergiesPreferenceScreen() {
+export default function DislikesPreferenceScreen() {
   const insets = useSafeAreaInsets();
-  const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
+  const [hasDislikes, setHasDislikes] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadFromProfile();
+    loadFromApi();
   }, []);
 
-  const loadFromProfile = async () => {
+  const loadFromApi = async () => {
     try {
-      const res = await getAllergies();
+      const res = await getDislikes();
       if (res.success && res.data) {
-        setHasAllergies(res.data.has_food_allergies ?? false);
+        setHasDislikes(res.data.dislikes.length > 0);
       }
     } catch {
       // ignore, user can still set preference
@@ -38,20 +38,17 @@ export default function AllergiesPreferenceScreen() {
   };
 
   const handleContinue = async () => {
-    if (hasAllergies === null) {
-      Alert.alert('Please select an option', 'Let us know if you have food allergies.');
+    if (hasDislikes === null) return;
+
+    if (hasDislikes) {
+      router.push('/(tabs)/dislikes-input' as any);
       return;
     }
 
-    if (hasAllergies) {
-      router.push('/(tabs)/allergies-list' as any);
-      return;
-    }
-
-    // User selected No — clear allergies
+    // User chose No — clear dislikes via API
     setSaving(true);
     try {
-      await updateAllergies({ has_food_allergies: false });
+      await clearDislikes();
       router.replace('/(tabs)/profile' as any);
     } catch {
       Alert.alert('Error', 'Could not save your preference. Please try again.');
@@ -66,7 +63,7 @@ export default function AllergiesPreferenceScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/profile' as any)}>
           <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Allergies</Text>
+        <Text style={styles.headerTitle}>Dislikes</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -82,66 +79,66 @@ export default function AllergiesPreferenceScreen() {
           >
             <View style={styles.heroWrap}>
               <View style={styles.heroIconCircle}>
-                <Ionicons name="shield-checkmark-outline" size={40} color="#344225" />
+                <Ionicons name="restaurant-outline" size={40} color="#344225" />
               </View>
-              <Text style={styles.title}>Do you have food allergies?</Text>
+              <Text style={styles.title}>Do you want to add food dislikes?</Text>
               <Text style={styles.subtitle}>
-                Knowing your allergies helps us customize your meal plan and keep you safe.
+                Let us know what foods or ingredients you prefer to avoid. We will do our best to exclude them from your meals.
               </Text>
             </View>
 
             <View style={styles.optionsContainer}>
               <TouchableOpacity
-                style={[styles.optionCard, hasAllergies === true && styles.optionCardSelected]}
-                onPress={() => setHasAllergies(true)}
+                style={[styles.optionCard, hasDislikes === true && styles.optionCardSelected]}
+                onPress={() => setHasDislikes(true)}
                 activeOpacity={0.8}
               >
                 <View style={styles.optionLeft}>
-                  <View style={[styles.optionIconWrap, hasAllergies === true && styles.optionIconWrapSelected]}>
+                  <View style={[styles.optionIconWrap, hasDislikes === true && styles.optionIconWrapSelected]}>
                     <Ionicons
-                      name="alert-circle-outline"
+                      name="create-outline"
                       size={22}
-                      color={hasAllergies === true ? '#FAD979' : '#344225'}
+                      color={hasDislikes === true ? '#FAD979' : '#344225'}
                     />
                   </View>
                   <View style={styles.optionTextWrap}>
-                    <Text style={[styles.optionTitle, hasAllergies === true && styles.optionTitleSelected]}>
-                      Yes, I have allergies
+                    <Text style={[styles.optionTitle, hasDislikes === true && styles.optionTitleSelected]}>
+                      Yes, add my dislikes
                     </Text>
-                    <Text style={[styles.optionDesc, hasAllergies === true && styles.optionDescSelected]}>
-                      I want to specify my allergies
+                    <Text style={[styles.optionDesc, hasDislikes === true && styles.optionDescSelected]}>
+                      I want to specify foods I dislike
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.radioOuter, hasAllergies === true && styles.radioOuterSelected]}>
-                  {hasAllergies === true && <View style={styles.radioInner} />}
+                <View style={[styles.radioOuter, hasDislikes === true && styles.radioOuterSelected]}>
+                  {hasDislikes === true && <View style={styles.radioInner} />}
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.optionCard, hasAllergies === false && styles.optionCardSelected]}
-                onPress={() => setHasAllergies(false)}
+                style={[styles.optionCard, hasDislikes === false && styles.optionCardSelected]}
+                onPress={() => setHasDislikes(false)}
                 activeOpacity={0.8}
               >
                 <View style={styles.optionLeft}>
-                  <View style={[styles.optionIconWrap, hasAllergies === false && styles.optionIconWrapSelected]}>
+                  <View style={[styles.optionIconWrap, hasDislikes === false && styles.optionIconWrapSelected]}>
                     <Ionicons
-                      name="checkmark-circle-outline"
+                      name="thumbs-up-outline"
                       size={22}
-                      color={hasAllergies === false ? '#FAD979' : '#344225'}
+                      color={hasDislikes === false ? '#FAD979' : '#344225'}
                     />
                   </View>
                   <View style={styles.optionTextWrap}>
-                    <Text style={[styles.optionTitle, hasAllergies === false && styles.optionTitleSelected]}>
-                      No, I have none
+                    <Text style={[styles.optionTitle, hasDislikes === false && styles.optionTitleSelected]}>
+                      No, I am fine with everything
                     </Text>
-                    <Text style={[styles.optionDesc, hasAllergies === false && styles.optionDescSelected]}>
-                      I don't have any food allergies
+                    <Text style={[styles.optionDesc, hasDislikes === false && styles.optionDescSelected]}>
+                      I don't have any food dislikes
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.radioOuter, hasAllergies === false && styles.radioOuterSelected]}>
-                  {hasAllergies === false && <View style={styles.radioInner} />}
+                <View style={[styles.radioOuter, hasDislikes === false && styles.radioOuterSelected]}>
+                  {hasDislikes === false && <View style={styles.radioInner} />}
                 </View>
               </TouchableOpacity>
             </View>
@@ -149,15 +146,15 @@ export default function AllergiesPreferenceScreen() {
 
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
             <TouchableOpacity
-              style={[styles.continueButton, (hasAllergies === null || saving) && styles.continueButtonDisabled]}
+              style={[styles.continueButton, (hasDislikes === null || saving) && styles.continueButtonDisabled]}
               onPress={handleContinue}
-              disabled={hasAllergies === null || saving}
+              disabled={hasDislikes === null || saving}
             >
               {saving ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.continueButtonText}>
-                  {hasAllergies ? 'Continue' : 'Save'}
+                  {hasDislikes ? 'Continue' : 'Save'}
                 </Text>
               )}
             </TouchableOpacity>

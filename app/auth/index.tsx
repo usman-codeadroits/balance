@@ -106,6 +106,9 @@ export default function AuthScreen() {
         <View style={styles.content}>
           {/* Logo + language toggle */}
           <View style={styles.header}>
+            <TouchableOpacity style={styles.skipBtn} onPress={() => router.replace('/landing')} activeOpacity={0.75}>
+              <Text style={styles.skipText}>Skip</Text>
+            </TouchableOpacity>
             <Image
               source={require('@/assets/images/authlogo.png')}
               style={styles.logo}
@@ -180,11 +183,24 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
+    paddingTop: '1%',
   },
   header: {
     alignItems: 'center',
     paddingTop: 16,
     paddingBottom: 24,
+  },
+  skipBtn: {
+    position: 'absolute',
+    left: 0,
+    top: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  skipText: {
+    color: '#FAD979',
+    fontSize: 15,
+    fontWeight: '600',
   },
   logo: {
     width: 80,

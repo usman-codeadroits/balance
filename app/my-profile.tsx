@@ -92,6 +92,10 @@ export default function MyProfileScreen() {
   const [hasAllergies, setHasAllergies] = useState(false);
   const [allergiesText, setAllergiesText] = useState("");
 
+  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
+  const [showGoalDropdown, setShowGoalDropdown] = useState(false);
+  const [showActivityDropdown, setShowActivityDropdown] = useState(false);
+
   // ── Address state ──
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
@@ -311,17 +315,28 @@ export default function MyProfileScreen() {
               </Field>
 
               <Field label="Gender">
-                <View style={styles.chipRow}>
-                  {GENDERS.map((g) => (
-                    <TouchableOpacity
-                      key={g.value}
-                      style={[styles.chip, gender === g.value && styles.chipActive]}
-                      onPress={() => setGender(g.value)}
-                    >
-                      <Text style={[styles.chipText, gender === g.value && styles.chipTextActive]}>{g.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TouchableOpacity
+                  style={styles.dropdownBtn}
+                  onPress={() => { setShowGenderDropdown(!showGenderDropdown); setShowGoalDropdown(false); setShowActivityDropdown(false); }}
+                >
+                  <Text style={[styles.dropdownBtnText, !gender && styles.dropdownBtnPlaceholder]}>
+                    {GENDERS.find((g) => g.value === gender)?.label ?? "Select gender"}
+                  </Text>
+                  <Ionicons name={showGenderDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
+                </TouchableOpacity>
+                {showGenderDropdown && (
+                  <View style={styles.dropdownList}>
+                    {GENDERS.map((g, i) => (
+                      <TouchableOpacity
+                        key={g.value}
+                        style={[styles.dropdownListItem, gender === g.value && styles.dropdownListItemActive, i === GENDERS.length - 1 && styles.dropdownListItemLast]}
+                        onPress={() => { setGender(g.value); setShowGenderDropdown(false); }}
+                      >
+                        <Text style={[styles.dropdownListItemText, gender === g.value && styles.dropdownListItemTextActive]}>{g.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </Field>
 
               <View style={styles.row}>
@@ -339,31 +354,53 @@ export default function MyProfileScreen() {
               </View>
 
               <Field label="Goal">
-                <View style={styles.chipRow}>
-                  {GOALS.map((g) => (
-                    <TouchableOpacity
-                      key={g.value}
-                      style={[styles.chip, goal === g.value && styles.chipActive]}
-                      onPress={() => setGoal(g.value)}
-                    >
-                      <Text style={[styles.chipText, goal === g.value && styles.chipTextActive]}>{g.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TouchableOpacity
+                  style={styles.dropdownBtn}
+                  onPress={() => { setShowGoalDropdown(!showGoalDropdown); setShowGenderDropdown(false); setShowActivityDropdown(false); }}
+                >
+                  <Text style={[styles.dropdownBtnText, !goal && styles.dropdownBtnPlaceholder]}>
+                    {GOALS.find((g) => g.value === goal)?.label ?? "Select goal"}
+                  </Text>
+                  <Ionicons name={showGoalDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
+                </TouchableOpacity>
+                {showGoalDropdown && (
+                  <View style={styles.dropdownList}>
+                    {GOALS.map((g, i) => (
+                      <TouchableOpacity
+                        key={g.value}
+                        style={[styles.dropdownListItem, goal === g.value && styles.dropdownListItemActive, i === GOALS.length - 1 && styles.dropdownListItemLast]}
+                        onPress={() => { setGoal(g.value); setShowGoalDropdown(false); }}
+                      >
+                        <Text style={[styles.dropdownListItemText, goal === g.value && styles.dropdownListItemTextActive]}>{g.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </Field>
 
               <Field label="Activity Level">
-                <View style={styles.chipRow}>
-                  {ACTIVITY_LEVELS.map((a) => (
-                    <TouchableOpacity
-                      key={a.value}
-                      style={[styles.chip, activityLevel === a.value && styles.chipActive]}
-                      onPress={() => setActivityLevel(a.value)}
-                    >
-                      <Text style={[styles.chipText, activityLevel === a.value && styles.chipTextActive]}>{a.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TouchableOpacity
+                  style={styles.dropdownBtn}
+                  onPress={() => { setShowActivityDropdown(!showActivityDropdown); setShowGenderDropdown(false); setShowGoalDropdown(false); }}
+                >
+                  <Text style={[styles.dropdownBtnText, !activityLevel && styles.dropdownBtnPlaceholder]}>
+                    {ACTIVITY_LEVELS.find((a) => a.value === activityLevel)?.label ?? "Select activity level"}
+                  </Text>
+                  <Ionicons name={showActivityDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
+                </TouchableOpacity>
+                {showActivityDropdown && (
+                  <View style={styles.dropdownList}>
+                    {ACTIVITY_LEVELS.map((a, i) => (
+                      <TouchableOpacity
+                        key={a.value}
+                        style={[styles.dropdownListItem, activityLevel === a.value && styles.dropdownListItemActive, i === ACTIVITY_LEVELS.length - 1 && styles.dropdownListItemLast]}
+                        onPress={() => { setActivityLevel(a.value); setShowActivityDropdown(false); }}
+                      >
+                        <Text style={[styles.dropdownListItemText, activityLevel === a.value && styles.dropdownListItemTextActive]}>{a.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </Field>
 
               <View style={styles.switchRow}>
@@ -659,6 +696,36 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: "#344225", borderColor: "#344225" },
   chipText: { fontSize: 13, color: "#4A6040", fontWeight: "500" },
   chipTextActive: { color: "#FFFFFF", fontWeight: "700" },
+
+  dropdownBtn: {
+    backgroundColor: "#C8DDD6",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  dropdownBtnText: { fontSize: 14, color: "#344225", fontWeight: "500" },
+  dropdownBtnPlaceholder: { color: "#8AADA0", fontWeight: "400" },
+  dropdownList: {
+    backgroundColor: "#EEF4F0",
+    borderRadius: 12,
+    marginTop: 4,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#D0DDD5",
+  },
+  dropdownListItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "#D0DDD5",
+  },
+  dropdownListItemLast: { borderBottomWidth: 0 },
+  dropdownListItemActive: { backgroundColor: "#344225" },
+  dropdownListItemText: { fontSize: 14, color: "#4A6040", fontWeight: "500" },
+  dropdownListItemTextActive: { color: "#FFFFFF", fontWeight: "700" },
 
   row: { flexDirection: "row" },
   switchRow: {

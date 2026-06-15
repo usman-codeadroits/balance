@@ -38,11 +38,9 @@ export default function StartDateScreen() {
     }
     try {
       await AsyncStorage.setItem("startDate", selectedDate.toISOString());
-      // Redirect to selected meals screen
       await AsyncStorage.removeItem("selectedDayMeals");
       router.push("/auth/selected-meals" as any);
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   const isDateDisabled = (day: number): boolean => {
@@ -53,8 +51,7 @@ export default function StartDateScreen() {
 
   const handleDateSelect = (day: number) => {
     if (isDateDisabled(day)) return;
-    const date = new Date(currentYear, currentMonth, day);
-    setSelectedDate(date);
+    setSelectedDate(new Date(currentYear, currentMonth, day));
   };
 
   const generateCalendar = () => {
@@ -62,16 +59,14 @@ export default function StartDateScreen() {
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
 
-    // Add empty cells for days before month starts
     for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<View key={`empty-${i}`} style={styles.emptyDay} />);
+      days.push(<View key={`empty-${i}`} style={styles.cellWrap} />);
     }
 
-    // Add actual days
     for (let day = 1; day <= daysInMonth; day++) {
       const isDisabled = isDateDisabled(day);
       const isSelected =
-        selectedDate &&
+        !!selectedDate &&
         selectedDate.getDate() === day &&
         selectedDate.getMonth() === currentMonth &&
         selectedDate.getFullYear() === currentYear;
@@ -79,25 +74,35 @@ export default function StartDateScreen() {
       days.push(
         <TouchableOpacity
           key={day}
-          style={[
-            styles.dayCell,
-            isSelected && styles.dayCellSelected,
-            isDisabled && styles.dayCellDisabled,
-          ]}
+          style={styles.cellWrap}
           onPress={() => handleDateSelect(day)}
           activeOpacity={0.7}
           disabled={isDisabled}
         >
-          <Text
+          <View
             style={[
-              styles.dayNumber,
-              isSelected && styles.dayNumberSelected,
-              isDisabled && styles.dayNumberDisabled,
+              styles.circle,
+              isSelected
+                ? styles.circleSelected
+                : isDisabled
+                ? styles.circleDisabled
+                : styles.circleDefault,
             ]}
           >
-            {day}
-          </Text>
-        </TouchableOpacity>,
+            <Text
+              style={[
+                styles.dayText,
+                isSelected
+                  ? styles.dayTextSelected
+                  : isDisabled
+                  ? styles.dayTextDisabled
+                  : styles.dayTextDefault,
+              ]}
+            >
+              {day}
+            </Text>
+          </View>
+        </TouchableOpacity>
       );
     }
 
@@ -107,7 +112,6 @@ export default function StartDateScreen() {
   const handlePreviousMonth = () => {
     const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    // Do not navigate before the month that contains minDate
     if (prevYear < minDate.getFullYear()) return;
     if (prevYear === minDate.getFullYear() && prevMonth < minDate.getMonth()) return;
     setCurrentMonth(prevMonth);
@@ -129,15 +133,7 @@ export default function StartDateScreen() {
 
   const formatSelectedDate = (date: Date | null): string => {
     if (!date) return "";
-    const day = date.getDate();
-    const month = monthNames[date.getMonth()];
-    const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
-  };
-
-  const getSelectedDay = (): string => {
-    if (!selectedDate) return "";
-    return selectedDate.getDate().toString();
+    return `${date.getDate()} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
   };
 
   return (
@@ -148,12 +144,9 @@ export default function StartDateScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Title with Back Button */}
+          {/* Header */}
           <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 16) }]}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerContainer}>
@@ -161,66 +154,48 @@ export default function StartDateScreen() {
             </View>
           </View>
 
-          {/* Calendar Icon - Shows Selected Date */}
+          {/* Selected date display */}
           {selectedDate && (
-            <View style={styles.calendarIconContainer}>
-              <View style={styles.calendarIcon}>
-                <View style={styles.calendarTop}>
-                  <View style={styles.calendarRing} />
-                  <View style={styles.calendarRing} />
-                </View>
-                <View style={styles.calendarBody}>
-                  <Text style={styles.calendarText}>{getSelectedDay()}</Text>
-                </View>
-              </View>
-              <Text style={styles.calendarLabel}>
-                {formatSelectedDate(selectedDate)}
-              </Text>
+            <View style={styles.selectedBadge}>
+              <Ionicons name="calendar-outline" size={18} color="#344225" />
+              <Text style={styles.selectedBadgeText}>{formatSelectedDate(selectedDate)}</Text>
             </View>
           )}
 
-          {/* Availability Note */}
+          {/* Availability note */}
           <View style={styles.noteContainer}>
             <Ionicons name="information-circle-outline" size={18} color="#5A7C65" />
             <Text style={styles.noteText}>{t("start_date_screen.availability_note")}</Text>
           </View>
 
-          {/* Calendar */}
-          <View style={styles.calendarContainer}>
-            {/* Month/Year Header */}
-            <View style={styles.monthHeader}>
-              <TouchableOpacity
-                style={styles.arrowButton}
-                onPress={handlePreviousMonth}
-              >
-                <Text style={styles.arrowText}>‹</Text>
+          {/* Calendar card — matches calendar tab style */}
+          <View style={styles.calCard}>
+            {/* Month nav */}
+            <View style={styles.monthNav}>
+              <TouchableOpacity style={styles.navArrow} onPress={handlePreviousMonth} activeOpacity={0.7}>
+                <Ionicons name="chevron-back" size={22} color="#344225" />
               </TouchableOpacity>
-              <Text style={styles.monthText}>
-                {monthNames[currentMonth]} {currentYear}
+              <Text style={styles.monthLabel}>
+                {(monthNames[currentMonth] ?? "").toUpperCase()}{"  "}{currentYear}
               </Text>
-              <TouchableOpacity
-                style={styles.arrowButton}
-                onPress={handleNextMonth}
-              >
-                <Text style={styles.arrowText}>›</Text>
+              <TouchableOpacity style={styles.navArrow} onPress={handleNextMonth} activeOpacity={0.7}>
+                <Ionicons name="chevron-forward" size={22} color="#344225" />
               </TouchableOpacity>
             </View>
 
-            {/* Week Days */}
-            <View style={styles.weekDaysContainer}>
-              {weekDays.map((day, index) => (
-                <View key={index} style={styles.weekDayCell}>
-                  <Text style={styles.weekDayText}>{day}</Text>
-                </View>
+            {/* Weekday headers */}
+            <View style={styles.weekRow}>
+              {weekDays.map((wd, i) => (
+                <Text key={i} style={styles.weekdayLabel}>{wd}</Text>
               ))}
             </View>
 
-            {/* Days Grid */}
+            {/* Days grid */}
             <View style={styles.daysGrid}>{generateCalendar()}</View>
           </View>
         </ScrollView>
 
-        {/* Fixed Bottom Section */}
+        {/* Fixed bottom button */}
         <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("start_date_screen.continue")} onPress={handleContinue} />
         </View>
@@ -240,7 +215,6 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 24,
     paddingBottom: 20,
     gap: 12,
@@ -266,53 +240,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
-  calendarIconContainer: {
-    alignItems: "center",
-    marginBottom: 30,
-    paddingHorizontal: 24,
-  },
-  calendarIcon: {
-    width: 100,
-    height: 100,
-    marginBottom: 12,
-  },
-  calendarTop: {
-    height: 16,
-    backgroundColor: "#5A7C65",
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+  selectedBadge: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingHorizontal: 20,
     alignItems: "center",
+    gap: 8,
+    alignSelf: "center",
+    backgroundColor: "#FAD979",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 16,
   },
-  calendarRing: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#344225",
-  },
-  calendarBody: {
-    flex: 1,
-    backgroundColor: "#D4E8E0",
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#5A7C65",
-    borderTopWidth: 0,
-  },
-  calendarText: {
-    fontSize: 40,
+  selectedBadgeText: {
+    fontSize: 15,
     fontWeight: "700",
-    color: "#344225",
-  },
-  calendarLabel: {
-    fontSize: 16,
-    fontWeight: "500",
     color: "#344225",
   },
   noteContainer: {
@@ -333,79 +276,87 @@ const styles = StyleSheet.create({
     color: "#344225",
     lineHeight: 18,
   },
-  calendarContainer: {
-    paddingHorizontal: 24,
+
+  /* Calendar card — matches calendar tab */
+  calCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
-  monthHeader: {
+  monthNav: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
-  arrowButton: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
+  navArrow: {
+    padding: 8,
   },
-  arrowText: {
-    fontSize: 24,
-    color: "#344225",
-    fontWeight: "600",
+  monthLabel: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1A1A1A",
+    letterSpacing: 1,
   },
-  monthText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#344225",
-  },
-  weekDaysContainer: {
+  weekRow: {
     flexDirection: "row",
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  weekDayCell: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  weekDayText: {
-    fontSize: 14,
+  weekdayLabel: {
+    width: "14.28%",
+    textAlign: "center",
+    fontSize: 12,
     fontWeight: "600",
-    color: "#6B7F75",
+    color: "#AAAAAA",
   },
   daysGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
   },
-  emptyDay: {
+  cellWrap: {
     width: "14.28%",
-    aspectRatio: 1,
+    alignItems: "center",
+    marginBottom: 10,
+    minHeight: 40,
   },
-  dayCell: {
-    width: "14.28%",
-    aspectRatio: 1,
+  circle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
   },
-  dayCellSelected: {
+  circleDefault: {
+    backgroundColor: "#E8E8E8",
+  },
+  circleSelected: {
     backgroundColor: "#344225",
   },
-  dayCellDisabled: {
-    opacity: 0.3,
+  circleDisabled: {
+    backgroundColor: "#E8E8E8",
+    opacity: 0.35,
   },
-  dayNumber: {
+  dayText: {
     fontSize: 14,
-    color: "#344225",
     fontWeight: "500",
   },
-  dayNumberSelected: {
+  dayTextDefault: {
+    color: "#344225",
+  },
+  dayTextSelected: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  dayNumberDisabled: {
-    color: "#9E9E9E",
+  dayTextDisabled: {
+    color: "#999999",
   },
+
   bottomSection: {
     paddingHorizontal: 24,
+    paddingTop: 12,
+    backgroundColor: "#D4E8E0",
   },
 });

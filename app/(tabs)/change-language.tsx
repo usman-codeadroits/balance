@@ -84,7 +84,7 @@ export default function ChangeLanguageScreen() {
         );
       } else {
         // Same RTL direction — text updates immediately, no reload needed
-        router.back();
+        router.replace('/(tabs)/profile' as any);
       }
     } catch {
       Alert.alert('Error', 'Failed to change language. Please try again.');
@@ -98,7 +98,7 @@ export default function ChangeLanguageScreen() {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/profile' as any)}>
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('change_language.title')}</Text>

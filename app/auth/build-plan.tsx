@@ -34,6 +34,7 @@ export default function BuildPlanScreen() {
   const [proteinApiOptions, setProteinApiOptions] = useState<ProteinOption[]>([]);
 
   const carbsOptions = [
+    { grams: 100, label: "100 g" },
     { grams: 150, label: "150 g" },
     { grams: 200, label: "200 g" },
   ];

@@ -1,7 +1,7 @@
 import { apiClient } from "../client";
 import { API_ENDPOINTS } from "../config";
 
-export type PauseRequestStatus = "pending" | "approved" | "rejected";
+export type PauseRequestStatus = "pending" | "approved" | "rejected" | "cancelled" | "resumed";
 
 export type PauseRequest = {
   id: number;
@@ -48,5 +48,24 @@ export const getPauseRequests = async (
 ): Promise<GetPauseRequestsResponse> => {
   return apiClient.get<GetPauseRequestsResponse>(
     `${API_ENDPOINTS.SUBSCRIPTION_PAUSE_REQUEST}/${subscriptionId}/pause-requests`,
+  );
+};
+
+export const cancelPauseRequest = async (
+  subscriptionId: number,
+  pauseRequestId: number,
+): Promise<{ success: boolean; message: string }> => {
+  return apiClient.delete(
+    `${API_ENDPOINTS.SUBSCRIPTION_PAUSE_REQUEST}/${subscriptionId}/pause-request/${pauseRequestId}`,
+  );
+};
+
+export const resumePauseRequest = async (
+  subscriptionId: number,
+  pauseRequestId: number,
+): Promise<{ success: boolean; message: string }> => {
+  return apiClient.post(
+    `${API_ENDPOINTS.SUBSCRIPTION_PAUSE_REQUEST}/${subscriptionId}/pause-request/${pauseRequestId}/resume`,
+    {},
   );
 };

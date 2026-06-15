@@ -430,15 +430,37 @@ export default function SelectedMealsScreen() {
   const calculateTotalCalories = (dayIndex: number) => {
     const dayData = dayMeals[dayIndex];
     if (!dayData) return 0;
-
     let total = 0;
-    dayData.meals.forEach((meal) => {
-      if (meal) total += meal.calories;
-    });
-    dayData.snacks.forEach((snack) => {
-      if (snack) total += snack.calories;
-    });
+    dayData.meals.forEach((meal) => { if (meal) total += meal.calories; });
+    dayData.snacks.forEach((snack) => { if (snack) total += snack.calories; });
     return total;
+  };
+
+  const calculateTotalCarbs = (dayIndex: number) => {
+    const dayData = dayMeals[dayIndex];
+    if (!dayData) return 0;
+    let total = 0;
+    dayData.meals.forEach((meal) => { if (meal) total += meal.carbs; });
+    dayData.snacks.forEach((snack) => { if (snack) total += snack.carbs; });
+    return Math.round(total);
+  };
+
+  const calculateTotalProtein = (dayIndex: number) => {
+    const dayData = dayMeals[dayIndex];
+    if (!dayData) return 0;
+    let total = 0;
+    dayData.meals.forEach((meal) => { if (meal) total += meal.protein; });
+    dayData.snacks.forEach((snack) => { if (snack) total += snack.protein; });
+    return Math.round(total);
+  };
+
+  const calculateTotalFat = (dayIndex: number) => {
+    const dayData = dayMeals[dayIndex];
+    if (!dayData) return 0;
+    let total = 0;
+    dayData.meals.forEach((meal) => { if (meal) total += meal.fat; });
+    dayData.snacks.forEach((snack) => { if (snack) total += snack.fat; });
+    return Math.round(total);
   };
 
   const mealCount = sanitizeCount(
@@ -520,7 +542,7 @@ export default function SelectedMealsScreen() {
               return (
                 <View key={dayIndex}>
                   <TouchableOpacity
-                    style={styles.mealCard}
+                    style={[styles.mealCard, isExpanded && styles.mealCardExpanded]}
                     activeOpacity={0.7}
                     onPress={() => toggleDay(dayIndex)}
                   >
@@ -530,57 +552,35 @@ export default function SelectedMealsScreen() {
                     <Ionicons
                       name={isExpanded ? "chevron-up" : "chevron-down"}
                       size={20}
-                      color="#FFFFFF"
+                      color="#FAD979"
                     />
                   </TouchableOpacity>
 
                   {isExpanded && (
                     <View style={styles.dropdownContent}>
-                      {/* Nutrition Bar - Only show for non-personalized plans */}
+                      {/* Nutrition summary — yellow card, 2×2 grid */}
                       {!hasPersonalizedPlan && (
                         <View style={styles.nutritionBar}>
                           <View style={styles.nutritionItem}>
-                            <View
-                              style={[
-                                styles.nutritionDot,
-                                { backgroundColor: "#4A90E2" },
-                              ]}
-                            />
-                            <Text style={styles.nutritionText}>
-                              {t("selected_meals.cal_label")} {calculateTotalCalories(dayIndex)}
-                            </Text>
+                            <View style={[styles.nutritionDot, { backgroundColor: "#4A90E2" }]} />
+                            <Text style={styles.nutritionText}>{t("selected_meals.cal_label")} {calculateTotalCalories(dayIndex)}</Text>
                           </View>
                           <View style={styles.nutritionItem}>
-                            <View
-                              style={[
-                                styles.nutritionDot,
-                                { backgroundColor: "#7ED321" },
-                              ]}
-                            />
-                            <Text style={styles.nutritionText}>{t("selected_meals.carbs_label")} 40g</Text>
+                            <View style={[styles.nutritionDot, { backgroundColor: "#D0021B" }]} />
+                            <Text style={styles.nutritionText}>{t("selected_meals.protein_label")} {calculateTotalProtein(dayIndex)}g</Text>
                           </View>
                           <View style={styles.nutritionItem}>
-                            <View
-                              style={[
-                                styles.nutritionDot,
-                                { backgroundColor: "#D0021B" },
-                              ]}
-                            />
-                            <Text style={styles.nutritionText}>{t("selected_meals.protein_label")} 150g</Text>
+                            <View style={[styles.nutritionDot, { backgroundColor: "#7ED321" }]} />
+                            <Text style={styles.nutritionText}>{t("selected_meals.carbs_label")} {calculateTotalCarbs(dayIndex)}g</Text>
                           </View>
                           <View style={styles.nutritionItem}>
-                            <View
-                              style={[
-                                styles.nutritionDot,
-                                { backgroundColor: "#F5A623" },
-                              ]}
-                            />
-                            <Text style={styles.nutritionText}>{t("selected_meals.fat_label")} 20g</Text>
+                            <View style={[styles.nutritionDot, { backgroundColor: "#F5A623" }]} />
+                            <Text style={styles.nutritionText}>{t("selected_meals.fat_label")} {calculateTotalFat(dayIndex)}g</Text>
                           </View>
                         </View>
                       )}
 
-                      {/* Meal Boxes */}
+                      {/* Meal Slots */}
                       {Array.from({ length: mealCount }).map((_, mealIndex) => {
                         const meal = dayData?.meals?.[mealIndex] || null;
                         const ordinalKeys = ["first", "second", "third", "fourth", "fifth", "sixth"];
@@ -589,61 +589,53 @@ export default function SelectedMealsScreen() {
                         return (
                           <TouchableOpacity
                             key={`meal-${mealIndex}`}
-                            style={styles.mealBox}
-                            onPress={() =>
-                              handleMealBoxClick(dayIndex, mealIndex)
-                            }
+                            style={meal ? styles.slotFilled : styles.slotEmpty}
+                            onPress={() => handleMealBoxClick(dayIndex, mealIndex)}
+                            activeOpacity={0.8}
                           >
                             {meal ? (
-                              <View style={styles.mealBoxContent}>
+                              <View style={styles.slotRow}>
                                 <Image
-                                  source={
-                                    meal.imageUrl
-                                      ? { uri: meal.imageUrl }
-                                      : require("@/assets/images/meal.jpg")
-                                  }
-                                  style={styles.mealBoxImage}
+                                  source={meal.imageUrl ? { uri: meal.imageUrl } : require("@/assets/images/meal.jpg")}
+                                  style={styles.slotThumb}
                                   resizeMode="cover"
                                 />
-                                <View style={styles.mealBoxInfo}>
-                                  <Text style={styles.mealBoxName}>
-                                    {meal.name}
-                                  </Text>
+                                <View style={styles.slotInfo}>
+                                  <Text style={styles.slotName}>{meal.name}</Text>
                                   {!hasPersonalizedPlan && (
-                                    <View style={styles.mealBoxNutrition}>
-                                      <Text style={styles.mealBoxNutritionText}>
-                                        {t("selected_meals.cal_label")} {meal.calories}
-                                      </Text>
-                                      <Text style={styles.mealBoxNutritionText}>
-                                        {t("selected_meals.protein_label")} {meal.protein}g
-                                      </Text>
-                                      <Text style={styles.mealBoxNutritionText}>
-                                        {t("selected_meals.carbs_label")} {meal.carbs}g
-                                      </Text>
-                                      <Text style={styles.mealBoxNutritionText}>
-                                        {t("selected_meals.fat_label")} {meal.fat}g
-                                      </Text>
+                                    <View style={styles.slotMacros}>
+                                      <View style={styles.macroItem}>
+                                        <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />
+                                        <Text style={styles.macroText}>{t("selected_meals.cal_label")} {meal.calories}</Text>
+                                      </View>
+                                      <View style={styles.macroItem}>
+                                        <View style={[styles.macroDot, { backgroundColor: "#D0021B" }]} />
+                                        <Text style={styles.macroText}>{t("selected_meals.protein_label")} {meal.protein}g</Text>
+                                      </View>
+                                      <View style={styles.macroItem}>
+                                        <View style={[styles.macroDot, { backgroundColor: "#7ED321" }]} />
+                                        <Text style={styles.macroText}>{t("selected_meals.carbs_label")} {meal.carbs}g</Text>
+                                      </View>
+                                      <View style={styles.macroItem}>
+                                        <View style={[styles.macroDot, { backgroundColor: "#F5A623" }]} />
+                                        <Text style={styles.macroText}>{t("selected_meals.fat_label")} {meal.fat}g</Text>
+                                      </View>
                                     </View>
                                   )}
                                 </View>
                               </View>
                             ) : (
-                              <View style={styles.mealBoxEmpty}>
-                                <Text style={styles.mealBoxTitle}>
-                                  {t("selected_meals.select_meal_prompt", { number: mealNumber })}
-                                </Text>
-                                <Text style={styles.mealBoxPlaceholder}>
-                                  {t("selected_meals.tap_select_meal")}
-                                </Text>
-                              </View>
+                              <>
+                                <Text style={styles.slotEmptyTitle}>{t("selected_meals.select_meal_prompt", { number: mealNumber })}</Text>
+                                <Text style={styles.slotEmptyHint}>{t("selected_meals.tap_select_meal")}</Text>
+                              </>
                             )}
                           </TouchableOpacity>
                         );
                       })}
 
-                      {/* Snack Boxes */}
-                      {Array.from({ length: snackCount }).map(
-                        (_, snackIndex) => {
+                      {/* Snack Slots */}
+                      {Array.from({ length: snackCount }).map((_, snackIndex) => {
                           const snack = dayData?.snacks[snackIndex];
                           const ordinalKeys = ["first", "second", "third", "fourth", "fifth", "sixth"];
                           const snackNumber = t(`selected_meals.ordinals.${ordinalKeys[snackIndex] || "first"}`);
@@ -651,66 +643,50 @@ export default function SelectedMealsScreen() {
                           return (
                             <TouchableOpacity
                               key={`snack-${snackIndex}`}
-                              style={styles.mealBox}
-                              onPress={() =>
-                                handleSnackBoxClick(dayIndex, snackIndex)
-                              }
+                              style={snack ? styles.slotFilled : styles.slotEmpty}
+                              onPress={() => handleSnackBoxClick(dayIndex, snackIndex)}
+                              activeOpacity={0.8}
                             >
                               {snack ? (
-                                <View style={styles.mealBoxContent}>
+                                <View style={styles.slotRow}>
                                   <Image
-                                    source={
-                                      snack.imageUrl
-                                        ? { uri: snack.imageUrl }
-                                        : require("@/assets/images/meal.jpg")
-                                    }
-                                    style={styles.mealBoxImage}
+                                    source={snack.imageUrl ? { uri: snack.imageUrl } : require("@/assets/images/meal.jpg")}
+                                    style={styles.slotThumb}
                                     resizeMode="cover"
                                   />
-                                  <View style={styles.mealBoxInfo}>
-                                    <Text style={styles.mealBoxName}>
-                                      {snack.name}
-                                    </Text>
+                                  <View style={styles.slotInfo}>
+                                    <Text style={styles.slotName}>{snack.name}</Text>
                                     {!hasPersonalizedPlan && (
-                                      <View style={styles.mealBoxNutrition}>
-                                        <Text
-                                          style={styles.mealBoxNutritionText}
-                                        >
-                                          {t("selected_meals.cal_label")} {snack.calories}
-                                        </Text>
-                                        <Text
-                                          style={styles.mealBoxNutritionText}
-                                        >
-                                          {t("selected_meals.protein_label")} {snack.protein}g
-                                        </Text>
-                                        <Text
-                                          style={styles.mealBoxNutritionText}
-                                        >
-                                          {t("selected_meals.carbs_label")} {snack.carbs}g
-                                        </Text>
-                                        <Text
-                                          style={styles.mealBoxNutritionText}
-                                        >
-                                          {t("selected_meals.fat_label")} {snack.fat}g
-                                        </Text>
+                                      <View style={styles.slotMacros}>
+                                        <View style={styles.macroItem}>
+                                          <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />
+                                          <Text style={styles.macroText}>{t("selected_meals.cal_label")} {snack.calories}</Text>
+                                        </View>
+                                        <View style={styles.macroItem}>
+                                          <View style={[styles.macroDot, { backgroundColor: "#D0021B" }]} />
+                                          <Text style={styles.macroText}>{t("selected_meals.protein_label")} {snack.protein}g</Text>
+                                        </View>
+                                        <View style={styles.macroItem}>
+                                          <View style={[styles.macroDot, { backgroundColor: "#7ED321" }]} />
+                                          <Text style={styles.macroText}>{t("selected_meals.carbs_label")} {snack.carbs}g</Text>
+                                        </View>
+                                        <View style={styles.macroItem}>
+                                          <View style={[styles.macroDot, { backgroundColor: "#F5A623" }]} />
+                                          <Text style={styles.macroText}>{t("selected_meals.fat_label")} {snack.fat}g</Text>
+                                        </View>
                                       </View>
                                     )}
                                   </View>
                                 </View>
                               ) : (
-                                <View style={styles.mealBoxEmpty}>
-                                  <Text style={styles.mealBoxTitle}>
-                                    {t("selected_meals.select_snack_prompt", { number: snackNumber })}
-                                  </Text>
-                                  <Text style={styles.mealBoxPlaceholder}>
-                                    {t("selected_meals.tap_select_snack")}
-                                  </Text>
-                                </View>
+                                <>
+                                  <Text style={styles.slotEmptyTitle}>{t("selected_meals.select_snack_prompt", { number: snackNumber })}</Text>
+                                  <Text style={styles.slotEmptyHint}>{t("selected_meals.tap_select_snack")}</Text>
+                                </>
                               )}
                             </TouchableOpacity>
                           );
-                        },
-                      )}
+                        })}
                     </View>
                   )}
                 </View>
@@ -846,89 +822,110 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  mealCardExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
   mealLabel: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "600",
   },
   dropdownContent: {
-    marginTop: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 12,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
+    backgroundColor: "#344225",
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    padding: 10,
+    gap: 8,
   },
+
+  /* Nutrition summary bar — yellow card, 2-column wrap */
   nutritionBar: {
+    backgroundColor: "#FAD979",
+    borderRadius: 10,
+    padding: 10,
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    flexWrap: "wrap",
+    rowGap: 6,
   },
   nutritionItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
+    width: "50%",
   },
   nutritionDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  nutritionText: {
+    fontSize: 11,
+    color: "#344225",
+    fontWeight: "600",
+  },
+
+  /* Empty slot — text only on dark bg */
+  slotEmpty: {
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+  },
+  slotEmptyTitle: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  slotEmptyHint: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 12,
+  },
+
+  /* Filled slot — white card with circular thumb */
+  slotFilled: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  slotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    gap: 12,
+  },
+  slotThumb: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+  },
+  slotInfo: {
+    flex: 1,
+  },
+  slotName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 6,
+  },
+  slotMacros: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: 4,
+  },
+  macroItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    width: "50%",
+  },
+  macroDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  nutritionText: {
+  macroText: {
     fontSize: 11,
-    color: "#6B7F75",
+    color: "#5A7C65",
     fontWeight: "500",
-  },
-  mealBox: {
-    backgroundColor: "#F4F7F5",
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E8F0EB",
-  },
-  mealBoxContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  mealBoxImage: {
-    width: 80,
-    height: 80,
-  },
-  mealBoxInfo: {
-    flex: 1,
-    padding: 12,
-  },
-  mealBoxName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#344225",
-    marginBottom: 4,
-  },
-  mealBoxNutrition: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  mealBoxNutritionText: {
-    fontSize: 10,
-    color: "#6B7F75",
-  },
-  mealBoxEmpty: {
-    padding: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mealBoxTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#344225",
-    marginBottom: 4,
-  },
-  mealBoxPlaceholder: {
-    fontSize: 12,
-    color: "#6B7F75",
   },
 });

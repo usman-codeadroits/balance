@@ -354,7 +354,7 @@ export default function SubscriptionScreen() {
         </ScrollView>
 
         {/* Fixed Bottom Section */}
-        <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 80 }]}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 12) + 96 }]}>
           <AuthButtonGreen title={t("subscription_screen.continue")} onPress={handleSelectPlan} />
         </View>
       </View>
@@ -485,6 +485,8 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     paddingHorizontal: 24,
+    paddingTop: 12,
+    backgroundColor: "#D4E8E0",
   },
   loadingContainer: {
     flex: 1,

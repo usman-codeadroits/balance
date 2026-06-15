@@ -16,6 +16,7 @@ export type UserProfile = {
   activity_level: "sedentary" | "lightly_active" | "very_active" | "highly_active" | null;
   has_food_allergies: boolean;
   allergies: string[];
+  dislikes: string[];
   has_affiliated_code: boolean;
   affiliated_code: string | null;
 };

@@ -22,6 +22,20 @@ export type {
 } from "./types";
 
 // Export services
+export { getAllergies, updateAllergies } from "./services/allergies";
+export type {
+  AllergiesData,
+  AllergiesResponse,
+  UpdateAllergiesBody,
+  UpdateAllergiesResponse,
+} from "./services/allergies";
+export { clearDislikes, getDislikes, updateDislikes } from "./services/dislikes";
+export type {
+  ClearDislikesResponse,
+  DislikesData,
+  DislikesResponse,
+  UpdateDislikesResponse,
+} from "./services/dislikes";
 export { validateCoupon } from "./services/coupons";
 export type {
     ValidateCouponRequest,

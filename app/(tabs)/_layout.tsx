@@ -47,6 +47,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
+      <Tabs.Screen name="allergies-preference" options={{ title: 'Allergies' }} />
+      <Tabs.Screen name="allergies-list" options={{ title: 'Allergies' }} />
+      <Tabs.Screen name="dislikes-preference" options={{ title: 'Dislikes' }} />
+      <Tabs.Screen name="dislikes-input" options={{ title: 'Dislikes' }} />
+      <Tabs.Screen name="privacy-policy" options={{ title: 'Privacy Policy' }} />
+      <Tabs.Screen name="terms-and-conditions" options={{ title: 'Terms & Conditions' }} />
     </Tabs>
   );
 }
