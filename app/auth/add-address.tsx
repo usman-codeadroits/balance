@@ -1,5 +1,6 @@
 import type { Area, Duration } from "@/api";
 import { getAllAreas } from "@/api";
+import { apiClient } from "@/api/client";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -21,8 +22,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+type TimeSlot = { value: string; label_en: string; label_ar: string };
+
 export default function AddAddressScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [blockNumber, setBlockNumber] = useState("");
   const [street, setStreet] = useState("");
   const [houseBuliding, setHouseBuliding] = useState("");
@@ -31,7 +34,9 @@ export default function AddAddressScreen() {
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [addressCategory, setAddressCategory] = useState<"home" | "office">("home");
   const [isPrimary, setIsPrimary] = useState(true);
-  const [deliveryTime, setDeliveryTime] = useState<"4pm-8pm" | "8pm-12am">("4pm-8pm");
+  const [selectedSlot, setSelectedSlot] = useState<string>("");
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const [areas, setAreas] = useState<Area[]>([]);
@@ -44,6 +49,7 @@ export default function AddAddressScreen() {
 
   useEffect(() => {
     fetchAllAreas();
+    fetchSettings();
   }, []);
 
   const fetchAllAreas = async () => {
@@ -55,6 +61,24 @@ export default function AddAddressScreen() {
       // silently fail
     } finally {
       setAreasLoading(false);
+    }
+  };
+
+  const fetchSettings = async () => {
+    setSlotsLoading(true);
+    try {
+      const resp = await apiClient.get("/v1/settings");
+      const root = (resp as any);
+      const inner = root?.data ?? root;
+      const slots: TimeSlot[] = inner?.delivery_time_slots ?? [];
+      if (slots.length > 0) {
+        setTimeSlots(slots);
+        setSelectedSlot(slots[0].value);
+      }
+    } catch {
+      // API failed — slots stay empty, buttons won't show
+    } finally {
+      setSlotsLoading(false);
     }
   };
 
@@ -214,8 +238,12 @@ export default function AddAddressScreen() {
         return;
       }
 
-      const preferredDeliverySlot =
-        deliveryTime === "4pm-8pm" ? "four_pm_to_eight_pm" : "eight_pm_to_midnight";
+      const preferredDeliverySlot = selectedSlot || "four_pm_to_eight_pm";
+      const selectedSlotData = timeSlots.find((s) => s.value === preferredDeliverySlot);
+      const preferredDeliverySlotLabel =
+        i18n.language.startsWith("ar") && selectedSlotData?.label_ar
+          ? selectedSlotData.label_ar
+          : selectedSlotData?.label_en ?? preferredDeliverySlot;
 
       // Payload sent to POST /v1/payment/checkout — do NOT include amount (backend calculates it)
       const checkoutPayload = {
@@ -263,6 +291,7 @@ export default function AddAddressScreen() {
           vat: 0,
           totalPrice,
           discount: discountAmount,
+          preferredDeliverySlotLabel,
         },
       };
 
@@ -294,6 +323,7 @@ export default function AddAddressScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Area Picker */}
+          <Text style={styles.fieldLabel}>{t("address.select_area")} <Text style={styles.required}>*</Text></Text>
           <TouchableOpacity
             style={styles.pickerButton}
             onPress={() => !areasLoading && setShowAreaModal(true)}
@@ -309,6 +339,7 @@ export default function AddAddressScreen() {
             <Text style={styles.pickerChevron}>▾</Text>
           </TouchableOpacity>
 
+          <Text style={styles.fieldLabel}>{t("address.block")} <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
             placeholder={t("address.block")}
@@ -318,6 +349,7 @@ export default function AddAddressScreen() {
             keyboardType="numeric"
           />
 
+          <Text style={styles.fieldLabel}>{t("address.street")} <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
             placeholder={t("address.street")}
@@ -326,6 +358,7 @@ export default function AddAddressScreen() {
             onChangeText={setStreet}
           />
 
+          <Text style={styles.fieldLabel}>{t("address.house")} <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
             placeholder={t("address.house")}
@@ -334,6 +367,7 @@ export default function AddAddressScreen() {
             onChangeText={setHouseBuliding}
           />
 
+          <Text style={styles.fieldLabel}>{t("address.apartment")} <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
             placeholder={t("address.apartment")}
@@ -342,6 +376,7 @@ export default function AddAddressScreen() {
             onChangeText={setFloorApartment}
           />
 
+          <Text style={styles.fieldLabel}>{t("address.remarks")}</Text>
           <TextInput
             style={styles.input}
             placeholder={t("address.remarks")}
@@ -351,9 +386,10 @@ export default function AddAddressScreen() {
             multiline
           />
 
+          <Text style={styles.fieldLabel}>Delivery Notes</Text>
           <TextInput
             style={[styles.input, styles.inputMultiline]}
-            placeholder="Delivery notes (e.g. Ring bell twice, gate code 1234)"
+            placeholder="e.g. Ring bell twice, gate code 1234"
             placeholderTextColor="#6B7F75"
             value={deliveryNotes}
             onChangeText={setDeliveryNotes}
@@ -393,25 +429,27 @@ export default function AddAddressScreen() {
 
           {/* Delivery Time */}
           <Text style={styles.sectionLabel}>{t("address.delivery_time_title")}</Text>
-          <View style={styles.timeButtonGroup}>
-            <TouchableOpacity
-              style={[styles.timeButton, deliveryTime === "4pm-8pm" && styles.timeButtonActiveYellow]}
-              onPress={() => setDeliveryTime("4pm-8pm")}
-            >
-              <Text style={[styles.timeButtonText, deliveryTime === "4pm-8pm" && styles.timeButtonTextActive]}>
-                {t("address.time_4_8")}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.timeButton, deliveryTime === "8pm-12am" && styles.timeButtonActiveYellow]}
-              onPress={() => setDeliveryTime("8pm-12am")}
-            >
-              <Text style={[styles.timeButtonText, deliveryTime === "8pm-12am" && styles.timeButtonTextActive]}>
-                {t("address.time_8_12")}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {slotsLoading ? (
+            <ActivityIndicator size="small" color="#344225" style={{ marginVertical: 12 }} />
+          ) : (
+            <View style={styles.timeButtonGroup}>
+              {timeSlots.map((slot) => {
+                const isActive = selectedSlot === slot.value;
+                const label = i18n.language.startsWith("ar") ? slot.label_ar : slot.label_en;
+                return (
+                  <TouchableOpacity
+                    key={slot.value}
+                    style={[styles.timeButton, isActive && styles.timeButtonActiveYellow]}
+                    onPress={() => setSelectedSlot(slot.value)}
+                  >
+                    <Text style={[styles.timeButtonText, isActive && styles.timeButtonTextActive]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </ScrollView>
 
         {/* Checkout Button */}
@@ -481,6 +519,8 @@ const styles = StyleSheet.create({
   backButtonText: { fontSize: 20, color: "#FFFFFF", fontWeight: "600" },
   scrollContainer: { flex: 1 },
   scrollContent: { paddingHorizontal: "5%", paddingBottom: 120 },
+  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#344225", marginBottom: 6, marginTop: 4 },
+  required: { color: "#E53935", fontWeight: "700" },
   title: {
     fontSize: 24,
     fontWeight: "700",

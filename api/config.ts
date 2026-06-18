@@ -43,4 +43,7 @@ export const API_ENDPOINTS = {
   SUBSCRIPTION_RENEWAL: "/v1/my-subscriptions",
   ALLERGIES: "/v1/allergies",
   DISLIKES: "/v1/dislikes",
+  SETTINGS: "/v1/settings",
+  PAYMENT_INITIATE: "/v1/payment/initiate",
+  PAYMENT_STATUS: "/v1/payment/status",
 } as const;
