@@ -33,6 +33,7 @@ type MealItem = {
   carbs: number;
   fat: number;
   imageUrl?: string;
+  category?: string;
 };
 
 type DayMeals = {
@@ -284,10 +285,19 @@ export default function SelectMealsScreen() {
     }
   });
 
+  // For personalized plans, restrict to the tailorable categories only:
+  // main meals → "main course", snacks → "snack"
+  const filteredByPersonalized = hasPersonalizedPlan && type === "meal"
+    ? filteredByType.filter((meal) => {
+        const catName = normalizeCategoryName(meal.category).toLowerCase();
+        return catName.includes("main course");
+      })
+    : filteredByType;
+
   // Get unique categories from filtered items only
   const categories = Array.from(
     new Map(
-      filteredByType.map((meal) => [
+      filteredByPersonalized.map((meal) => [
         meal.category_id,
         { id: meal.category_id, name: normalizeCategoryName(meal.category) },
       ]),
@@ -296,8 +306,8 @@ export default function SelectMealsScreen() {
 
   // Filter by category
   const filteredByCategory = selectedCategory
-    ? filteredByType.filter((meal) => meal.category_id === selectedCategory)
-    : filteredByType;
+    ? filteredByPersonalized.filter((meal) => meal.category_id === selectedCategory)
+    : filteredByPersonalized;
 
   // Filter by search query
   const filteredItems = filteredByCategory.filter((meal) =>
@@ -313,6 +323,7 @@ export default function SelectMealsScreen() {
     carbs: meal.carbs_g,
     fat: meal.fat_g,
     imageUrl: meal.image_url || meal.image_thumb_url,
+    category: normalizeCategoryName(meal.category),
   });
 
   const handleAddItem = async (meal: Meal) => {
@@ -626,8 +637,8 @@ export default function SelectMealsScreen() {
           />
         </View>
 
-        {/* Category Filter */}
-        {categories.length > 0 && (
+        {/* Category Filter — hidden for personalized plan users */}
+        {!hasPersonalizedPlan && categories.length > 0 && (
           <View style={styles.categoryContainer}>
             <ScrollView
               horizontal
@@ -759,54 +770,32 @@ export default function SelectMealsScreen() {
                         )}
                         <View style={styles.itemInfo}>
                           <Text style={[styles.itemName, atLimit && { color: "#B8D5C5" }]}>{item.name}</Text>
-                          {!hasPersonalizedPlan && (
+                          {hasPersonalizedPlan ? (
+                            (meal as any).description ? (
+                              <Text style={styles.itemDescription} numberOfLines={3}>
+                                {(meal as any).description}
+                              </Text>
+                            ) : null
+                          ) : (
                             <>
                               <View style={styles.nutritionRow}>
                                 <View style={styles.nutritionItem}>
-                                  <View
-                                    style={[
-                                      styles.nutritionDot,
-                                      { backgroundColor: "#4A90E2" },
-                                    ]}
-                                  />
-                                  <Text style={styles.nutritionText}>
-                                    {t("select_meals.cal_label")} {item.calories}
-                                  </Text>
+                                  <View style={[styles.nutritionDot, { backgroundColor: "#4A90E2" }]} />
+                                  <Text style={styles.nutritionText}>{t("select_meals.cal_label")} {item.calories}</Text>
                                 </View>
                                 <View style={styles.nutritionItem}>
-                                  <View
-                                    style={[
-                                      styles.nutritionDot,
-                                      { backgroundColor: "#D0021B" },
-                                    ]}
-                                  />
-                                  <Text style={styles.nutritionText}>
-                                    {t("select_meals.protein_label")} {item.protein}g
-                                  </Text>
+                                  <View style={[styles.nutritionDot, { backgroundColor: "#D0021B" }]} />
+                                  <Text style={styles.nutritionText}>{t("select_meals.protein_label")} {item.protein}g</Text>
                                 </View>
                               </View>
                               <View style={styles.nutritionRow}>
                                 <View style={styles.nutritionItem}>
-                                  <View
-                                    style={[
-                                      styles.nutritionDot,
-                                      { backgroundColor: "#7ED321" },
-                                    ]}
-                                  />
-                                  <Text style={styles.nutritionText}>
-                                    {t("select_meals.carbs_label")} {item.carbs}g
-                                  </Text>
+                                  <View style={[styles.nutritionDot, { backgroundColor: "#7ED321" }]} />
+                                  <Text style={styles.nutritionText}>{t("select_meals.carbs_label")} {item.carbs}g</Text>
                                 </View>
                                 <View style={styles.nutritionItem}>
-                                  <View
-                                    style={[
-                                      styles.nutritionDot,
-                                      { backgroundColor: "#F5A623" },
-                                    ]}
-                                  />
-                                  <Text style={styles.nutritionText}>
-                                    {t("select_meals.fat_label")} {item.fat}g
-                                  </Text>
+                                  <View style={[styles.nutritionDot, { backgroundColor: "#F5A623" }]} />
+                                  <Text style={styles.nutritionText}>{t("select_meals.fat_label")} {item.fat}g</Text>
                                 </View>
                               </View>
                             </>
@@ -1070,8 +1059,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#344225",
-    marginBottom: 8,
-    height: 40,
+    marginBottom: 6,
+  },
+  itemDescription: {
+    fontSize: 11,
+    color: "#6B7F75",
+    lineHeight: 15,
+    marginBottom: 6,
   },
   nutritionRow: {
     flexDirection: "row",

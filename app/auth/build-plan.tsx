@@ -22,6 +22,15 @@ type ProteinOption = {
   protein_grams: number;
   extra_price_per_meal: string;
   is_active: boolean;
+  is_free?: boolean;
+};
+
+const FREE_PROTEIN: ProteinOption = {
+  id: 0,
+  protein_grams: 100,
+  extra_price_per_meal: "0.000",
+  is_active: true,
+  is_free: true,
 };
 
 
@@ -52,10 +61,12 @@ export default function BuildPlanScreen() {
       const response = await apiClient.get("/v1/protein-options");
       const data: ProteinOption[] = (response as any)?.data || [];
       const filtered = data.filter((opt) => opt.is_active && opt.protein_grams !== 100);
-      setProteinApiOptions(filtered);
-      await AsyncStorage.setItem("proteinOptionsData", JSON.stringify(filtered));
+      const allOptions = [FREE_PROTEIN, ...filtered];
+      setProteinApiOptions(allOptions);
+      await AsyncStorage.setItem("proteinOptionsData", JSON.stringify(allOptions));
     } catch {
-      const fallback = [
+      const fallback: ProteinOption[] = [
+        FREE_PROTEIN,
         { id: 1, protein_grams: 150, extra_price_per_meal: "0.650", is_active: true },
         { id: 2, protein_grams: 200, extra_price_per_meal: "1.300", is_active: true },
       ];
@@ -81,9 +92,10 @@ export default function BuildPlanScreen() {
     const option = proteinApiOptions.find(
       (opt) => String(opt.protein_grams) === proteinGrams,
     );
-    if (option) {
-      AsyncStorage.setItem("personalizedProteinExtraPrice", option.extra_price_per_meal);
-    }
+    AsyncStorage.setItem(
+      "personalizedProteinExtraPrice",
+      option ? option.extra_price_per_meal : "0.000",
+    );
   };
 
   const handleCarbsSelect = (carbsGrams: string) => {
@@ -110,7 +122,7 @@ export default function BuildPlanScreen() {
       if (userId) {
         await AsyncStorage.setItem("personalizedPlanOwner", userId);
       }
-      router.back();
+      router.push("/auth/personalized-plan-select" as any);
     } catch (error) {
       alert(t("build_plan.error_saving"));
     }
@@ -120,7 +132,10 @@ export default function BuildPlanScreen() {
     const option = proteinApiOptions.find(
       (opt) => String(opt.protein_grams) === selectedProtein,
     );
-    return option ? `${option.protein_grams} g` : t("build_plan.protein_placeholder");
+    if (!option) return t("build_plan.protein_placeholder");
+    return option.is_free
+      ? `${option.protein_grams} g (${t("build_plan.carbs_free")})`
+      : `${option.protein_grams} g`;
   };
 
 return (
@@ -199,15 +214,19 @@ return (
                       >
                         {option.protein_grams} g
                       </Text>
-                      <Text
-                        style={[
-                          styles.dropdownRowPrice,
-                          selectedProtein === String(option.protein_grams) &&
-                            styles.dropdownRowTextSelected,
-                        ]}
-                      >
-                        +{parseFloat(option.extra_price_per_meal).toFixed(3)} KWD/meal
-                      </Text>
+                      {option.is_free ? (
+                        <Text style={styles.dropdownRowFree}>{t("build_plan.carbs_free")}</Text>
+                      ) : (
+                        <Text
+                          style={[
+                            styles.dropdownRowPrice,
+                            selectedProtein === String(option.protein_grams) &&
+                              styles.dropdownRowTextSelected,
+                          ]}
+                        >
+                          +{parseFloat(option.extra_price_per_meal).toFixed(3)} KWD/meal
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </View>

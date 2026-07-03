@@ -35,6 +35,10 @@ const ACTIVITY_MAP: Record<string, string> = {
 };
 
 const birthdayToIso = (birthday: string) => {
+  // New format: YYYY-MM-DD stored directly (locale-safe)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return birthday;
+
+  // Legacy format: DD/MonthName/YYYY (English month names only)
   const [dayStr, monthName, yearStr] = birthday.split("/");
   const day = Number(dayStr);
   const monthIndex = MONTHS.indexOf(monthName);
@@ -50,7 +54,6 @@ const birthdayToIso = (birthday: string) => {
 export const ONBOARDING_TEMP_KEYS = [
   "tempPhoneNumber",
   "tempCountryCode",
-  "tempEmail",
   "tempName",
   "tempBirthday",
   "tempGender",
@@ -94,7 +97,6 @@ export const finalizeOnboarding = async ({
   const [
     phoneNumber,
     countryCode,
-    email,
     name,
     birthday,
     gender,
@@ -107,7 +109,6 @@ export const finalizeOnboarding = async ({
   ] = await Promise.all([
     AsyncStorage.getItem("tempPhoneNumber"),
     AsyncStorage.getItem("tempCountryCode"),
-    AsyncStorage.getItem("tempEmail"),
     AsyncStorage.getItem("tempName"),
     AsyncStorage.getItem("tempBirthday"),
     AsyncStorage.getItem("tempGender"),
@@ -121,7 +122,6 @@ export const finalizeOnboarding = async ({
 
   // Step 2: Validate required fields
   if (
-    !email ||
     !name ||
     !birthday ||
     !gender ||
@@ -132,7 +132,6 @@ export const finalizeOnboarding = async ({
     !otpCode
   ) {
     const missing = [];
-    if (!email) missing.push("email");
     if (!name) missing.push("name");
     if (!birthday) missing.push("birthday");
     if (!gender) missing.push("gender");
@@ -221,7 +220,6 @@ export const finalizeOnboarding = async ({
   const payload: RegisterUserRequest = {
     phone_number: sanitizedPhoneNumber, // string digits, unique in users.mobile
     otp: numericOtp, // integer 4-6 digits (min 1000, max 999999)
-    email: email.trim().toLowerCase(), // string email, unique
     name: name.trim(), // string
     date_of_birth: birthdayToIso(birthday), // string date Y-m-d format
     gender: normalizedGender as "male" | "female" | "other",
@@ -276,7 +274,6 @@ export const finalizeOnboarding = async ({
         data: {
           id: 0, // Will be handled below
           name: payload.name,
-          email: payload.email,
           mobile: payload.phone_number,
           gender: payload.gender,
           height: payload.height,

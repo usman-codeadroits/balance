@@ -34,8 +34,20 @@ export default function SubscriptionDetailsScreen() {
       setLoading(true);
       setError(null);
       const response = await getMySubscriptions();
-      if (response.success && response.data.active?.length > 0) {
-        const active = response.data.active[0];
+
+      let active = response.data.active?.[0] ?? null;
+
+      // Backend may mark the subscription as completed at UTC midnight even though
+      // the user's local last day hasn't ended yet — fall back to a recent subscription
+      // that ends today so the details screen remains visible on the last day.
+      if (!active && response.success) {
+        const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
+        active = (response.data.recent || []).find(
+          (s) => (s.end_date || "").split("T")[0] === todayStr,
+        ) ?? null;
+      }
+
+      if (response.success && active) {
         setSubscription(active);
         if (active.is_paused) fetchPauseLogs(active.id);
         // Load full details and renewal in parallel

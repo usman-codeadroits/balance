@@ -215,14 +215,17 @@ export default function CheckoutScreen() {
       }[] = [];
       selectedDays.forEach((dayIndex) => {
         const dayData = dayMeals[dayIndex];
-        if (dayData) {
-          weekData.push({
-            dayIndex,
-            dayName: getDayName(dayIndex),
-            date: getDayDate(dayIndex, week),
-            meals: dayData,
-          });
-        }
+        if (!dayData) return;
+        const hasAnyMeal =
+          dayData.meals.some((m) => m !== null) ||
+          dayData.snacks.some((s) => s !== null);
+        if (!hasAnyMeal) return;
+        weekData.push({
+          dayIndex,
+          dayName: getDayName(dayIndex),
+          date: getDayDate(dayIndex, week),
+          meals: dayData,
+        });
       });
       if (weekData.length > 0) weeks.push(weekData);
     }

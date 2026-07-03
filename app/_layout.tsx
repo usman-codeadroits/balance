@@ -4,13 +4,14 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import * as SplashScreen from "expo-splash-screen";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
+import * as Notifications from "expo-notifications";
 
 import { initI18n } from "@/constants/i18n";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Keep native splash visible only until JS/app initialization finishes.
 void SplashScreen.preventAutoHideAsync();
@@ -22,6 +23,8 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [initialized, setInitialized] = useState(false);
+  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
     initI18n().then(() => setInitialized(true));
@@ -32,6 +35,23 @@ export default function RootLayout() {
       void SplashScreen.hideAsync();
     }
   }, [initialized]);
+
+  useEffect(() => {
+    // Navigate to the right screen when the user taps a notification
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const type = response.notification.request.content.data?.type;
+      if (type === "auto_renewal") {
+        router.push("/renewal-details" as any);
+      } else if (type === "meal_reminder") {
+        router.push("/subscription-details" as any);
+      }
+    });
+
+    return () => {
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
+  }, []);
 
   if (!initialized) {
     return null; // Or a loading spinner / splash screen

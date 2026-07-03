@@ -1,6 +1,7 @@
 import { cancelRenewal, getMySubscriptions, getSubscriptionRenewal, type RenewalDetail, type UserSubscriptionSummary } from "@/api";
 import { getSubscriptionPlans } from "@/api/services/subscriptionPlans";
 import { updateRenewalPlan } from "@/api/services/subscriptions";
+import { clearSubscriptionNotifications } from "@/services/notifications";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -44,6 +45,7 @@ export default function RenewalDetailsScreen() {
   const [autoRenew, setAutoRenew] = useState(true);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [toggleLoading, setToggleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useFocusEffect(
@@ -146,6 +148,40 @@ export default function RenewalDetailsScreen() {
     );
   };
 
+  const handleToggleAutoRenew = () => {
+    if (!subscriptionId) return;
+    const endDate = activeSubscription?.end_date ? formatDate(activeSubscription.end_date) : "";
+    Alert.alert(
+      "Turn Off Auto Renewal",
+      `Your plan will end on ${endDate || "its expiry date"} and will not renew automatically. You can subscribe again manually at any time.`,
+      [
+        { text: "Keep On", style: "cancel" },
+        {
+          text: "Turn Off",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setToggleLoading(true);
+              await cancelRenewal(subscriptionId);
+              setAutoRenew(false);
+              setRenewal(null);
+              // Cancel the auto-renewal reminder notification
+              clearSubscriptionNotifications().catch(() => {});
+              Alert.alert(
+                "Auto Renewal Off",
+                "Auto renewal has been turned off. Your plan will end on its expiry date.",
+              );
+            } catch {
+              Alert.alert("Error", "Failed to turn off auto renewal. Please try again.");
+            } finally {
+              setToggleLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -176,6 +212,48 @@ export default function RenewalDetailsScreen() {
             contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
+            {/* Auto-Renewal Status */}
+            <View style={styles.autoRenewCard}>
+              <View style={styles.autoRenewRow}>
+                <Ionicons
+                  name="refresh-circle-outline"
+                  size={22}
+                  color={autoRenew ? "#4CAF50" : "#6B7F75"}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.autoRenewTitle}>Auto Renewal</Text>
+                  <Text style={styles.autoRenewDesc}>
+                    {autoRenew
+                      ? "Your plan will automatically renew before it expires."
+                      : "Auto renewal is off. Your plan will end on its expiry date."}
+                  </Text>
+                </View>
+                <View style={[styles.autoRenewBadge, autoRenew ? styles.autoRenewOn : styles.autoRenewOff]}>
+                  <Text style={[styles.autoRenewBadgeText, { color: autoRenew ? "#1A6F46" : "#6B7F75" }]}>
+                    {autoRenew ? "ON" : "OFF"}
+                  </Text>
+                </View>
+              </View>
+
+              {autoRenew && (
+                <TouchableOpacity
+                  style={[styles.turnOffBtn, toggleLoading && styles.btnDisabled]}
+                  onPress={handleToggleAutoRenew}
+                  disabled={toggleLoading}
+                  activeOpacity={0.7}
+                >
+                  {toggleLoading ? (
+                    <ActivityIndicator size="small" color="#D64545" />
+                  ) : (
+                    <>
+                      <Ionicons name="close-circle-outline" size={16} color="#D64545" />
+                      <Text style={styles.turnOffBtnText}>Turn Off Auto Renewal</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+
             {/* Current Plan Block */}
             {activeSubscription && (
               <View style={styles.section}>
@@ -323,6 +401,56 @@ const styles = StyleSheet.create({
   retryBtn: { backgroundColor: "#344225", paddingHorizontal: 28, paddingVertical: 12, borderRadius: 10 },
   retryBtnText: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
 
+  autoRenewCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+  },
+  autoRenewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  autoRenewTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 3,
+  },
+  autoRenewDesc: {
+    fontSize: 12,
+    color: "#6B7F75",
+    lineHeight: 17,
+  },
+  autoRenewBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  autoRenewOn: { backgroundColor: "#E8F5E9" },
+  autoRenewOff: { backgroundColor: "#F5F5F5" },
+  autoRenewBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  turnOffBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FADADD",
+    backgroundColor: "#FFF5F5",
+  },
+  turnOffBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#D64545",
+  },
   section: { marginBottom: 16 },
   sectionLabel: {
     fontSize: 12,

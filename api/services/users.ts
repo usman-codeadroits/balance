@@ -31,7 +31,6 @@ export type User = {
 export type RegisterUserRequest = {
   phone_number: string; // digits only, unique in users.mobile
   otp: number; // 4-6 digits (min 1000, max 999999)
-  email: string; // email format, unique
   name: string;
   date_of_birth: string; // Y-m-d format (e.g., 1990-01-15)
   gender: "male" | "female" | "other";
@@ -165,7 +164,6 @@ export const registerUser = async (
     const payload: any = {
       phone_number: userData.phone_number,
       otp: userData.otp,
-      email: userData.email,
       name: userData.name,
       date_of_birth: userData.date_of_birth,
       gender: userData.gender,
@@ -262,7 +260,6 @@ export const registerUser = async (
             // Prepare update payload (convert registration format to update format)
             const updatePayload: any = {
               name: userData.name,
-              email: userData.email,
               mobile: userData.phone_number,
               gender: userData.gender,
               height: userData.height,

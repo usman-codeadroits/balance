@@ -1,7 +1,6 @@
 import { getSubscriptionPlans, type MealPlan } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AuthButtonGreen from "@/components/auth/auth-button-green";
-import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -67,6 +66,11 @@ export default function SubscriptionScreen() {
     }, []),
   );
 
+  const handleClearPersonalizedPlan = async () => {
+    await clearPersonalizedPlanCache();
+    setHasPersonalizedPlan(false);
+  };
+
   const clearPersonalizedPlanCache = async () => {
     try {
       await AsyncStorage.multiRemove([
@@ -107,12 +111,12 @@ export default function SubscriptionScreen() {
       const activeSubData = await AsyncStorage.getItem("activeSubscription");
       if (activeSubData) {
         const subscription: ActiveSubscription = JSON.parse(activeSubData);
-        // Check if subscription is still active
-        const endDate = new Date(subscription.endDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Use date-string comparison (YYYY-MM-DD) in local time to avoid UTC parsing issues
+        // e.g. new Date("2026-07-02") is UTC midnight which may fall before local midnight in UTC+ zones
+        const endDateStr = (subscription.endDate || "").split("T")[0];
+        const todayStr = new Date().toLocaleDateString("en-CA");
 
-        if (subscription.status === "Active" && endDate >= today) {
+        if (subscription.status === "Active" && endDateStr >= todayStr) {
           setActiveSubscription(subscription);
         } else {
           // Subscription expired, remove from active
@@ -211,7 +215,6 @@ export default function SubscriptionScreen() {
           </TouchableOpacity>
           <View style={styles.headerTextBlock}>
             <Text style={styles.headerTitle}>{t("subscription_screen.title")}</Text>
-            <Text style={styles.headerSubtitle}>Explore our healthy subscription plans</Text>
           </View>
         </View>
 
@@ -227,7 +230,7 @@ export default function SubscriptionScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.disclaimerLabel}>Disclaimer</Text>
               <Text style={styles.disclaimerText}>
-                2 Beef and 2 Salmon items available per week based on US dietary preference.
+                2 Beef and 2 Salmon items available per week based on US dietary recommendation.
               </Text>
             </View>
           </View>
@@ -328,18 +331,28 @@ export default function SubscriptionScreen() {
                     resizeMode="contain"
                   />
                 </View>
-                <TouchableOpacity
-                  style={styles.chooseButton}
-                  onPress={() => {
-                    router.push("/auth/build-plan" as any);
-                  }}
-                >
-                  <Text style={styles.chooseButtonText}>
-                    {hasPersonalizedPlan
-                      ? t("subscription_screen.edit_fit_plan")
-                      : t("subscription_screen.build_fit_plan")}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.personalizedPlanActions}>
+                  <TouchableOpacity
+                    style={styles.chooseButton}
+                    onPress={() => {
+                      router.push("/auth/build-plan" as any);
+                    }}
+                  >
+                    <Text style={styles.chooseButtonText}>
+                      {hasPersonalizedPlan
+                        ? t("subscription_screen.edit_fit_plan")
+                        : t("subscription_screen.build_fit_plan")}
+                    </Text>
+                  </TouchableOpacity>
+                  {hasPersonalizedPlan && (
+                    <View style={styles.removeRow}>
+                      <Text style={styles.removeRowLabel}>Want to remove?</Text>
+                      <TouchableOpacity onPress={handleClearPersonalizedPlan}>
+                        <Text style={styles.removeRowLink}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </View>
               {/* Empty state */}
               {mealPlans.length === 0 && (
@@ -354,15 +367,10 @@ export default function SubscriptionScreen() {
         </ScrollView>
 
         {/* Fixed Bottom Section */}
-        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 12) + 96 }]}>
+        <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <AuthButtonGreen title={t("subscription_screen.continue")} onPress={handleSelectPlan} />
         </View>
       </View>
-
-      <BottomTabNav
-        activeTab="home"
-        onHomePress={() => router.replace("/main-screen")}
-      />
     </SafeAreaView>
   );
 }
@@ -607,5 +615,26 @@ const styles = StyleSheet.create({
   personalizedPlanIcon: {
     width: 60,
     height: 60,
+  },
+  personalizedPlanActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  removeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+  },
+  removeRowLabel: {
+    fontSize: 13,
+    color: "#4A6040",
+  },
+  removeRowLink: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#344225",
   },
 });

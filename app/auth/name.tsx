@@ -1,6 +1,5 @@
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import AuthButtonGreen from "@/components/auth/auth-button-green";
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -13,7 +12,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -49,22 +47,13 @@ export default function NameScreen() {
         behavior="padding"
         keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
       >
-        {/* Header with back button and logo */}
+        {/* Header — logo only, no back navigation */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Image
-              source={require("@/assets/images/balance-logo.png")}
-              style={styles.headerLogo}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.headerSpacer} />
+          <Image
+            source={require("@/assets/images/balance-logo.png")}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
         </View>
 
         {/* Title */}
@@ -111,26 +100,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   header: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingVertical: 12,
     marginBottom: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#344225",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  headerSpacer: {
-    width: 40,
   },
   headerLogo: {
     width: 72,

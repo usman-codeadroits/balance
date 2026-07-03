@@ -187,7 +187,14 @@ export default function UpdateSubscriptionMealsScreen() {
   };
 
   const typeFilteredMeals = pickerContext
-    ? allMeals.filter((meal) => meal.type === pickerContext.type)
+    ? allMeals.filter((meal) => {
+        if (meal.type !== pickerContext.type) return false;
+        if (!details?.is_personalized) return true;
+        const catName = normalizeCategoryName(meal.category).toLowerCase();
+        return pickerContext.type === "is meal"
+          ? catName.includes("main course")
+          : catName.includes("snack");
+      })
     : [];
 
   const pickerCategories = Array.from(

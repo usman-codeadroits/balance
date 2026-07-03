@@ -135,7 +135,8 @@
   },
   "otp": {
     "title": "OTP Code Verification",
-    "description": "We've sent you the verification code to your phone number enter",
+    "description": "We've sent the verification code to your phone number",
+    "sent_to": "Code sent to",
     "didnt_get_code": "Didn't get the code? ",
     "resend": "Resend OTP",
     "sending": "Sending...",
@@ -147,11 +148,11 @@
     "invalid_digits": "OTP code must be exactly 4 digits",
     "phone_not_found": "Phone number not found",
     "invalid_phone": "Invalid phone number",
-    "verified_title": "OTP Verified",
-    "verified_exists": "OTP verified successfully. User profile exists.",
-    "verified_incomplete": "OTP verified successfully. User profile incomplete. Please complete the onboarding process.",
-    "account_not_found": "Account Not Found",
-    "account_not_found_msg": "We couldn’t find an account associated with this information. Please proceed with the onboarding process to continue.",
+    "verified_title": "Verified Successfully",
+    "verified_exists": "Welcome back! Your identity has been confirmed. Taking you to your account now.",
+    "verified_incomplete": "Almost there! Your number is verified. Let’s complete your profile to get started.",
+    "account_not_found": "No Account Found",
+    "account_not_found_msg": "It looks like you’re new here. Let’s get you set up — we’ll guide you through a quick profile setup.",
     "unexpected_error": "Unexpected response from server. Please try again.",
     "resent_success": "OTP has been resent to {{phone}}."
   },
@@ -290,6 +291,7 @@
     "personalized_plan_desc": "Made for fitness-focused individuals",
     "build_fit_plan": "Build My Fit Plan",
     "edit_fit_plan": "Edit My Fit Plan",
+    "remove_fit_plan": "Remove",
     "no_plans": "No subscription plans available",
     "meals_label": "meal",
     "meals_label_plural": "meals",
@@ -311,7 +313,7 @@
     "title_selected": "You selected {{title}}",
     "title_snacks": "and {{count}} snack{{s}}/day.",
     "validation_title": "Validation",
-    "days_question": "How many days should you plan for Balance?",
+    "days_question": "Select the ({{min}} or {{max}}) days desired for your plan.",
     "days_limit": "Select minimum 5, maximum 6 days",
     "days_limit_range": "Select minimum {{min}}, maximum {{max}} days",
     "select_min_days_error": "Week {{week}}: Please select at least {{min}} days.",
@@ -560,6 +562,14 @@
     "wheat": "Wheat",
     "fish": "Fish",
     "sesame": "Sesame"
+  },
+  "personalized_summary": {
+    "title": "Your Personalized Plan",
+    "subtitle": "Here's a summary of your tailored macros",
+    "success": "Plan Built Successfully!",
+    "your_choices": "Your Selected Macros",
+    "info_note": "Your meals will be tailored to match these macros. Select a subscription plan on the next screen to get started.",
+    "continue": "Choose a Plan"
   },
   "common": {
     "ok": "OK",

@@ -5,9 +5,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
-  FlatList,
   Image,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +16,22 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const normalizeCategoryName = (category: unknown): string => {
+  if (typeof category === "string") return category;
+  if (category && typeof category === "object") {
+    const c = category as { name?: unknown; title?: unknown };
+    if (typeof c.name === "string") return c.name;
+    if (typeof c.title === "string") return c.title;
+  }
+  return "";
+};
+
+type CategoryGroup = {
+  id: number;
+  name: string;
+  meals: Meal[];
+};
 
 export default function LandingScreen() {
   const insets = useSafeAreaInsets();
@@ -39,38 +55,47 @@ export default function LandingScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredMeals = useMemo(() => {
+  const groupedCategories = useMemo((): CategoryGroup[] => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return meals;
-    return meals.filter((m) => {
-      const haystack = [m.title, (m as any).description, m.category_name]
-        .filter(Boolean)
-        .map((v) => String(v).toLowerCase())
-        .join(" ");
-      return haystack.includes(q);
+    const map = new Map<number, CategoryGroup>();
+
+    meals.forEach((m) => {
+      const catName = normalizeCategoryName(m.category) || m.category_name || "";
+      const catId = m.category_id ?? 0;
+      if (!catName) return;
+
+      if (q) {
+        const haystack = [m.title, (m as any).description, catName]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase())
+          .join(" ");
+        if (!haystack.includes(q)) return;
+      }
+
+      if (!map.has(catId)) {
+        map.set(catId, { id: catId, name: catName, meals: [] });
+      }
+      map.get(catId)!.meals.push(m);
     });
+
+    return Array.from(map.values()).filter((g) => g.meals.length > 0);
   }, [meals, searchQuery]);
 
   const cardWidth = (width - 32 - 12) / 2;
+  const topPad = Platform.OS === "android" ? insets.top + 4 : insets.top;
 
-  const renderCard = ({ item: meal }: { item: Meal }) => (
-    <View style={[styles.card, { width: cardWidth }]}>
+  const renderMealCard = (meal: Meal) => (
+    <View key={meal.id} style={[styles.card, { width: cardWidth }]}>
       <View style={styles.calorieBadge}>
         <Text style={styles.calorieText}>{meal.calories} kcal</Text>
       </View>
       <Image
-        source={
-          meal.image_url
-            ? { uri: meal.image_url }
-            : require("@/assets/images/meal.jpg")
-        }
+        source={meal.image_url ? { uri: meal.image_url } : require("@/assets/images/meal.jpg")}
         style={styles.cardImage}
         resizeMode="cover"
       />
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {meal.title}
-        </Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>{meal.title}</Text>
         <View style={styles.macroRow}>
           <View style={styles.macroItem}>
             <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />
@@ -95,15 +120,37 @@ export default function LandingScreen() {
     </View>
   );
 
-  const topPad = Platform.OS === "android" ? insets.top + 4 : insets.top;
+  const renderCategorySection = (group: CategoryGroup) => {
+    const rows: Meal[][] = [];
+    for (let i = 0; i < group.meals.length; i += 2) {
+      rows.push(group.meals.slice(i, i + 2));
+    }
+
+    return (
+      <View key={group.id} style={styles.categorySection}>
+        {/* Section header */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{group.name}</Text>
+          <Text style={styles.sectionCount}>{group.meals.length}</Text>
+        </View>
+
+        {/* 2-column grid */}
+        <View style={styles.grid}>
+          {rows.map((row, rowIdx) => (
+            <View key={rowIdx} style={styles.gridRow}>
+              {row.map(renderMealCard)}
+              {row.length === 1 && <View style={{ width: cardWidth }} />}
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-          <Ionicons name="menu" size={26} color="#344225" />
-        </TouchableOpacity>
         <View style={styles.logoWrap}>
           <Image
             source={require("@/assets/images/balance-text.png")}
@@ -120,7 +167,7 @@ export default function LandingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Search — fixed above the list */}
+      {/* Search */}
       <View style={styles.searchWrap}>
         <TextInput
           style={styles.searchInput}
@@ -134,64 +181,57 @@ export default function LandingScreen() {
           clearButtonMode="while-editing"
           selectTextOnFocus
         />
-        <Ionicons
-          name="search"
-          size={18}
-          color="#6B7F75"
-          style={styles.searchIcon}
-          pointerEvents="none"
-        />
+        <Ionicons name="search" size={18} color="#6B7F75" style={styles.searchIcon} pointerEvents="none" />
       </View>
 
-      {/* Greeting */}
-      <View style={styles.greetingRow}>
-        <Text style={styles.greetingText}>Glad to see you!</Text>
-      </View>
-
-      {/* Meal grid — flex: 1 so it scrolls and doesn't push the nav off screen */}
+      {/* Content */}
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#344225" />
         </View>
-      ) : filteredMeals.length === 0 ? (
+      ) : groupedCategories.length === 0 ? (
         <View style={styles.loadingWrap}>
           <Text style={styles.emptyText}>No meals found</Text>
         </View>
       ) : (
-        <FlatList
+        <ScrollView
           style={styles.list}
-          data={filteredMeals}
-          renderItem={renderCard}
-          keyExtractor={(item) => item.id.toString()}
-          numColumns={2}
-          columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-        />
+        >
+          {/* Greeting scrolls with content */}
+          <View style={styles.greetingRow}>
+            <Text style={styles.greetingText}>Glad to see you!</Text>
+            <Text style={styles.greetingSubtext}>
+              Browse our menu and discover fresh, balanced meals crafted just for you.
+            </Text>
+          </View>
+          {groupedCategories.map(renderCategorySection)}
+        </ScrollView>
       )}
 
-      {/* Bottom nav — each item redirects to auth */}
-      <View style={[styles.navOuter, { paddingBottom: insets.bottom + 8 }]}>
-        <View style={styles.navBar}>
-          {[
-            { icon: "home" as const, label: "Home" },
-            { icon: "time" as const, label: "Macros History" },
-            { icon: "calendar" as const, label: "Calendar" },
-            { icon: "person" as const, label: "Profile" },
-          ].map((item) => (
-            <TouchableOpacity
-              key={item.label}
-              style={styles.navItem}
-              onPress={() => router.replace("/auth")}
-              activeOpacity={0.7}
-            >
-              <Ionicons name={item.icon} size={26} color="#FFFFFF" />
-              <Text style={styles.navLabel}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      {/* Bottom nav — all tabs redirect to login on landing screen */}
+      <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
+        {([
+          { icon: "home", label: "Home" },
+          { icon: "time", label: "History" },
+          { icon: "calendar", label: "Calendar" },
+          { icon: "person", label: "Profile" },
+        ] as const).map((item) => (
+          <TouchableOpacity
+            key={item.label}
+            style={styles.navItem}
+            onPress={() => router.replace("/auth")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={item.icon} size={26} color={item.icon === "home" ? "#FAD979" : "#FFFFFF"} />
+            <Text style={[styles.navLabel, item.icon === "home" && styles.navLabelActive]}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
@@ -244,23 +284,24 @@ const styles = StyleSheet.create({
   },
   greetingRow: {
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   greetingText: {
     fontSize: 16,
     color: "#344225",
-    fontWeight: "500",
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  greetingSubtext: {
+    fontSize: 13,
+    color: "#5A7C65",
+    lineHeight: 19,
   },
   list: {
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  columnWrapper: {
-    justifyContent: "space-between",
-    marginBottom: 12,
+    paddingBottom: 120,
   },
   loadingWrap: {
     flex: 1,
@@ -271,36 +312,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7F75",
   },
-  navOuter: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    backgroundColor: "#DCE6E0",
+  categorySection: {
+    marginBottom: 8,
   },
-  navBar: {
-    backgroundColor: "#344225",
-    borderRadius: 24,
+  sectionHeader: {
     flexDirection: "row",
-    paddingVertical: 13,
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#344225",
     paddingHorizontal: 16,
-    justifyContent: "space-around",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    paddingVertical: 10,
+    marginBottom: 12,
   },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FAD979",
   },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: "500",
-    color: "#FFFFFF",
-    marginTop: 4,
+  sectionCount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FAD979",
+  },
+  grid: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  gridRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   card: {
     backgroundColor: "#FFFFFF",
@@ -355,5 +395,37 @@ const styles = StyleSheet.create({
   macroText: {
     fontSize: 10,
     color: "#344225",
+  },
+  bottomNav: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    backgroundColor: "#344225",
+    borderRadius: 24,
+    flexDirection: "row",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    justifyContent: "space-around",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  navItem: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  navLabel: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#FFFFFF",
+    marginTop: 4,
+  },
+  navLabelActive: {
+    color: "#FAD979",
   },
 });

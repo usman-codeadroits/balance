@@ -79,11 +79,24 @@ export default function CalendarScreen() {
     try {
       setLoading(true);
       const response = await getMySubscriptions();
-      if (response.success && response.data.active?.length > 0) {
-        const valid = response.data.active
+      if (response.success) {
+        const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+
+        // Primary: active subscriptions; fallback: recent subscriptions ending today
+        // (backend may move a subscription to "recent" at UTC midnight even though the
+        // user's local last day hasn't ended yet)
+        let candidates = [...(response.data.active || [])];
+        if (candidates.length === 0) {
+          candidates = (response.data.recent || []).filter(
+            (s) => (s.end_date || "").split("T")[0] === todayStr,
+          );
+        }
+
+        const valid = candidates
           .map((sub) => ({ sub, start: parseDateSafe(sub.start_date), end: parseDateSafe(sub.end_date) }))
-          .filter(({ sub, start, end }) => sub.status === "active" && start && end && end >= today)
+          .filter(({ start, end }) => start && end && (end.toLocaleDateString("en-CA") >= todayStr))
           .sort((a, b) => a.end!.getTime() - b.end!.getTime());
+
         if (valid.length > 0) {
           const { sub, start, end } = valid[0];
           const totalDays = Math.ceil((end!.getTime() - start!.getTime()) / (1000 * 60 * 60 * 24));

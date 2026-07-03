@@ -9,12 +9,16 @@ import {
   type AddressBody,
   type UserProfile,
 } from "@/api/services/profile";
+import { getAllAreas } from "@/api";
+import { apiClient } from "@/api/client";
+import type { Area } from "@/api/types";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -52,11 +56,6 @@ const GENDERS = [
   { value: "other",  label: "Other" },
 ] as const;
 
-const DELIVERY_SLOTS = [
-  { value: "four_pm_to_eight_pm",   label: "4 PM – 8 PM" },
-  { value: "eight_pm_to_midnight",  label: "8 PM – 12 AM" },
-] as const;
-
 const emptyAddressForm = (): AddressBody => ({
   first_name: "",
   last_name: "",
@@ -73,6 +72,7 @@ const emptyAddressForm = (): AddressBody => ({
   preferred_delivery_slot: "four_pm_to_eight_pm",
 });
 
+
 export default function MyProfileScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
@@ -82,7 +82,6 @@ export default function MyProfileScreen() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [gender, setGender] = useState<string>("");
   const [dob, setDob] = useState("");
   const [height, setHeight] = useState("");
@@ -104,9 +103,23 @@ export default function MyProfileScreen() {
   const [addrForm, setAddrForm] = useState<AddressBody>(emptyAddressForm());
   const [addrSaving, setAddrSaving] = useState(false);
 
+  // ── Area picker state ──
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [areasLoading, setAreasLoading] = useState(false);
+  const [showAreaModal, setShowAreaModal] = useState(false);
+  const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+
+  // ── Delivery slots (fetched from API) ──
+  const [timeSlots, setTimeSlots] = useState<{ value: string; label: string }[]>([
+    { value: "four_pm_to_eight_pm", label: "4 PM – 8 PM" },
+    { value: "eight_pm_to_midnight", label: "8 PM – 12 AM" },
+  ]);
+
   useEffect(() => {
     loadProfile();
     loadAddresses();
+    fetchAreas();
+    fetchTimeSlots();
   }, []);
 
   // ── Profile ──────────────────────────────────────────────────────────────
@@ -119,7 +132,6 @@ export default function MyProfileScreen() {
         const p = res.data;
         setProfile(p);
         setName(p.name ?? "");
-        setEmail(p.email ?? "");
         setGender(p.gender ?? "");
         setDob(p.dob ?? "");
         setHeight(p.height != null ? String(p.height) : "");
@@ -141,7 +153,6 @@ export default function MyProfileScreen() {
       setProfileSaving(true);
       const body: any = {};
       if (name.trim())         body.name = name.trim();
-      if (email.trim())        body.email = email.trim();
       if (gender)              body.gender = gender;
       if (dob.trim())          body.dob = dob.trim();
       if (height.trim())       body.height = parseFloat(height);
@@ -178,9 +189,40 @@ export default function MyProfileScreen() {
     }
   };
 
+  const fetchAreas = async () => {
+    try {
+      setAreasLoading(true);
+      const data = await getAllAreas();
+      setAreas(data);
+    } catch {
+      // silently fail
+    } finally {
+      setAreasLoading(false);
+    }
+  };
+
+  const fetchTimeSlots = async () => {
+    try {
+      const resp = await apiClient.get("/v1/settings") as any;
+      const inner = resp?.data ?? resp;
+      const slots: any[] = inner?.delivery_time_slots ?? [];
+      if (slots.length > 0) {
+        const mapped = slots.map((s: any) => ({
+          value: s.value,
+          label: s.label_en ?? s.label ?? s.value,
+        }));
+        setTimeSlots(mapped);
+        setAddrForm((prev) => ({ ...prev, preferred_delivery_slot: mapped[0].value }));
+      }
+    } catch {
+      // keep hardcoded defaults
+    }
+  };
+
   const openNewAddress = () => {
     setEditingAddress(null);
     setAddrForm(emptyAddressForm());
+    setSelectedArea(null);
     setAddressModal(true);
   };
 
@@ -201,24 +243,20 @@ export default function MyProfileScreen() {
       is_primary: addr.is_primary ?? false,
       preferred_delivery_slot: addr.preferred_delivery_slot ?? "four_pm_to_eight_pm",
     });
+    const matched = areas.find((a) => a.name === addr.area) ?? null;
+    setSelectedArea(matched);
     setAddressModal(true);
   };
 
   const handleSaveAddress = async () => {
-    if (!addrForm.first_name.trim()) {
-      Alert.alert("Required", "First name is required.");
-      return;
-    }
-    if (!addrForm.phone_number.trim()) {
-      Alert.alert("Required", "Phone number is required.");
-      return;
-    }
     try {
       setAddrSaving(true);
+      const nameParts = (profile?.name || name || "").trim().split(" ");
       const body: AddressBody = {
         ...addrForm,
-        first_name: addrForm.first_name.trim(),
-        phone_number: addrForm.phone_number.trim(),
+        first_name: addrForm.first_name || nameParts[0] || "User",
+        last_name: addrForm.last_name || nameParts.slice(1).join(" ") || "",
+        phone_number: profile?.mobile != null ? String(profile.mobile) : addrForm.phone_number || "",
       };
       if (editingAddress) {
         await updateAddress(editingAddress.id, body);
@@ -256,7 +294,7 @@ export default function MyProfileScreen() {
     setAddrForm((prev) => ({ ...prev, [key]: value }));
 
   const slotLabel = (slot: string) =>
-    DELIVERY_SLOTS.find((s) => s.value === slot)?.label ?? slot;
+    timeSlots.find((s) => s.value === slot)?.label ?? slot;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -304,10 +342,6 @@ export default function MyProfileScreen() {
             >
               <Field label="Full Name">
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#8AADA0" />
-              </Field>
-
-              <Field label="Email">
-                <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="your@email.com" placeholderTextColor="#8AADA0" keyboardType="email-address" autoCapitalize="none" />
               </Field>
 
               <Field label="Date of Birth (YYYY-MM-DD)">
@@ -520,31 +554,24 @@ export default function MyProfileScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalRow}>
-                <View style={{ flex: 1 }}>
-                  <Field label="First Name *">
-                    <TextInput style={styles.input} value={addrForm.first_name} onChangeText={(v) => setAddrField("first_name", v)} placeholder="First name" placeholderTextColor="#8AADA0" />
-                  </Field>
-                </View>
-                <View style={{ width: 10 }} />
-                <View style={{ flex: 1 }}>
-                  <Field label="Last Name">
-                    <TextInput style={styles.input} value={addrForm.last_name ?? ""} onChangeText={(v) => setAddrField("last_name", v)} placeholder="Last name" placeholderTextColor="#8AADA0" />
-                  </Field>
-                </View>
-              </View>
-
-              <Field label="Phone Number *">
-                <TextInput style={styles.input} value={addrForm.phone_number} onChangeText={(v) => setAddrField("phone_number", v)} placeholder="96512345678" placeholderTextColor="#8AADA0" keyboardType="phone-pad" />
+              <Field label="Area">
+                <TouchableOpacity
+                  style={[styles.input, styles.pickerBtn]}
+                  onPress={() => !areasLoading && setShowAreaModal(true)}
+                  disabled={areasLoading}
+                >
+                  {areasLoading ? (
+                    <ActivityIndicator size="small" color="#344225" />
+                  ) : (
+                    <Text style={[styles.pickerBtnText, !selectedArea && styles.pickerBtnPlaceholder]}>
+                      {selectedArea ? selectedArea.name : "Select area"}
+                    </Text>
+                  )}
+                  <Ionicons name="chevron-down" size={16} color="#344225" />
+                </TouchableOpacity>
               </Field>
 
               <View style={styles.modalRow}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Area">
-                    <TextInput style={styles.input} value={addrForm.area ?? ""} onChangeText={(v) => setAddrField("area", v)} placeholder="Salmiya" placeholderTextColor="#8AADA0" />
-                  </Field>
-                </View>
-                <View style={{ width: 10 }} />
                 <View style={{ flex: 1 }}>
                   <Field label="Block">
                     <TextInput style={styles.input} value={addrForm.block_number ?? ""} onChangeText={(v) => setAddrField("block_number", v)} placeholder="4" placeholderTextColor="#8AADA0" keyboardType="numeric" />
@@ -590,7 +617,7 @@ export default function MyProfileScreen() {
 
               <Field label="Delivery Slot">
                 <View style={styles.chipRow}>
-                  {DELIVERY_SLOTS.map((s) => (
+                  {timeSlots.map((s) => (
                     <TouchableOpacity
                       key={s.value}
                       style={[styles.chip, addrForm.preferred_delivery_slot === s.value && styles.chipActive]}
@@ -624,6 +651,40 @@ export default function MyProfileScreen() {
 
               <View style={{ height: 20 }} />
             </ScrollView>
+
+            {/* Area picker nested inside address modal so it layers correctly */}
+            <Modal visible={showAreaModal} transparent animationType="slide" onRequestClose={() => setShowAreaModal(false)}>
+              <View style={styles.areaModalOverlay}>
+                <View style={styles.areaModalSheet}>
+                  <View style={styles.areaModalHeader}>
+                    <View style={styles.areaModalHeaderSpacer} />
+                    <Text style={styles.areaModalTitle}>Select Area</Text>
+                    <TouchableOpacity style={styles.areaModalClose} onPress={() => setShowAreaModal(false)}>
+                      <Ionicons name="close" size={20} color="#344225" />
+                    </TouchableOpacity>
+                  </View>
+                  <FlatList
+                    data={areas}
+                    keyExtractor={(item) => String(item.id)}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[styles.areaItem, selectedArea?.id === item.id && styles.areaItemSelected]}
+                        onPress={() => {
+                          setSelectedArea(item);
+                          setAddrField("area", item.name);
+                          setShowAreaModal(false);
+                        }}
+                      >
+                        <Text style={[styles.areaItemText, selectedArea?.id === item.id && styles.areaItemTextSelected]}>
+                          {item.name}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={<Text style={styles.areaEmpty}>No areas available</Text>}
+                  />
+                </View>
+              </View>
+            </Modal>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -790,4 +851,53 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, fontWeight: "700", color: "#344225" },
   modalRow: { flexDirection: "row" },
+
+  // Area picker
+  pickerBtn: {
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", paddingVertical: 15,
+  },
+  pickerBtnText: { fontSize: 14, color: "#344225", flex: 1 },
+  pickerBtnPlaceholder: { color: "#8AADA0" },
+  areaModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  areaModalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    maxHeight: "60%", paddingBottom: 24,
+  },
+  areaModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F7F3",
+  },
+  areaModalHeaderSpacer: { width: 36 },
+  areaModalTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#344225",
+  },
+  areaModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F0F7F3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  areaItem: {
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: "#F0F7F3",
+  },
+  areaItemSelected: { backgroundColor: "#E8F4EC" },
+  areaItemText: { fontSize: 14, color: "#344225" },
+  areaItemTextSelected: { fontWeight: "700", color: "#344225" },
+  areaEmpty: {
+    paddingHorizontal: 20, paddingVertical: 24,
+    fontSize: 14, color: "#6B7F75", textAlign: "center",
+  },
 });

@@ -25,6 +25,7 @@ export default function OTPScreen() {
   const [authType, setAuthType] = useState<"login" | "signup">("signup");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [phoneDisplay, setPhoneDisplay] = useState<string>("");
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -46,10 +47,14 @@ export default function OTPScreen() {
   );
 
   const loadAuthType = async () => {
-    const type = await AsyncStorage.getItem("tempAuthType");
-    if (type) {
-      setAuthType(type as "login" | "signup");
-    }
+    const [type, phoneNumber, countryCode] = await Promise.all([
+      AsyncStorage.getItem("tempAuthType"),
+      AsyncStorage.getItem("tempPhoneNumber"),
+      AsyncStorage.getItem("tempCountryCode"),
+    ]);
+    if (type) setAuthType(type as "login" | "signup");
+    const formatted = formatPhoneNumber(countryCode, phoneNumber);
+    if (formatted) setPhoneDisplay(formatted);
   };
 
   const handleOtpChange = (value: string, index: number) => {
@@ -377,8 +382,8 @@ export default function OTPScreen() {
                 // Clear OTP verified flag before navigating
                 await AsyncStorage.removeItem("otpVerified");
 
-                // Navigate directly to email to start onboarding
-                router.push("/auth/email");
+                // Navigate directly to name to start onboarding
+                router.push("/auth/name");
               },
             },
           ],
@@ -416,8 +421,8 @@ export default function OTPScreen() {
                   // Clear OTP verified flag before navigating
                   await AsyncStorage.removeItem("otpVerified");
 
-                  // Navigate directly to email to start onboarding
-                  router.push("/auth/email");
+                  // Navigate directly to name to start onboarding
+                  router.push("/auth/name");
                 },
               },
             ],
@@ -542,7 +547,11 @@ export default function OTPScreen() {
         <View style={styles.headerContainer}>
           <Text style={styles.title}>{t("otp.title")}</Text>
           <Text style={styles.description}>
-            {t("otp.description")}
+            {t("otp.description")}{" "}
+            {phoneDisplay ? (
+              <Text style={styles.phoneNumber}>{phoneDisplay}</Text>
+            ) : null}
+            {"."}
           </Text>
         </View>
 
@@ -638,6 +647,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#C5D4CC",
     lineHeight: 20,
+  },
+  phoneNumber: {
+    color: "#FAD979",
+    fontWeight: "700",
   },
   otpContainer: {
     flexDirection: "row",

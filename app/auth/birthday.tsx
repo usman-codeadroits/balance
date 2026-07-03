@@ -62,15 +62,8 @@ export default function BirthdayScreen() {
       return;
     }
 
-    const today = new Date();
-    const cutoff = new Date(today.getFullYear() - 16, today.getMonth(), today.getDate());
-    if (birthDate > cutoff) {
-      Alert.alert(t("common.error"), "You must be at least 16 years old to continue.");
-      return;
-    }
-
-    // Store birthday temporarily
-    const birthdayString = `${selectedDay}/${months[selectedMonth]}/${selectedYear}`;
+    // Store birthday in ISO format to avoid locale-dependent month names
+    const birthdayString = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
     await AsyncStorage.setItem("tempBirthday", birthdayString);
 
     // Navigate to gender screen
