@@ -2,45 +2,40 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { getMySubscriptions, type UserSubscriptionSummary } from "@/api/services/subscriptions";
 
-const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const FULL_MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
 
-const formatDate = (s?: string): string => {
+const formatDisplayDate = (s?: string): string => {
   if (!s) return "-";
   try {
-    const parts = s.split(".");
-    if (parts.length === 3) return `${parts[0]} ${MONTH_SHORT[parseInt(parts[1]) - 1] ?? ""} ${parts[2]}`;
     const d = new Date(s);
     if (isNaN(d.getTime())) return s;
-    return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+    const day = d.getDate();
+    const month = FULL_MONTHS[d.getMonth()];
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const mins = d.getMinutes();
+    const ampm = hours >= 12 ? "pm" : "am";
+    hours = hours % 12 || 12;
+    const minStr = mins > 0 ? `:${String(mins).padStart(2, "0")}` : "";
+    return `${day} ${month} ${year}, ${hours}${minStr}${ampm}`;
   } catch { return s; }
-};
-
-const formatPrice = (sub: UserSubscriptionSummary): string => {
-  const price = sub.price ?? "";
-  const currency = (sub as any).currency || "KWD";
-  return `${price} ${currency}`;
-};
-
-const getStatusColor = (status: string, isPaused: boolean | undefined): string => {
-  if (isPaused) return "#FF9800";
-  switch (status?.toLowerCase()) {
-    case "active": return "#4CAF50";
-    case "completed": return "#6B7F75";
-    case "cancelled": return "#F44336";
-    default: return "#6B7F75";
-  }
-};
-
-const getStatusLabel = (status: string, isPaused: boolean | undefined): string => {
-  if (isPaused) return "Paused";
-  if (!status) return "";
-  return status.charAt(0).toUpperCase() + status.slice(1);
 };
 
 export default function OrderHistoryScreen() {
@@ -80,12 +75,14 @@ export default function OrderHistoryScreen() {
     }
   };
 
-  const hasAny = activeSubscriptions.length > 0 || queuedSubscriptions.length > 0 || recentSubscriptions.length > 0;
+  const hasAny =
+    activeSubscriptions.length > 0 ||
+    queuedSubscriptions.length > 0 ||
+    recentSubscriptions.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Header */}
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <Text style={styles.headerTitle}>{t("history.title")}</Text>
         </View>
@@ -110,7 +107,10 @@ export default function OrderHistoryScreen() {
             </View>
             <Text style={styles.emptyTitle}>{t("history.no_subs")}</Text>
             <Text style={styles.emptyDesc}>Your subscription history will appear here</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/auth/subscription")}>
+            <TouchableOpacity
+              style={styles.emptyBtn}
+              onPress={() => router.push("/auth/subscription")}
+            >
               <Ionicons name="add" size={18} color="#344225" />
               <Text style={styles.emptyBtnText}>Create Subscription</Text>
             </TouchableOpacity>
@@ -121,59 +121,15 @@ export default function OrderHistoryScreen() {
             contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
-            {/* Active subscriptions */}
-            {activeSubscriptions.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={[styles.sectionDot, { backgroundColor: "#4CAF50" }]} />
-                  <Text style={styles.sectionTitle}>{t("history.active_subs")}</Text>
-                  <View style={styles.sectionCountBadge}>
-                    <Text style={styles.sectionCountText}>{activeSubscriptions.length}</Text>
-                  </View>
-                </View>
-                {activeSubscriptions.map((sub) => (
-                  <SubscriptionCard key={sub.id} sub={sub} isActive />
-                ))}
-              </View>
-            ) : null}
-
-            {/* Starting Soon — queued subscriptions */}
-            {queuedSubscriptions.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={[styles.sectionDot, { backgroundColor: "#FAD979" }]} />
-                  <Text style={styles.sectionTitle}>Starting Soon</Text>
-                  <View style={styles.sectionCountBadge}>
-                    <Text style={styles.sectionCountText}>{queuedSubscriptions.length}</Text>
-                  </View>
-                </View>
-                {queuedSubscriptions.map((sub) => (
-                  <QueuedSubscriptionCard
-                    key={sub.id}
-                    sub={sub}
-                    activeSubscriptionId={activeSubscriptions[0]?.id}
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            {/* Recent / completed subscriptions */}
-            {recentSubscriptions.length > 0 ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View style={[styles.sectionDot, { backgroundColor: "#6B7F75" }]} />
-                  <Text style={styles.sectionTitle}>
-                    {activeSubscriptions.length > 0 ? t("history.recent_subs") : t("history.title")}
-                  </Text>
-                  <View style={styles.sectionCountBadge}>
-                    <Text style={styles.sectionCountText}>{recentSubscriptions.length}</Text>
-                  </View>
-                </View>
-                {recentSubscriptions.map((sub) => (
-                  <SubscriptionCard key={sub.id} sub={sub} isActive={false} />
-                ))}
-              </View>
-            ) : null}
+            {activeSubscriptions.map((sub) => (
+              <SubCard key={sub.id} sub={sub} />
+            ))}
+            {queuedSubscriptions.map((sub) => (
+              <SubCard key={sub.id} sub={sub} />
+            ))}
+            {recentSubscriptions.map((sub) => (
+              <SubCard key={sub.id} sub={sub} />
+            ))}
           </ScrollView>
         )}
       </View>
@@ -183,127 +139,62 @@ export default function OrderHistoryScreen() {
   );
 }
 
-interface CardProps {
-  sub: UserSubscriptionSummary;
-  isActive: boolean;
-}
+function SubCard({ sub }: { sub: UserSubscriptionSummary }) {
+  const s = sub as any;
 
-function SubscriptionCard({ sub, isActive }: CardProps) {
-  const statusColor = getStatusColor(sub.status, !!(sub.is_paused));
-  const statusLabel = getStatusLabel(sub.status, !!(sub.is_paused));
-  const isPaused = !!(sub.is_paused);
+  const mealCount: number = s.subcrption_plans?.meal_count ?? s.meal_count ?? 0;
+  const snackCount: number = s.subcrption_plans?.snack_count ?? s.snack_count ?? 0;
+
+  // Day count — prefer selected_days array length, fall back to plan min_days
+  const selectedDays: unknown[] = Array.isArray(s.selected_days) ? s.selected_days : [];
+  const dayCount: number =
+    selectedDays.length > 0
+      ? selectedDays.length
+      : s.subcrption_plans?.min_days ?? s.min_days ?? 0;
+
+  // Duration label
+  const weeksLabel: string =
+    sub.duration?.title ||
+    (s.no_of_weeks ? `${s.no_of_weeks} Week${s.no_of_weeks > 1 ? "s" : ""}` : "");
+
+  // Price — format as "46.000KWD"
+  const rawPrice = parseFloat(String(sub.price ?? "0"));
+  const priceStr = `${isNaN(rawPrice) ? sub.price : rawPrice.toFixed(3)}KWD`;
+
+  // Status label
+  const isPaused = !!s.is_paused;
+  const statusRaw = isPaused ? "Paused" : (sub.status || "");
+  const statusLabel = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
+
+  // Info line: "2 meals • 6 days • 1 Weeks"
+  const infoParts: string[] = [];
+  if (mealCount > 0) infoParts.push(`${mealCount} meal${mealCount !== 1 ? "s" : ""}`);
+  if (snackCount > 0) infoParts.push(`${snackCount} snack${snackCount !== 1 ? "s" : ""}`);
+  if (dayCount > 0) infoParts.push(`${dayCount} days`);
+  if (weeksLabel) infoParts.push(weeksLabel);
+  const infoLine = infoParts.join(" • ");
+
+  const dateStr = formatDisplayDate(s.created_at || sub.start_date);
 
   return (
-    <View style={[styles.card, isActive && styles.cardActive, isPaused && styles.cardPaused]}>
-      {/* Top strip */}
-      <View style={[styles.cardStrip, { backgroundColor: isActive ? "#344225" : "#EEF4F0" }]}>
-        <Text style={[styles.cardPlanName, { color: isActive ? "#FFFFFF" : "#344225" }]} numberOfLines={1}>
-          {sub.subcrption_plans?.title || "Meal Plan"}
-        </Text>
-        <View style={[styles.statusChip, { borderColor: statusColor }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusChipText, { color: statusColor }]}>{statusLabel}</Text>
-        </View>
+    <View style={styles.card}>
+      {/* Info + price row */}
+      <View style={styles.cardRow}>
+        <Text style={styles.cardInfo} numberOfLines={1}>{infoLine}</Text>
+        <Text style={styles.cardPrice}>{priceStr}</Text>
       </View>
-
-      {/* Card body */}
-      <View style={styles.cardBody}>
-        <View style={styles.cardRow}>
-          <View style={styles.cardCol}>
-            <Text style={styles.cardColLabel}>Start Date</Text>
-            <Text style={styles.cardColValue}>{formatDate(sub.start_date)}</Text>
-          </View>
-          <View style={styles.cardColSep} />
-          <View style={styles.cardCol}>
-            <Text style={styles.cardColLabel}>End Date</Text>
-            <Text style={styles.cardColValue}>{formatDate(sub.end_date)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.cardDivider} />
-
-        <View style={styles.cardFooter}>
-          <View style={styles.cardFooterLeft}>
-            <Ionicons name="calendar-outline" size={13} color="#6B7F75" />
-            <Text style={styles.cardDateRange}>
-              {`${formatDate(sub.start_date)} – ${formatDate(sub.end_date)}`}
-            </Text>
-          </View>
-          <View style={[styles.priceBadge, { backgroundColor: isActive ? "#FAD979" : "#EEF4F0" }]}>
-            <Text style={[styles.priceText, { color: "#344225" }]}>{formatPrice(sub)}</Text>
-          </View>
-        </View>
-
-        {isPaused ? (
-          <View style={styles.pausedBanner}>
-            <Ionicons name="pause-circle" size={13} color="#B94A00" />
-            <Text style={styles.pausedBannerText}>Subscription paused</Text>
-          </View>
-        ) : null}
-      </View>
+      {/* Status */}
+      <Text style={styles.cardStatus}>{statusLabel}</Text>
+      {/* Date */}
+      <Text style={styles.cardDate}>{dateStr}</Text>
     </View>
-  );
-}
-
-function QueuedSubscriptionCard({ sub, activeSubscriptionId }: { sub: UserSubscriptionSummary; activeSubscriptionId?: number }) {
-  return (
-    <TouchableOpacity
-      style={[styles.card, styles.cardQueued]}
-      activeOpacity={activeSubscriptionId ? 0.8 : 1}
-      onPress={() => {
-        if (activeSubscriptionId) {
-          router.push({
-            pathname: "/renewal-details",
-            params: { subscriptionId: activeSubscriptionId },
-          } as any);
-        }
-      }}
-    >
-      <View style={[styles.cardStrip, { backgroundColor: "#4A6040" }]}>
-        <Text style={[styles.cardPlanName, { color: "#FAD979" }]} numberOfLines={1}>
-          {sub.subcrption_plans?.title || "Meal Plan"}
-        </Text>
-        <View style={[styles.statusChip, { borderColor: "#FAD979" }]}>
-          <View style={[styles.statusDot, { backgroundColor: "#FAD979" }]} />
-          <Text style={[styles.statusChipText, { color: "#FAD979" }]}>Starting Soon</Text>
-        </View>
-      </View>
-      <View style={styles.cardBody}>
-        <View style={styles.cardRow}>
-          <View style={styles.cardCol}>
-            <Text style={styles.cardColLabel}>Start Date</Text>
-            <Text style={styles.cardColValue}>{formatDate(sub.start_date)}</Text>
-          </View>
-          <View style={styles.cardColSep} />
-          <View style={styles.cardCol}>
-            <Text style={styles.cardColLabel}>End Date</Text>
-            <Text style={styles.cardColValue}>{formatDate(sub.end_date)}</Text>
-          </View>
-        </View>
-        <View style={styles.cardDivider} />
-        <View style={styles.cardFooter}>
-          <View style={styles.cardFooterLeft}>
-            <Ionicons name="calendar-outline" size={13} color="#6B7F75" />
-            <Text style={styles.cardDateRange}>
-              {`${formatDate(sub.start_date)} – ${formatDate(sub.end_date)}`}
-            </Text>
-          </View>
-          <View style={[styles.priceBadge, { backgroundColor: "#FAD979" }]}>
-            <Text style={[styles.priceText, { color: "#344225" }]}>{formatPrice(sub)}</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
-  header: {
-    paddingHorizontal: "5%",
-    paddingBottom: 20,
-  },
+  header: { paddingHorizontal: "5%", paddingBottom: 20 },
   headerTitle: { fontSize: 24, fontWeight: "700", color: "#344225", textAlign: "center" },
 
   center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
@@ -327,66 +218,21 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
 
-  section: { marginBottom: 8 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, marginTop: 8 },
-  sectionDot: { width: 8, height: 8, borderRadius: 4 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#344225", flex: 1 },
-  sectionCountBadge: {
-    backgroundColor: "#344225", borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 2,
-  },
-  sectionCountText: { fontSize: 11, fontWeight: "700", color: "#FFFFFF" },
-
   card: {
-    borderRadius: 18,
-    overflow: "hidden",
-    marginBottom: 14,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardActive: {},
-  cardPaused: { borderWidth: 1.5, borderColor: "#FF9800" },
-  cardQueued: { borderWidth: 1.5, borderColor: "#FAD979" },
-
-  cardStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: "#FAD979",
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    marginBottom: 12,
   },
-  cardPlanName: { fontSize: 14, fontWeight: "700", flex: 1, marginRight: 10 },
-  statusChip: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    borderWidth: 1.5, borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 3,
-    backgroundColor: "rgba(255,255,255,0.9)",
+  cardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
   },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusChipText: { fontSize: 11, fontWeight: "600" },
-
-  cardBody: { paddingHorizontal: 16, paddingVertical: 12 },
-  cardRow: { flexDirection: "row", alignItems: "center" },
-  cardCol: { flex: 1, alignItems: "center" },
-  cardColSep: { width: 1, height: 28, backgroundColor: "#EEF4F0" },
-  cardColLabel: { fontSize: 10, color: "#6B7F75", marginBottom: 3 },
-  cardColValue: { fontSize: 12, fontWeight: "600", color: "#344225", textAlign: "center" },
-  cardDivider: { height: 1, backgroundColor: "#EEF4F0", marginVertical: 10 },
-
-  cardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardFooterLeft: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
-  cardDateRange: { fontSize: 11, color: "#6B7F75", flex: 1 },
-  priceBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 8 },
-  priceText: { fontSize: 14, fontWeight: "800" },
-
-  pausedBanner: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    marginTop: 10, backgroundColor: "#FFF0E6",
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
-  },
-  pausedBannerText: { fontSize: 12, color: "#B94A00", fontWeight: "600" },
+  cardInfo: { fontSize: 14, fontWeight: "600", color: "#344225", flex: 1, marginRight: 8 },
+  cardPrice: { fontSize: 14, fontWeight: "700", color: "#344225" },
+  cardStatus: { fontSize: 14, fontWeight: "600", color: "#344225", marginBottom: 2 },
+  cardDate: { fontSize: 12, color: "#5A6B5A" },
 });
