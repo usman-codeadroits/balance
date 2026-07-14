@@ -112,10 +112,10 @@ export default function CheckoutScreen() {
     return parseFloat(String(selectedPlan.price || "").replace(/[^0-9.]/g, "")) || 0;
   };
 
-  // Same formula as selected-meals.tsx: extraPerMeal * meal_count * days
+  const planWeeks = Math.max(1, (selectedDuration as any)?.no_of_weeks ?? (selectedPlan as any)?.no_of_weeks ?? 1);
   const getProteinExtraCharge = (): number => {
     if (!isPersonalized || !proteinExtraPerMeal) return 0;
-    return proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length;
+    return proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length * planWeeks;
   };
 
   const getDiscount = (base: number): number => {
@@ -189,15 +189,16 @@ export default function CheckoutScreen() {
   const getDayDate = (dayIndex: number, weekOffset: number = 0): string => {
     if (!startDate) return "";
     try {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
+      // Parse as local midnight to avoid UTC timezone shift
+      const parts = startDate.split("-").map(Number);
+      const start = new Date(parts[0], parts[1] - 1, parts[2]);
       const startDayOfWeek = start.getDay();
       let daysToAdd = (dayIndex - startDayOfWeek + 7) % 7;
       if (dayIndex < startDayOfWeek) daysToAdd += 7;
       daysToAdd += weekOffset * 7;
       const target = new Date(start);
       target.setDate(start.getDate() + daysToAdd);
-      return formatDate(target.toISOString());
+      return `${target.getDate()}/${target.getMonth() + 1}/${target.getFullYear()}`;
     } catch {
       return "";
     }
@@ -496,10 +497,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerSection: {
-    paddingHorizontal: "5%",
+    paddingHorizontal: 24,
     paddingBottom: 20,
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
   },
   backButton: {
@@ -509,21 +510,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#344225",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
+    flexShrink: 0,
   },
   headerContent: {
     flex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#344225",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "400",
-    color: "#344225",
+    color: "#5A7C65",
   },
   scrollContainer: {
     flex: 1,

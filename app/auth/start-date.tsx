@@ -37,7 +37,10 @@ export default function StartDateScreen() {
       return;
     }
     try {
-      await AsyncStorage.setItem("startDate", selectedDate.toISOString());
+      const yyyy = selectedDate.getFullYear();
+      const mm = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const dd = String(selectedDate.getDate()).padStart(2, "0");
+      await AsyncStorage.setItem("startDate", `${yyyy}-${mm}-${dd}`);
       await AsyncStorage.removeItem("selectedDayMeals");
       router.push("/auth/selected-meals" as any);
     } catch (error) {}

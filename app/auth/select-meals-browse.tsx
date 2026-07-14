@@ -570,9 +570,11 @@ export default function SelectMealsScreen() {
     return 0;
   };
 
+  const planWeeks = Math.max(1, (selectedDuration as any)?.no_of_weeks ?? (selectedPlan as any)?.no_of_weeks ?? 1);
+
   const proteinExtraCharge =
     hasPersonalizedPlan && proteinExtraPerMeal > 0
-      ? proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length
+      ? proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length * planWeeks
       : 0;
 
   const getPlanDisplayPrice = (): string => {

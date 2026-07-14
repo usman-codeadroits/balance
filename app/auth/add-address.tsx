@@ -2,6 +2,7 @@ import type { Area, Duration } from "@/api";
 import { getAllAreas } from "@/api";
 import { apiClient } from "@/api/client";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -191,7 +192,8 @@ export default function AddAddressScreen() {
         }
         if (extraPerMeal > 0) {
           const mealCount = selectedPlan.meal_count ?? selectedPlan.mealCount ?? 1;
-          proteinExtra = extraPerMeal * (mealCount || 1) * selectedDays.length;
+          const planWeeks = Math.max(1, (selectedDuration as any)?.no_of_weeks ?? selectedPlan?.no_of_weeks ?? 1);
+          proteinExtra = extraPerMeal * (mealCount || 1) * selectedDays.length * planWeeks;
         }
       }
 
@@ -220,8 +222,10 @@ export default function AddAddressScreen() {
         }
       });
 
-      const startDateObj = new Date(startDate);
-      const formattedStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, "0")}-${String(startDateObj.getDate()).padStart(2, "0")}`;
+      // Parse as local midnight to avoid UTC shift (YYYY-MM-DD stored by start-date screen)
+      const [sYear, sMonth, sDay] = startDate.split("-").map(Number);
+      const startDateObj = new Date(sYear, sMonth - 1, sDay);
+      const formattedStartDate = startDate; // already YYYY-MM-DD, no conversion needed
 
       let planId: number;
       if (typeof selectedPlan.id === "string") {
@@ -273,8 +277,9 @@ export default function AddAddressScreen() {
         },
       };
 
-      const endDate = new Date(startDateObj);
-      endDate.setDate(startDateObj.getDate() + selectedDuration.no_of_weeks * 7);
+      const endDateObj = new Date(sYear, sMonth - 1, sDay);
+      endDateObj.setDate(endDateObj.getDate() + selectedDuration.no_of_weeks * 7);
+      const formattedEndDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, "0")}-${String(endDateObj.getDate()).padStart(2, "0")}`;
 
       const checkoutDraft = {
         payload: checkoutPayload,
@@ -283,7 +288,7 @@ export default function AddAddressScreen() {
           duration: selectedDuration,
           days: selectedDays,
           startDate,
-          endDate: endDate.toISOString(),
+          endDate: formattedEndDate,
           dayMeals,
           address: checkoutPayload.address,
           planPrice: basePrice,
@@ -312,9 +317,11 @@ export default function AddAddressScreen() {
       <View style={styles.content}>
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>←</Text>
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.title}>{t("address.title")}</Text>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.title}>{t("address.title")}</Text>
+          </View>
         </View>
 
         <ScrollView
@@ -504,9 +511,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: "5%",
+    paddingHorizontal: 24,
     paddingBottom: 20,
+    gap: 12,
   },
   backButton: {
     width: 40,
@@ -515,18 +522,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#344225",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  backButtonText: { fontSize: 20, color: "#FFFFFF", fontWeight: "600" },
+  headerTextBlock: { flex: 1 },
   scrollContainer: { flex: 1 },
   scrollContent: { paddingHorizontal: "5%", paddingBottom: 120 },
   fieldLabel: { fontSize: 13, fontWeight: "600", color: "#344225", marginBottom: 6, marginTop: 4 },
   required: { color: "#E53935", fontWeight: "700" },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#344225",
-    flex: 1,
-    textAlign: "center",
   },
   input: {
     backgroundColor: "#FFFFFF",

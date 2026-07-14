@@ -36,10 +36,33 @@ export class ApiClient {
   }
 
   /**
+   * Returns true when the error is caused by no internet / unreachable host.
+   * React Native throws a TypeError("Network request failed") in these cases.
+   */
+  private isNetworkError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    const msg = error.message?.toLowerCase() ?? "";
+    return (
+      error instanceof TypeError &&
+      (msg.includes("network request failed") ||
+        msg.includes("failed to fetch") ||
+        msg.includes("network error") ||
+        msg.includes("networkerror") ||
+        msg.includes("fetch is not defined") ||
+        msg.includes("could not connect"))
+    );
+  }
+
+  /**
    * Handle API errors
    */
   private handleError(error: unknown): Error {
     if (error instanceof Error) {
+      if (this.isNetworkError(error)) {
+        return new Error(
+          "No internet connection. Please check your network and try again.",
+        );
+      }
       return error;
     }
 
@@ -88,7 +111,9 @@ export class ApiClient {
       return await response.json();
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error("Request timeout. Please try again.");
+        throw new Error(
+          "The request timed out. Please check your connection and try again.",
+        );
       }
       throw this.handleError(error);
     }
@@ -145,7 +170,9 @@ export class ApiClient {
       throw error;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error("Request timeout. Please try again.");
+        throw new Error(
+          "The request timed out. Please check your connection and try again.",
+        );
       }
       throw this.handleError(error);
     }
@@ -182,7 +209,9 @@ export class ApiClient {
       return await response.json();
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error("Request timeout. Please try again.");
+        throw new Error(
+          "The request timed out. Please check your connection and try again.",
+        );
       }
       throw this.handleError(error);
     }
@@ -217,7 +246,9 @@ export class ApiClient {
       return await response.json();
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error("Request timeout. Please try again.");
+        throw new Error(
+          "The request timed out. Please check your connection and try again.",
+        );
       }
       throw this.handleError(error);
     }

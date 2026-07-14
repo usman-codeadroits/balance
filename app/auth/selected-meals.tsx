@@ -233,7 +233,6 @@ export default function SelectedMealsScreen() {
                 ...plan,
                 meal_count: matchingPlan.meal_count,
                 snack_count: matchingPlan.snack_count,
-                pricePerDay: matchingPlan.pricePerDay || plan.pricePerDay,
               };
             }
           } catch (e) {
@@ -418,9 +417,10 @@ export default function SelectedMealsScreen() {
     return 0;
   };
 
+  const planWeeks = Math.max(1, (selectedDuration as any)?.no_of_weeks ?? selectedPlan?.no_of_weeks ?? 1);
   const proteinExtraCharge =
     hasPersonalizedPlan && proteinExtraPerMeal > 0
-      ? proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length
+      ? proteinExtraPerMeal * (selectedPlan?.meal_count || 1) * selectedDays.length * planWeeks
       : 0;
 
   const getPlanDisplayPrice = (): string => {

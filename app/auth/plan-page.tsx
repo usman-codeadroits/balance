@@ -97,14 +97,7 @@ export default function PlanPageScreen() {
   };
 
   const handleContinue = async () => {
-    if (selectedDays.length < planMinDays) {
-      Alert.alert(
-        t("plan_page.validation_title"),
-        t("plan_page.select_min_days_error", { min: planMinDays, week: 1 }),
-      );
-      return;
-    }
-    if (selectedDays.length > planMaxDays) {
+    if (selectedDays.length !== planMaxDays) {
       Alert.alert(
         t("plan_page.validation_title"),
         t("plan_page.select_max_days_error", { max: planMaxDays, week: 1 }),
@@ -146,7 +139,7 @@ export default function PlanPageScreen() {
       : 0;
   const totalPrice = getBasePlanPrice() + proteinExtraCharge;
 
-  const isValid = selectedDays.length >= planMinDays && selectedDays.length <= planMaxDays;
+  const isValid = selectedDays.length === planMaxDays;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -163,7 +156,7 @@ export default function PlanPageScreen() {
             </TouchableOpacity>
             <View style={styles.headerContainer}>
               <Text style={styles.pageTitle}>Choose your days</Text>
-              <Text style={styles.pageSubtitle}>Select delivery days for your plan</Text>
+              <Text style={styles.pageSubtitle}>Select the days desired for your plan</Text>
             </View>
           </View>
 
@@ -224,7 +217,7 @@ export default function PlanPageScreen() {
           {/* Days Selection */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              {t("plan_page.days_question", { min: planMinDays, max: planMaxDays })}
+              {t("plan_page.days_question", { max: planMaxDays })}
             </Text>
             <Text style={styles.daysSubheading}>
               {selectedDays.length > 0
@@ -264,7 +257,7 @@ export default function PlanPageScreen() {
           </View>
 
           {/* Schedule preview — appears after valid selection */}
-          {selectedDays.length >= planMinDays && (
+          {isValid && (
             <View style={styles.scheduleCard}>
               <Text style={styles.scheduleTitle}>Your Schedule</Text>
               <View style={styles.scheduleWeeks}>

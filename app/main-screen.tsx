@@ -108,7 +108,11 @@ export default function MainScreen() {
         const data = await getMeals();
         setMeals(data);
       } catch (error) {
-        Alert.alert(t("common.error"), t("main.error_load_meals"));
+        const msg =
+          error instanceof Error
+            ? error.message
+            : "Unable to load meals. Please try again.";
+        Alert.alert("Error", msg);
       } finally {
         setLoading(false);
       }
