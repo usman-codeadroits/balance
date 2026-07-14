@@ -31,6 +31,7 @@ export type CheckoutRequest = {
   duration_id?: number; // kept for local draft compat, not sent to /v1/payment/checkout
   selected_days: string[] | string; // Array preferred: ["monday","tuesday"]; string for legacy drafts
   start_date: string; // YYYY-MM-DD format
+  coupon_code?: string; // optional — applied discount coupon
   price?: number; // local display only
   payment?: "paid" | "pending"; // local tracking only
   status?: "active" | "pending"; // local tracking only

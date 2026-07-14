@@ -144,8 +144,14 @@ export default function PaymentScreen() {
         ? rawDays.split(",").map((d: string) => d.trim()).filter(Boolean)
         : [];
 
-    const startDateObj = new Date(p.start_date);
-    const localStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, "0")}-${String(startDateObj.getDate()).padStart(2, "0")}`;
+    // Parse as local midnight to avoid UTC timezone shift (start_date is stored as YYYY-MM-DD)
+    const dateParts = p.start_date.split("-").map(Number);
+    const localStartDate = p.start_date.length === 10 && dateParts.length === 3
+      ? p.start_date // already YYYY-MM-DD, use directly
+      : (() => {
+          const d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        })();
 
     const isPersonalized = p.is_personalized ?? false;
 
@@ -164,7 +170,7 @@ export default function PaymentScreen() {
       address: p.address,
       currency: p.currency || "KWD",
       amount: checkoutDraft.summary.totalPrice,
-      ...((p as any).coupon_code && { coupon_code: (p as any).coupon_code }),
+      ...(p.coupon_code ? { coupon_code: p.coupon_code } : {}),
     };
   };
 

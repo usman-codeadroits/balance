@@ -5,7 +5,7 @@
 
 export const API_CONFIG = {
   //  BASE_URL: 'http://157.175.188.152/api',
- // BASE_URL: "https://avelina-unstaunch-nonreflectively.ngrok-free.dev/api",
+// BASE_URL: "https://avelina-unstaunch-nonreflectively.ngrok-free.dev/api",
   BASE_URL: "https://backend.balancekw.app/api",
   TIMEOUT: 30000, // 30 seconds
   HEADERS: {
