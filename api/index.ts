@@ -82,4 +82,6 @@ export {
     updateUser
 } from "./services/users";
 export type { ActiveSubscription, LoginRequest, QueuedRenewal, QueuedSubscription, RegisterUserRequest, User } from "./services/users";
+export { getInquiries, submitInquiry } from "./services/inquiries";
+export type { GetInquiriesResponse, Inquiry, SubmitInquiryRequest, SubmitInquiryResponse } from "./services/inquiries";
 

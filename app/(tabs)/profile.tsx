@@ -28,12 +28,12 @@ export default function ProfileScreen() {
     { id: 1, title: t("profile.my_information"),   route: "/my-profile" },
     { id: 2, title: t("profile.allergies"),         route: "/(tabs)/allergies-preference" },
     { id: 3, title: t("profile.dislikes"),          route: "/(tabs)/dislikes-preference" },
-    { id: 4, title: t("profile.order_history"),     route: "/order-history" },
     { id: 5, title: t("profile.about_us"),          route: null },
     { id: 6, title: t("profile.terms_conditions"),  route: "/(tabs)/terms-and-conditions" },
     { id: 7, title: t("profile.privacy_policy"),    route: "/(tabs)/privacy-policy" },
     { id: 8, title: t("profile.contact_us"),        route: "/contact-us" },
-    { id: 9, title: t("profile.change_language"),   route: "/change-language" },
+    { id: 9, title: t("profile.ask_a_question"),    route: "/(tabs)/app-inquiries" },
+    { id: 10, title: t("profile.change_language"),  route: "/change-language" },
   ];
 
   const handleLogout = async () => {

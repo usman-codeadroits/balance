@@ -9,6 +9,7 @@
         "terms_conditions": "الشروط والأحكام",
         "privacy_policy": "سياسة الخصوصية",
         "contact_us": "اتصل بنا",
+        "ask_a_question": "المساعدة والدعم",
         "change_language": "تغيير اللغة",
         "logout": "تسجيل الخروج",
         "logout_confirm": "هل أنت متأكد أنك تريد تسجيل الخروج؟",
@@ -609,5 +610,30 @@
             "US": "الولايات المتحدة",
             "GB": "المملكة المتحدة"
         }
+    },
+    "inquiries": {
+        "title": "المساعدة والدعم",
+        "new_inquiry": "طلب جديد",
+        "subject": "الموضوع",
+        "subject_placeholder": "أدخل موضوع الاستفسار",
+        "description": "الوصف",
+        "description_placeholder": "صف استفسارك بالتفصيل...",
+        "submit": "إرسال",
+        "submitting": "جارٍ الإرسال...",
+        "cancel": "إلغاء",
+        "no_inquiries": "لا توجد استفسارات بعد",
+        "no_inquiries_desc": "هل لديك سؤال؟ أرسل لنا رسالة وسنرد عليك.",
+        "status_open": "مفتوح",
+        "status_answered": "تمت الإجابة",
+        "status_closed": "مغلق",
+        "admin_reply": "رد المشرف",
+        "replied_at": "تاريخ الرد",
+        "submitted_at": "تاريخ الإرسال",
+        "submit_success": "تم إرسال استفسارك بنجاح.",
+        "submit_error": "فشل إرسال الاستفسار. يرجى المحاولة مرة أخرى.",
+        "load_error": "فشل تحميل الاستفسارات. يرجى المحاولة مرة أخرى.",
+        "field_required": "الموضوع والوصف مطلوبان.",
+        "subject_too_long": "يجب أن يكون الموضوع 255 حرفًا أو أقل.",
+        "description_too_long": "يجب أن يكون الوصف 5000 حرف أو أقل."
     }
 }

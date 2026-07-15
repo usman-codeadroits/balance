@@ -9,6 +9,7 @@
     "terms_conditions": "Terms & Conditions",
     "privacy_policy": "Privacy Policy",
     "contact_us": "Contact Us",
+    "ask_a_question": "Help & Support",
     "change_language": "Change Language",
     "logout": "Logout",
     "logout_confirm": "Are you sure you want to logout?",
@@ -593,5 +594,30 @@
       "US": "United States",
       "GB": "United Kingdom"
     }
+  },
+  "inquiries": {
+    "title": "Help & Support",
+    "new_inquiry": "New Request",
+    "subject": "Subject",
+    "subject_placeholder": "Enter inquiry subject",
+    "description": "Description",
+    "description_placeholder": "Describe your inquiry in detail...",
+    "submit": "Submit",
+    "submitting": "Submitting...",
+    "cancel": "Cancel",
+    "no_inquiries": "No inquiries yet",
+    "no_inquiries_desc": "Have a question? Send us a message and we'll get back to you.",
+    "status_open": "Open",
+    "status_answered": "Answered",
+    "status_closed": "Closed",
+    "admin_reply": "Admin Reply",
+    "replied_at": "Replied",
+    "submitted_at": "Submitted",
+    "submit_success": "Your inquiry has been submitted successfully.",
+    "submit_error": "Failed to submit inquiry. Please try again.",
+    "load_error": "Failed to load inquiries. Please try again.",
+    "field_required": "Subject and description are required.",
+    "subject_too_long": "Subject must be 255 characters or less.",
+    "description_too_long": "Description must be 5000 characters or less."
   }
 }

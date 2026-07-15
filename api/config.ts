@@ -46,4 +46,5 @@ export const API_ENDPOINTS = {
   SETTINGS: "/v1/settings",
   PAYMENT_INITIATE: "/v1/payment/initiate",
   PAYMENT_STATUS: "/v1/payment/status",
+  INQUIRIES: "/v1/inquiries",
 } as const;
