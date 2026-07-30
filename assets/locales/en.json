@@ -80,6 +80,9 @@
     "status_paused": "Paused",
     "status_pending": "Pending",
     "status_today": "Today",
+    "status_delivered": "Delivered",
+    "status_preparing": "Preparing",
+    "status_upcoming": "Upcoming",
     "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     "months": [
       "January",
@@ -363,6 +366,7 @@
     "carbs_label": "Carbs",
     "fat_label": "Fat",
     "add_button": "Add +",
+    "limit_reached": "Limit Reached",
     "error_params": "Invalid selection parameters",
     "error_user_not_found": "User not found. Please login again.",
     "success_updated": "Meal updated successfully!",
@@ -458,7 +462,14 @@
     },
     "payment_prompt_title": "Almost there",
     "payment_prompt_msg": "Enter your card details to confirm the subscription.",
-    "continue": "Continue"
+    "continue": "Continue",
+    "next": "Next"
+  },
+  "preferred_time": {
+    "title": "Preferred Delivery Time",
+    "subtitle": "Select your preferred delivery time slot.",
+    "no_slots": "No time slots available.",
+    "continue": "Continue to Checkout"
   },
   "payment": {
     "title": "Checkout",

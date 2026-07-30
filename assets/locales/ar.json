@@ -80,6 +80,9 @@
         "status_paused": "موقوف",
         "status_pending": "قيد الانتظار",
         "status_today": "اليوم",
+        "status_delivered": "تم التسليم",
+        "status_preparing": "قيد التحضير",
+        "status_upcoming": "قادم",
         "weekdays": [
             "أحد",
             "اثنين",
@@ -379,6 +382,7 @@
         "carbs_label": "كربوهيدرات",
         "fat_label": "دهون",
         "add_button": "إضافة +",
+        "limit_reached": "تم الوصول للحد",
         "error_params": "معلمات اختيار غير صالحة",
         "error_user_not_found": "المستخدم غير موجود. يرجى تسجيل الدخول مرة أخرى.",
         "success_updated": "تم تحديث الوجبة بنجاح!",
@@ -474,7 +478,14 @@
         },
         "payment_prompt_title": "أوشكنا على الانتهاء",
         "payment_prompt_msg": "أدخل تفاصيل بطاقتك لتأكيد الاشتراك.",
-        "continue": "متابعة"
+        "continue": "متابعة",
+        "next": "التالي"
+    },
+    "preferred_time": {
+        "title": "وقت التوصيل المفضل",
+        "subtitle": "اختر الوقت المفضل لديك لاستلام توصيلاتك.",
+        "no_slots": "لا توجد أوقات متاحة.",
+        "continue": "المتابعة إلى الدفع"
     },
     "payment": {
         "title": "إتمام الطلب",

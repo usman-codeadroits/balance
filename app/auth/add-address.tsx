@@ -1,6 +1,5 @@
-import type { Area, Duration } from "@/api";
+import type { Area } from "@/api";
 import { getAllAreas } from "@/api";
-import { apiClient } from "@/api/client";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,9 +20,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+// ActivityIndicator kept for area loading spinner
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-type TimeSlot = { value: string; label_en: string; label_ar: string };
 
 export default function AddAddressScreen() {
   const { t, i18n } = useTranslation();
@@ -35,10 +33,6 @@ export default function AddAddressScreen() {
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [addressCategory, setAddressCategory] = useState<"home" | "office">("home");
   const [isPrimary, setIsPrimary] = useState(true);
-  const [selectedSlot, setSelectedSlot] = useState<string>("");
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [slotsLoading, setSlotsLoading] = useState(true);
-  const [loading, setLoading] = useState(false);
 
   const [areas, setAreas] = useState<Area[]>([]);
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
@@ -50,7 +44,6 @@ export default function AddAddressScreen() {
 
   useEffect(() => {
     fetchAllAreas();
-    fetchSettings();
   }, []);
 
   const fetchAllAreas = async () => {
@@ -65,25 +58,7 @@ export default function AddAddressScreen() {
     }
   };
 
-  const fetchSettings = async () => {
-    setSlotsLoading(true);
-    try {
-      const resp = await apiClient.get("/v1/settings");
-      const root = (resp as any);
-      const inner = root?.data ?? root;
-      const slots: TimeSlot[] = inner?.delivery_time_slots ?? [];
-      if (slots.length > 0) {
-        setTimeSlots(slots);
-        setSelectedSlot(slots[0].value);
-      }
-    } catch {
-      // API failed — slots stay empty, buttons won't show
-    } finally {
-      setSlotsLoading(false);
-    }
-  };
-
-  const handleCheckout = async () => {
+  const handleNext = async () => {
     if (!selectedArea) {
       Alert.alert(t("common.error"), t("address.validation.areas"));
       return;
@@ -104,211 +79,22 @@ export default function AddAddressScreen() {
       Alert.alert(t("common.error"), t("address.validation.apartment"));
       return;
     }
-    setLoading(true);
     try {
-      // Load all required data
-      const planData = await AsyncStorage.getItem("selectedPlan");
-      const durationData = await AsyncStorage.getItem("selectedDuration");
-      const daysData = await AsyncStorage.getItem("selectedDays");
-      const dateData = await AsyncStorage.getItem("startDate");
-      const mealsData = await AsyncStorage.getItem("selectedDayMeals");
-      const couponData = await AsyncStorage.getItem("appliedCoupon");
-      const userId = await AsyncStorage.getItem("userId");
-      const storedUserData = await AsyncStorage.getItem("userData");
-
-      // Load personalization data before it is used in price calculation
-      const hasPersonalizedPlanFlag = await AsyncStorage.getItem("hasPersonalizedPlan");
-      const personalizedProteinStr = await AsyncStorage.getItem("personalizedProtein");
-      const personalizedCarbsStr = await AsyncStorage.getItem("personalizedCarbs");
-      const personalizedProteinExtraPrice = await AsyncStorage.getItem("personalizedProteinExtraPrice");
-      const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
-
-      if (!planData || !durationData || !daysData || !dateData || !mealsData) {
-        Alert.alert(t("common.error"), "Subscription data not found. Please start over.");
-        return;
-      }
-
-      if (!userId) {
-        Alert.alert(t("common.error"), t("select_meals.error_user_not_found"));
-        router.replace("/auth");
-        return;
-      }
-
-      const selectedPlan = JSON.parse(planData);
-      const selectedDuration: Duration = JSON.parse(durationData);
-      const selectedDays: number[] = JSON.parse(daysData);
-      const startDate = dateData;
-      const dayMeals = JSON.parse(mealsData);
-      const appliedCoupon = couponData ? JSON.parse(couponData) : null;
-
-      if (!selectedPlan || !selectedPlan.id) {
-        Alert.alert(t("common.error"), "Subscription plan data is invalid. Please select a plan again.");
-        return;
-      }
-
-      const parsedUser = storedUserData ? JSON.parse(storedUserData) : null;
-      const userFirstName: string = parsedUser?.name || "";
-      const userPhoneNumber: string = parsedUser?.mobile ? String(parsedUser.mobile) : "";
-
-      // Personalization flags — resolved before any price calculation
-      const isPersonalized = hasPersonalizedPlanFlag === "true";
-      const protein = isPersonalized && personalizedProteinStr ? parseFloat(personalizedProteinStr) : 0;
-      const carbs = isPersonalized && personalizedCarbsStr ? parseFloat(personalizedCarbsStr) : 0;
-
-      const basePrice =
-        typeof selectedPlan.pricePerDay === "number"
-          ? selectedPlan.pricePerDay
-          : typeof selectedPlan.price === "number"
-            ? selectedPlan.price
-            : parseFloat(String(selectedPlan.price || "").replace(/[^0-9.]/g, "")) || 0;
-
-      const calculateDiscount = (price: number) => {
-        if (!appliedCoupon?.data) return 0;
-        const { discount_type, discount_value } = appliedCoupon.data;
-        if (discount_type === "percentage") {
-          return Math.max(0, price * (discount_value / 100));
-        }
-        return Math.max(0, Math.min(price, discount_value));
-      };
-
-      const discountAmount = calculateDiscount(basePrice);
-
-      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-      const selectedDaysArray = selectedDays.map((dayIndex) => dayNames[dayIndex]);
-
-      // Protein extra charge — same formula as checkout.tsx and selected-meals.tsx
-      let proteinExtra = 0;
-      if (isPersonalized && protein > 0) {
-        let extraPerMeal = 0;
-        // Use proteinOptionsData lookup first (matches checkout.tsx logic)
-        if (proteinOptionsRaw) {
-          const opts: { protein_grams: number; extra_price_per_meal: string | number }[] =
-            JSON.parse(proteinOptionsRaw);
-          const match = opts.find((o) => o.protein_grams === protein);
-          if (match) extraPerMeal = parseFloat(String(match.extra_price_per_meal)) || 0;
-        }
-        if (!extraPerMeal && personalizedProteinExtraPrice) {
-          extraPerMeal = parseFloat(personalizedProteinExtraPrice) || 0;
-        }
-        if (extraPerMeal > 0) {
-          const mealCount = selectedPlan.meal_count ?? selectedPlan.mealCount ?? 1;
-          const planWeeks = Math.max(1, (selectedDuration as any)?.no_of_weeks ?? selectedPlan?.no_of_weeks ?? 1);
-          proteinExtra = extraPerMeal * (mealCount || 1) * selectedDays.length * planWeeks;
-        }
-      }
-
-      const planPriceAfterDiscount = Math.max(0, basePrice - discountAmount);
-      const totalPrice = planPriceAfterDiscount + proteinExtra;
-
-      const mealsArray: { day: string; meal_id: number; type: "is meal" | "is snack" }[] = [];
-      Object.keys(dayMeals).forEach((dayIndexStr) => {
-        const dayIndex = parseInt(dayIndexStr, 10);
-        const dayName = dayNames[dayIndex];
-        const dayMealData = dayMeals[dayIndex];
-
-        if (dayMealData?.meals) {
-          dayMealData.meals.forEach((meal: any) => {
-            if (meal?.id) {
-              mealsArray.push({ day: dayName, meal_id: parseInt(meal.id, 10), type: "is meal" });
-            }
-          });
-        }
-        if (dayMealData?.snacks) {
-          dayMealData.snacks.forEach((snack: any) => {
-            if (snack?.id) {
-              mealsArray.push({ day: dayName, meal_id: parseInt(snack.id, 10), type: "is snack" });
-            }
-          });
-        }
-      });
-
-      // Parse as local midnight to avoid UTC shift (YYYY-MM-DD stored by start-date screen)
-      const [sYear, sMonth, sDay] = startDate.split("-").map(Number);
-      const startDateObj = new Date(sYear, sMonth - 1, sDay);
-      const formattedStartDate = startDate; // already YYYY-MM-DD, no conversion needed
-
-      let planId: number;
-      if (typeof selectedPlan.id === "string") {
-        const parsedId = parseInt(selectedPlan.id, 10);
-        if (Number.isNaN(parsedId) || parsedId <= 0) {
-          Alert.alert(t("common.error"), "Invalid subscription plan ID. Please select a plan again.");
-          return;
-        }
-        planId = parsedId;
-      } else if (typeof selectedPlan.id === "number") {
-        planId = selectedPlan.id;
-      } else {
-        Alert.alert(t("common.error"), "Invalid subscription plan ID format. Please select a plan again.");
-        return;
-      }
-
-      const preferredDeliverySlot = selectedSlot || "four_pm_to_eight_pm";
-      const selectedSlotData = timeSlots.find((s) => s.value === preferredDeliverySlot);
-      const preferredDeliverySlotLabel =
-        i18n.language.startsWith("ar") && selectedSlotData?.label_ar
-          ? selectedSlotData.label_ar
-          : selectedSlotData?.label_en ?? preferredDeliverySlot;
-
-      // Payload sent to POST /v1/payment/checkout — do NOT include amount (backend calculates it)
-      const checkoutPayload = {
-        user_id: parseInt(userId, 10),
-        subcrption_plans_id: planId,
-        area_id: selectedArea.id,
-        start_date: formattedStartDate,
-        selected_days: selectedDaysArray,
-        is_personalized: isPersonalized,
-        ...(isPersonalized && protein > 0 && { protein, carbs: carbs || protein }),
-        meals: mealsArray,
-        ...(appliedCoupon?.code && { coupon_code: appliedCoupon.code }),
-        currency: selectedPlan.currency || "KWD",
-        address: {
-          first_name: userFirstName,
-          phone_number: userPhoneNumber,
-          area: selectedArea.name,
-          block_number: blockNumber,
-          street,
-          house_building: houseBuliding,
-          floor_apartment: floorApartment,
-          remarks,
-          ...(deliveryNotes.trim() && { delivery_notes: deliveryNotes.trim() }),
-          category: addressCategory,
-          is_primary: isPrimary,
-          preferred_delivery_slot: preferredDeliverySlot,
-        },
-      };
-
-      const endDateObj = new Date(sYear, sMonth - 1, sDay);
-      endDateObj.setDate(endDateObj.getDate() + selectedDuration.no_of_weeks * 7);
-      const formattedEndDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, "0")}-${String(endDateObj.getDate()).padStart(2, "0")}`;
-
-      const checkoutDraft = {
-        payload: checkoutPayload,
-        summary: {
-          plan: selectedPlan,
-          duration: selectedDuration,
-          days: selectedDays,
-          startDate,
-          endDate: formattedEndDate,
-          dayMeals,
-          address: checkoutPayload.address,
-          planPrice: basePrice,
-          proteinExtra,
-          vat: 0,
-          totalPrice,
-          discount: discountAmount,
-          preferredDeliverySlotLabel,
-        },
-      };
-
-      await AsyncStorage.setItem("pendingCheckoutData", JSON.stringify(checkoutDraft));
-      router.push("/auth/payment" as any);
-    } catch (error) {
-      Alert.alert(
-        t("common.error"),
-        error instanceof Error ? error.message : t("checkout.error_validate_failed"),
-      );
-    } finally {
-      setLoading(false);
+      await AsyncStorage.setItem("pendingAddressData", JSON.stringify({
+        areaId: selectedArea.id,
+        areaName: selectedArea.name,
+        blockNumber,
+        street,
+        houseBuliding,
+        floorApartment,
+        remarks,
+        deliveryNotes,
+        addressCategory,
+        isPrimary,
+      }));
+      router.push("/auth/preferred-time" as any);
+    } catch {
+      Alert.alert(t("common.error"), "Failed to save address. Please try again.");
     }
   };
 
@@ -340,7 +126,7 @@ export default function AddAddressScreen() {
               <ActivityIndicator size="small" color="#6B7F75" />
             ) : (
               <Text style={[styles.pickerText, !selectedArea && styles.pickerPlaceholder]}>
-                {selectedArea ? selectedArea.name : t("address.select_area")}
+                {selectedArea ? (i18n.language === "ar" && selectedArea.name_ar ? selectedArea.name_ar : selectedArea.name) : t("address.select_area")}
               </Text>
             )}
             <Text style={styles.pickerChevron}>▾</Text>
@@ -396,7 +182,7 @@ export default function AddAddressScreen() {
           <Text style={styles.fieldLabel}>Delivery Notes</Text>
           <TextInput
             style={[styles.input, styles.inputMultiline]}
-            placeholder="e.g. Ring bell twice, gate code 1234"
+            placeholder="Add note if you have allergies/dislikes or any other note"
             placeholderTextColor="#6B7F75"
             value={deliveryNotes}
             onChangeText={setDeliveryNotes}
@@ -434,41 +220,15 @@ export default function AddAddressScreen() {
             />
           </View>
 
-          {/* Delivery Time */}
-          <Text style={styles.sectionLabel}>{t("address.delivery_time_title")}</Text>
-          {slotsLoading ? (
-            <ActivityIndicator size="small" color="#344225" style={{ marginVertical: 12 }} />
-          ) : (
-            <View style={styles.timeButtonGroup}>
-              {timeSlots.map((slot) => {
-                const isActive = selectedSlot === slot.value;
-                const label = i18n.language.startsWith("ar") ? slot.label_ar : slot.label_en;
-                return (
-                  <TouchableOpacity
-                    key={slot.value}
-                    style={[styles.timeButton, isActive && styles.timeButtonActiveYellow]}
-                    onPress={() => setSelectedSlot(slot.value)}
-                  >
-                    <Text style={[styles.timeButtonText, isActive && styles.timeButtonTextActive]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
         </ScrollView>
 
-        {/* Checkout Button */}
+        {/* Next Button */}
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TouchableOpacity
-            style={[styles.checkoutButton, loading && styles.checkoutButtonDisabled]}
-            onPress={handleCheckout}
-            disabled={loading}
+            style={styles.checkoutButton}
+            onPress={handleNext}
           >
-            <Text style={styles.checkoutButtonText}>
-              {loading ? t("address.processing") : t("address.checkout")}
-            </Text>
+            <Text style={styles.checkoutButtonText}>{t("address.next")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -492,7 +252,7 @@ export default function AddAddressScreen() {
                   onPress={() => { setSelectedArea(item); setShowAreaModal(false); }}
                 >
                   <Text style={[styles.modalItemText, selectedArea?.id === item.id && styles.modalItemTextSelected]}>
-                    {item.name}
+                    {i18n.language === "ar" && item.name_ar ? item.name_ar : item.name}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -592,22 +352,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   switchLabel: { fontSize: 14, fontWeight: "500", color: "#344225" },
-  timeButtonGroup: { flexDirection: "row", gap: 12, marginBottom: 20 },
-  timeButton: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#B8D5C5",
-  },
-  timeButtonActiveYellow: { backgroundColor: "#FAD979", borderColor: "#FAD979" },
-  timeButtonActiveGreen: { backgroundColor: "#344225", borderColor: "#344225" },
-  timeButtonText: { fontSize: 14, fontWeight: "600", color: "#344225" },
-  timeButtonTextGreen: { fontSize: 14, fontWeight: "600", color: "#344225" },
-  timeButtonTextActive: { color: "#344225" },
-  timeButtonTextActiveWhite: { color: "#FFFFFF" },
   footer: {
     position: "absolute",
     bottom: 0,

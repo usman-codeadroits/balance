@@ -62,6 +62,7 @@ export {
     cancelRenewal,
     checkoutSubscription,
     getActiveSubscription, getMySubscriptions,
+    getSubscriptionCalendar,
     getSubscriptionDetails, getSubscriptionMeals,
     getSubscriptionPauseLogs,
     getSubscriptionRenewal,
@@ -70,8 +71,9 @@ export {
     updateSubscriptionMeal
 } from "./services/subscriptions";
 export type {
+    CalendarDay,
     CancelRenewalResponse,
-    CheckoutRequest, CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, PauseLog, PauseLogsResponse, RenewalDetail, Subscription, Subscription, SubscriptionDetailsResponse, SubscriptionMealsResponse, SubscriptionMealsResponse, SubscriptionRenewalResponse, UpdateMealRequest, UpdateMealRequest, UpdateMealResponse, UpdateMealResponse, UpdateRenewalPlanResponse, UserSubscriptionDetails, UserSubscriptionSummary
+    CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, PauseLog, PauseLogsResponse, RenewalDetail, Subscription, SubscriptionCalendarResponse, SubscriptionDetailsResponse, SubscriptionMealsResponse, SubscriptionRenewalResponse, UpdateMealRequest, UpdateMealResponse, UpdateRenewalPlanResponse, UserSubscriptionDetails, UserSubscriptionSummary
 } from "./services/subscriptions";
 export {
     createUser,

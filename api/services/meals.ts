@@ -6,10 +6,18 @@
 import { apiClient } from '../client';
 import { API_ENDPOINTS } from '../config';
 
+export type MealGroup = {
+  id: number;
+  name: string;
+  weekly_limit: number;
+};
+
 export type Meal = {
   id: number;
   title: string;
+  title_ar?: string | null;
   description: string;
+  description_ar?: string | null;
   category_id: number;
   category: {
     id: number;
@@ -23,6 +31,8 @@ export type Meal = {
   extras: string;
   is_active: number;
   type: string; // "is meal" or "is snack"
+  meal_group_id: number | null;
+  meal_group: MealGroup | null;
   weekly_limit: number | null;
   image: {
     id: number;

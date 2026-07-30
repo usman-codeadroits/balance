@@ -39,7 +39,8 @@ const normalizeCategoryName = (category: unknown): string => {
 type CategoryGroup = { id: number; name: string; meals: Meal[] };
 
 export default function MainScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language === "ar";
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const cardWidth = (width - 32 - 12) / 2;
@@ -450,7 +451,7 @@ export default function MainScreen() {
                 <View key={group.id} style={styles.categorySection}>
                   {/* Section header */}
                   <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>{group.name}</Text>
+                    <Text style={styles.sectionTitle}>{(isArabic && (group as any).name_ar) ? (group as any).name_ar : group.name}</Text>
                     <Text style={styles.sectionCount}>{group.meals.length}</Text>
                   </View>
                   {/* 2-column grid */}
@@ -468,7 +469,7 @@ export default function MainScreen() {
                               resizeMode="cover"
                             />
                             <View style={styles.cardBody}>
-                              <Text style={styles.cardTitle} numberOfLines={2}>{meal.title}</Text>
+                              <Text style={styles.cardTitle} numberOfLines={2}>{(isArabic && meal.title_ar) ? meal.title_ar : meal.title}</Text>
                               <View style={styles.macroRow}>
                                 <View style={styles.macroItem}>
                                   <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />

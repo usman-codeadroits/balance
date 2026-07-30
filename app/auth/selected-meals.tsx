@@ -21,12 +21,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 type MealItem = {
   id: string;
   name: string;
+  name_ar?: string | null;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
   imageUrl?: string;
-  subscriptionMealId?: number; // Store subscription meal ID for updates
+  subscriptionMealId?: number;
 };
 
 type DayMeals = {
@@ -35,7 +36,8 @@ type DayMeals = {
 };
 
 export default function SelectedMealsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<Duration | null>(
@@ -601,7 +603,7 @@ export default function SelectedMealsScreen() {
                                   resizeMode="cover"
                                 />
                                 <View style={styles.slotInfo}>
-                                  <Text style={styles.slotName}>{meal.name}</Text>
+                                  <Text style={styles.slotName}>{(isArabic && meal.name_ar) ? meal.name_ar : meal.name}</Text>
                                   {!hasPersonalizedPlan && (
                                     <View style={styles.slotMacros}>
                                       <View style={styles.macroItem}>
@@ -655,7 +657,7 @@ export default function SelectedMealsScreen() {
                                     resizeMode="cover"
                                   />
                                   <View style={styles.slotInfo}>
-                                    <Text style={styles.slotName}>{snack.name}</Text>
+                                    <Text style={styles.slotName}>{(isArabic && snack.name_ar) ? snack.name_ar : snack.name}</Text>
                                     {!hasPersonalizedPlan && (
                                       <View style={styles.slotMacros}>
                                         <View style={styles.macroItem}>

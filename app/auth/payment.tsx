@@ -75,6 +75,13 @@ export default function PaymentScreen() {
   const [processing, setProcessing] = useState(false);
   const [draftLoading, setDraftLoading] = useState(true);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successConfig, setSuccessConfig] = useState({ title: "", message: "" });
+
+  const showSuccess = (title: string, message: string) => {
+    setSuccessConfig({ title, message });
+    setShowSuccessModal(true);
+  };
 
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollingCountRef = useRef(0);
@@ -271,12 +278,7 @@ export default function PaymentScreen() {
       const subData = subRaw?.user_subscription || subRaw || data?.user_subscription || data;
 
       await persistSubscriptionLocally(subData, "pending", checkoutDraft!.payload);
-
-      Alert.alert(
-        "Order Placed",
-        "Order placed successfully. Cash will be collected on delivery.",
-        [{ text: "Home", onPress: () => router.replace("/(tabs)/" as any) }],
-      );
+      showSuccess("Order Placed!", "Order placed successfully. Cash will be collected on delivery.");
     } catch (error: any) {
       Alert.alert("Order Error", error instanceof Error ? error.message : "An unexpected error occurred.");
     } finally {
@@ -361,12 +363,7 @@ export default function PaymentScreen() {
           const subData = statusData?.subscription?.user_subscription || statusData?.subscription || statusData;
           await persistSubscriptionLocally(subData, "paid", checkoutDraft!.payload);
           setProcessing(false);
-
-          Alert.alert(
-            t("payment.alerts.success_title"),
-            t("payment.alerts.success_msg"),
-            [{ text: t("nav.home"), onPress: () => router.replace("/(tabs)/" as any) }],
-          );
+          showSuccess(t("payment.alerts.success_title"), t("payment.alerts.success_msg"));
         } else if (status === "failed") {
           clearInterval(pollingIntervalRef.current!);
           pollingIntervalRef.current = null;
@@ -597,6 +594,28 @@ export default function PaymentScreen() {
           </View>
         </View>
       )}
+
+      {/* Success Modal */}
+      <Modal visible={showSuccessModal} transparent animationType="fade">
+        <View style={styles.successOverlay}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconCircle}>
+              <Ionicons name="checkmark" size={52} color="#FFFFFF" />
+            </View>
+            <Text style={styles.successTitle}>{successConfig.title}</Text>
+            <Text style={styles.successMessage}>{successConfig.message}</Text>
+            <TouchableOpacity
+              style={styles.successButton}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.replace("/(tabs)/" as any);
+              }}
+            >
+              <Text style={styles.successButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -756,4 +775,60 @@ const styles = StyleSheet.create({
   },
   pollingText: { fontSize: 16, fontWeight: "700", color: "#344225", textAlign: "center" },
   pollingSubText: { fontSize: 13, color: "#6B7F75", textAlign: "center" },
+  // Success modal
+  successOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  successCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 36,
+    paddingHorizontal: 28,
+    alignItems: "center",
+    width: "100%",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  successIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#344225",
+    textAlign: "center",
+  },
+  successMessage: {
+    fontSize: 14,
+    color: "#6B7F75",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  successButton: {
+    backgroundColor: "#344225",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    marginTop: 8,
+  },
+  successButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 });

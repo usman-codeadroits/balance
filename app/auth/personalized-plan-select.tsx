@@ -80,7 +80,7 @@ export default function PersonalizedPlanSelectScreen() {
       typeof plan.pricePerDay === "number"
         ? plan.pricePerDay
         : parseFloat(String(plan.price || "").replace(/[^0-9.]/g, "")) || 0;
-    return `KWD ${base.toFixed(2)}`;
+    return `KWD ${base.toFixed(3)}`;
   };
 
   const formatDate = (dateString: string): string => {
@@ -147,7 +147,7 @@ export default function PersonalizedPlanSelectScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.disclaimerLabel}>Disclaimer</Text>
               <Text style={styles.disclaimerText}>
-                2 Beef and 2 Salmon items available per week based on US dietary recommendation.
+                2 Beef and 2 Salmon items available per week based on US dietary recommendations.
               </Text>
             </View>
           </View>

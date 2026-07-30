@@ -607,7 +607,7 @@ function LegacyHomeScreen() {
                 <View style={styles.priceRow}>
                   <Text style={styles.priceLabel}>{t("home.total_price")}</Text>
                   <Text style={styles.priceValue}>
-                    {t("home.kwd")} {activeSubscription.totalPrice.toFixed(2)}
+                    {t("home.kwd")} {activeSubscription.totalPrice.toFixed(3)}
                   </Text>
                 </View>
 

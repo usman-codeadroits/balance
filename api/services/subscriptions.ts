@@ -581,6 +581,47 @@ export const updateRenewalPlan = async (
   }
 };
 
+export type CalendarDay = {
+  date: string;
+  day: string;
+  status: "delivered" | "preparing" | "upcoming" | "paused";
+};
+
+export type SubscriptionCalendarResponse = {
+  success: boolean;
+  data: {
+    subscription_id: number;
+    start_date: string;
+    end_date: string;
+    active_days: string[];
+    today_status: string | null;
+    calendar: CalendarDay[];
+  };
+};
+
+/**
+ * Get delivery calendar for a subscription
+ * @param subscriptionId - The subscription ID
+ * @param month - Optional YYYY-MM string; omit to get the full subscription range
+ */
+export const getSubscriptionCalendar = async (
+  subscriptionId: number,
+  month?: string,
+): Promise<SubscriptionCalendarResponse> => {
+  try {
+    const query = month ? `?month=${encodeURIComponent(month)}` : "";
+    const response = await apiClient.get<SubscriptionCalendarResponse>(
+      `${API_ENDPOINTS.SUBSCRIPTION_CALENDAR}/${subscriptionId}/calendar${query}`,
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch calendar: ${error.message}`);
+    }
+    throw new Error("Failed to fetch calendar.");
+  }
+};
+
 /**
  * Cancel auto-renewal for an active subscription
  * @param subscriptionId - The active subscription ID

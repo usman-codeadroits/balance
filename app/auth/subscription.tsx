@@ -57,7 +57,7 @@ export default function SubscriptionScreen() {
       typeof plan.pricePerDay === "number"
         ? plan.pricePerDay
         : parseFloat(String(plan.price || "").replace(/[^0-9.]/g, "")) || 0;
-    return `KWD ${basePrice.toFixed(2)}`;
+    return `KWD ${basePrice.toFixed(3)}`;
   };
 
   useFocusEffect(
@@ -230,7 +230,7 @@ export default function SubscriptionScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.disclaimerLabel}>Disclaimer</Text>
               <Text style={styles.disclaimerText}>
-                2 Beef and 2 Salmon items available per week based on US dietary recommendation.
+                2 Beef and 2 Salmon items available per week based on US dietary recommendations.
               </Text>
             </View>
           </View>
@@ -344,14 +344,6 @@ export default function SubscriptionScreen() {
                         : t("subscription_screen.build_fit_plan")}
                     </Text>
                   </TouchableOpacity>
-                  {hasPersonalizedPlan && (
-                    <View style={styles.removeRow}>
-                      <Text style={styles.removeRowLabel}>Want to remove?</Text>
-                      <TouchableOpacity onPress={handleClearPersonalizedPlan}>
-                        <Text style={styles.removeRowLink}>Remove</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
                 </View>
               </View>
               {/* Empty state */}

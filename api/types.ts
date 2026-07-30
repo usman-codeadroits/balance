@@ -24,15 +24,18 @@ export type SubscriptionPlan = {
 export type Branch = {
   id: number;
   name: string;
+  name_ar?: string | null;
   status: string;
 };
 
 export type Area = {
   id: number;
   name: string;
+  name_ar?: string | null;
   delivery_charges: number | string;
   branch_id?: number;
   branch_name?: string;
+  branch_name_ar?: string | null;
   status?: string | number | boolean;
 };
 

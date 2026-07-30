@@ -28,12 +28,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 type MealItem = {
   id: string;
   name: string;
+  name_ar?: string | null;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
   imageUrl?: string;
   category?: string;
+  meal_group_id?: number | null;
+  weekly_limit?: number | null;
 };
 
 type DayMeals = {
@@ -52,7 +55,8 @@ const normalizeCategoryName = (category: unknown) => {
 };
 
 export default function SelectMealsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<Duration | null>(
@@ -310,20 +314,27 @@ export default function SelectMealsScreen() {
     : filteredByPersonalized;
 
   // Filter by search query
-  const filteredItems = filteredByCategory.filter((meal) =>
-    meal.title.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredItems = filteredByCategory.filter((meal) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      meal.title.toLowerCase().includes(q) ||
+      (meal.title_ar ?? "").toLowerCase().includes(q)
+    );
+  });
 
   // Convert API meal to MealItem format
   const convertMealToItem = (meal: Meal): MealItem => ({
     id: meal.id.toString(),
     name: meal.title,
+    name_ar: meal.title_ar,
     calories: meal.calories,
     protein: meal.protein_g,
     carbs: meal.carbs_g,
     fat: meal.fat_g,
     imageUrl: meal.image_url || meal.image_thumb_url,
     category: normalizeCategoryName(meal.category),
+    meal_group_id: meal.meal_group_id,
+    weekly_limit: meal.weekly_limit,
   });
 
   const handleAddItem = async (meal: Meal) => {
@@ -581,27 +592,31 @@ export default function SelectMealsScreen() {
     return `KWD ${(getBasePlanPrice() + proteinExtraCharge).toFixed(3)}`;
   };
 
-  // Count selections across all days, excluding the slot currently being filled
-  const selectedCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+  // Count already-selected meals by meal_group_id, excluding the slot currently being filled
+  const groupCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
     Object.entries(currentDayMeals).forEach(([dIdxStr, dm]) => {
       const di = parseInt(dIdxStr, 10);
       dm.meals.forEach((m, mi) => {
-        if (m && !(di === dayIndex && mi === mealIndex && type === "meal")) {
-          counts[m.id] = (counts[m.id] ?? 0) + 1;
+        if (m && m.meal_group_id != null && !(di === dayIndex && mi === mealIndex && type === "meal")) {
+          counts[m.meal_group_id] = (counts[m.meal_group_id] ?? 0) + 1;
         }
       });
       dm.snacks.forEach((s, si) => {
-        if (s && !(di === dayIndex && si === mealIndex && type === "snack")) {
-          counts[s.id] = (counts[s.id] ?? 0) + 1;
+        if (s && s.meal_group_id != null && !(di === dayIndex && si === mealIndex && type === "snack")) {
+          counts[s.meal_group_id] = (counts[s.meal_group_id] ?? 0) + 1;
         }
       });
     });
     return counts;
   }, [currentDayMeals, dayIndex, mealIndex, type]);
 
-  const isMealAtLimit = (meal: Meal): boolean =>
-    meal.weekly_limit != null && (selectedCounts[meal.id.toString()] ?? 0) >= meal.weekly_limit;
+  const isMealAtLimit = (meal: Meal): boolean => {
+    if (meal.meal_group_id == null) return false;
+    const limit = meal.meal_group?.weekly_limit ?? meal.weekly_limit;
+    if (limit == null) return false;
+    return (groupCounts[meal.meal_group_id] ?? 0) >= limit;
+  };
 
   const isLoadingState = loading || loadingExisting;
 
@@ -754,7 +769,7 @@ export default function SelectMealsScreen() {
                         )}
                         {atLimit && (
                           <View style={styles.limitBadge}>
-                            <Text style={styles.limitBadgeText}>Limit {meal.weekly_limit}/wk</Text>
+                            <Text style={styles.limitBadgeText}>Limit Reached</Text>
                           </View>
                         )}
                         {item.imageUrl ? (
@@ -771,11 +786,13 @@ export default function SelectMealsScreen() {
                           />
                         )}
                         <View style={styles.itemInfo}>
-                          <Text style={[styles.itemName, atLimit && { color: "#B8D5C5" }]}>{item.name}</Text>
+                          <Text style={[styles.itemName, atLimit && { color: "#B8D5C5" }]}>
+                            {(isArabic && item.name_ar) ? item.name_ar : item.name}
+                          </Text>
                           {hasPersonalizedPlan ? (
-                            (meal as any).description ? (
+                            ((isArabic && (meal as any).description_ar) ? (meal as any).description_ar : (meal as any).description) ? (
                               <Text style={styles.itemDescription} numberOfLines={3}>
-                                {(meal as any).description}
+                                {(isArabic && (meal as any).description_ar) ? (meal as any).description_ar : (meal as any).description}
                               </Text>
                             ) : null
                           ) : (
@@ -808,7 +825,7 @@ export default function SelectMealsScreen() {
                             disabled={atLimit}
                           >
                             <Text style={styles.addButtonText}>
-                              {atLimit ? "Limit Reached" : t("select_meals.add_button")}
+                              {atLimit ? t("select_meals.limit_reached") : t("select_meals.add_button")}
                             </Text>
                           </TouchableOpacity>
                         </View>

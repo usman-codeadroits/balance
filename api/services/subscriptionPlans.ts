@@ -62,7 +62,7 @@ export const getSubscriptionPlans = async (): Promise<MealPlan[]> => {
         const mapped = {
           id: plan.id.toString(),
           title: plan.title,
-          price: `KWD ${plan.price.toFixed(2)}/day`,
+          price: `KWD ${plan.price.toFixed(3)}/day`,
           pricePerDay: plan.price,
           description: plan.description || `Meal count: ${plan.meal_count}`,
           meal_count: plan.meal_count ?? 0,

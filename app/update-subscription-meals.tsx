@@ -8,6 +8,7 @@ import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -42,6 +43,8 @@ interface SlotState {
 
 export default function UpdateSubscriptionMealsScreen() {
   const { subscriptionId } = useLocalSearchParams();
+  const { i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [details, setDetails] = useState<UserSubscriptionDetails | null>(null);
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(false);
@@ -208,23 +211,33 @@ export default function UpdateSubscriptionMealsScreen() {
 
   const filteredMeals = typeFilteredMeals.filter((meal) => {
     const matchesCategory = selectedCategory == null || meal.category_id === selectedCategory;
-    const matchesSearch = meal.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      meal.title.toLowerCase().includes(q) ||
+      (meal.title_ar ?? "").toLowerCase().includes(q);
     return matchesCategory && matchesSearch;
   });
 
-  // Count how many times each meal_id appears across all slots, excluding the slot being replaced
-  const weeklyUsageCounts = useMemo(() => {
+  // Count already-assigned meals by meal_group_id, excluding the slot being replaced
+  const groupUsageCounts = useMemo(() => {
     const counts: Record<number, number> = {};
     slots.forEach((s, i) => {
       if (s.mealId != null && i !== pickerContext?.slotIndex) {
-        counts[s.mealId] = (counts[s.mealId] ?? 0) + 1;
+        const meal = allMeals.find((m) => m.id === s.mealId);
+        if (meal?.meal_group_id != null) {
+          counts[meal.meal_group_id] = (counts[meal.meal_group_id] ?? 0) + 1;
+        }
       }
     });
     return counts;
-  }, [slots, pickerContext?.slotIndex]);
+  }, [slots, pickerContext?.slotIndex, allMeals]);
 
-  const isMealAtLimit = (meal: Meal) =>
-    meal.weekly_limit != null && (weeklyUsageCounts[meal.id] ?? 0) >= meal.weekly_limit;
+  const isMealAtLimit = (meal: Meal): boolean => {
+    if (meal.meal_group_id == null) return false;
+    const limit = meal.meal_group?.weekly_limit ?? meal.weekly_limit;
+    if (limit == null) return false;
+    return (groupUsageCounts[meal.meal_group_id] ?? 0) >= limit;
+  };
 
   const planCounts = details ? getPlanCounts(details) : { meals: 1, snacks: 0 };
   const days = details?.subscription_days || [];
@@ -447,35 +460,37 @@ export default function UpdateSubscriptionMealsScreen() {
                   {filteredMeals.map((meal) => {
                     const atLimit = isMealAtLimit(meal);
                     return (
-                    <TouchableOpacity
-                      key={meal.id}
-                      style={[styles.modalMealRow, atLimit && styles.modalMealRowDisabled]}
-                      onPress={() => !atLimit && handleSelectMeal(meal)}
-                      activeOpacity={atLimit ? 1 : 0.7}
-                    >
-                      {meal.image_url || meal.image_thumb_url ? (
-                        <Image
-                          source={{ uri: meal.image_url || meal.image_thumb_url }}
-                          style={[styles.modalMealThumb, atLimit && { opacity: 0.4 }]}
-                        />
-                      ) : (
-                        <View style={[styles.modalMealThumb, styles.thumbPlaceholder, atLimit && { opacity: 0.4 }]}>
-                          <Ionicons name="restaurant-outline" size={20} color="#6B7F75" />
-                        </View>
-                      )}
-                      <View style={styles.modalMealInfo}>
-                        <Text style={[styles.modalMealName, atLimit && { color: "#B8D5C5" }]} numberOfLines={2}>{meal.title}</Text>
-                        <Text style={styles.modalMealMeta}>
-                          {`${meal.calories} kcal · P ${meal.protein_g}g · C ${meal.carbs_g}g`}
-                        </Text>
-                        {atLimit && (
-                          <View style={styles.limitBadge}>
-                            <Text style={styles.limitBadgeText}>Weekly limit reached ({meal.weekly_limit}/wk)</Text>
+                      <TouchableOpacity
+                        key={meal.id}
+                        style={[styles.modalMealRow, atLimit && styles.modalMealRowDisabled]}
+                        onPress={() => !atLimit && handleSelectMeal(meal)}
+                        activeOpacity={atLimit ? 1 : 0.7}
+                      >
+                        {meal.image_url || meal.image_thumb_url ? (
+                          <Image
+                            source={{ uri: meal.image_url || meal.image_thumb_url }}
+                            style={[styles.modalMealThumb, atLimit && { opacity: 0.4 }]}
+                          />
+                        ) : (
+                          <View style={[styles.modalMealThumb, styles.thumbPlaceholder, atLimit && { opacity: 0.4 }]}>
+                            <Ionicons name="restaurant-outline" size={20} color="#6B7F75" />
                           </View>
                         )}
-                      </View>
-                      {!atLimit && <Ionicons name="chevron-forward" size={16} color="#B8D5C5" />}
-                    </TouchableOpacity>
+                        <View style={styles.modalMealInfo}>
+                          <Text style={[styles.modalMealName, atLimit && { color: "#B8D5C5" }]} numberOfLines={2}>
+                            {(isArabic && meal.title_ar) ? meal.title_ar : meal.title}
+                          </Text>
+                          <Text style={styles.modalMealMeta}>
+                            {`${meal.calories} kcal · P ${meal.protein_g}g · C ${meal.carbs_g}g`}
+                          </Text>
+                          {atLimit && (
+                            <View style={styles.limitBadge}>
+                              <Text style={styles.limitBadgeText}>Limit Reached</Text>
+                            </View>
+                          )}
+                        </View>
+                        {!atLimit && <Ionicons name="chevron-forward" size={16} color="#B8D5C5" />}
+                      </TouchableOpacity>
                     );
                   })}
                   {filteredMeals.length === 0 ? (
@@ -504,6 +519,9 @@ interface SlotRowProps {
 }
 
 function SlotRow({ label, mealDetails, isEmpty, onPress }: SlotRowProps) {
+  const { i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
+
   if (isEmpty) {
     return (
       <TouchableOpacity style={styles.emptySlot} onPress={onPress} activeOpacity={0.7}>
@@ -534,7 +552,7 @@ function SlotRow({ label, mealDetails, isEmpty, onPress }: SlotRowProps) {
       <View style={styles.mealSlotInfo}>
         <Text style={styles.slotSlotLabel}>{label}</Text>
         <Text style={styles.mealSlotName} numberOfLines={1}>
-          {mealDetails?.title ?? "Unknown"}
+          {(isArabic && mealDetails?.title_ar) ? mealDetails.title_ar : (mealDetails?.title ?? "Unknown")}
         </Text>
         <Text style={styles.mealSlotMeta}>
           {[

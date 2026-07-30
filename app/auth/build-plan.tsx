@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  BackHandler,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -51,9 +52,26 @@ export default function BuildPlanScreen() {
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
+  const clearPlanAndGoBack = async () => {
+    await AsyncStorage.multiRemove([
+      "hasPersonalizedPlan",
+      "personalizedProtein",
+      "personalizedCarbs",
+      "personalizedProteinExtraPrice",
+      "personalizedPlanOwner",
+    ]);
+    router.back();
+  };
+
   useEffect(() => {
     fetchProteinOptions();
     loadSaved();
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      clearPlanAndGoBack();
+      return true;
+    });
+    return () => sub.remove();
   }, []);
 
   const fetchProteinOptions = async () => {
@@ -144,13 +162,12 @@ return (
         <View style={styles.headerSection}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={clearPlanAndGoBack}
           >
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={styles.title}>{t("build_plan.title")}</Text>
-            <Text style={styles.subtitle}>{t("build_plan.subtitle")}</Text>
           </View>
         </View>
 
@@ -316,7 +333,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     paddingBottom: 20,
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
   },
   backButton: {
@@ -326,7 +343,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#344225",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
   },
   headerContent: {
     flex: 1,

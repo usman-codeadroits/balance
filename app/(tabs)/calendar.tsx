@@ -1,4 +1,4 @@
-import { getMySubscriptions } from "@/api/services/subscriptions";
+import { getMySubscriptions, getSubscriptionCalendar } from "@/api/services/subscriptions";
 import {
   cancelPauseRequest,
   getPauseRequests,
@@ -71,6 +71,7 @@ export default function CalendarScreen() {
   const [loading, setLoading] = useState(true);
   const [pauseRequests, setPauseRequests] = useState<PauseRequest[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [calendarStatusMap, setCalendarStatusMap] = useState<Map<string, string>>(new Map());
 
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -134,8 +135,26 @@ export default function CalendarScreen() {
     }
   };
 
+  const loadCalendarData = useCallback(async (subscriptionId: number, year: number, month: number) => {
+    const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+    try {
+      const res = await getSubscriptionCalendar(subscriptionId, monthStr);
+      if (res.success && res.data.calendar) {
+        const map = new Map<string, string>();
+        res.data.calendar.forEach((entry) => map.set(entry.date, entry.status));
+        setCalendarStatusMap(map);
+      }
+    } catch {
+      setCalendarStatusMap(new Map());
+    }
+  }, []);
+
   useEffect(() => { loadSubscription(); }, [loadSubscription]);
   useFocusEffect(useCallback(() => { loadSubscription(); }, [loadSubscription]));
+
+  useEffect(() => {
+    if (range) loadCalendarData(range.id, viewYear, viewMonth);
+  }, [range?.id, viewYear, viewMonth, loadCalendarData]);
 
   const startDate = useMemo(() => range ? new Date(range.startDate) : null, [range]);
   const endDate   = useMemo(() => range ? new Date(range.endDate)   : null, [range]);
@@ -196,7 +215,8 @@ export default function CalendarScreen() {
 
   const handleDayPress = (ymd: string) => {
     if (!range || submitting) return;
-    if (!isInRange(ymd)) return;
+    const deliveryStatus = calendarStatusMap.get(ymd);
+    if (!deliveryStatus || deliveryStatus === "delivered") return;
 
     const approvedReq = pausedDayMap.get(ymd);
     const pendingReq  = pendingDayMap.get(ymd);
@@ -348,31 +368,44 @@ export default function CalendarScreen() {
               {calendarCells.map((cell, idx) => {
                 if (!cell.day) return <View key={`ph-${idx}`} style={styles.cellWrap} />;
 
-                const inRange  = isInRange(cell.ymd);
-                const paused   = pausedDays.has(cell.ymd);
-                const pending  = pendingDays.has(cell.ymd);
-                const todayDay = cell.ymd === toYMD(today);
+                const deliveryStatus = calendarStatusMap.get(cell.ymd);
+                const isPlanDay = !!deliveryStatus;
+                const pending   = pendingDays.has(cell.ymd);
+                const todayDay  = cell.ymd === toYMD(today);
 
                 let circleStyle = styles.circleDefault;
                 let textStyle   = styles.dayTextDefault;
                 let label: string | null = null;
 
-                if (paused) {
-                  circleStyle = styles.circlePaused;
-                  textStyle   = styles.dayTextPaused;
-                  label       = t('calendar.status_paused');
-                } else if (pending) {
-                  circleStyle = styles.circlePending;
-                  textStyle   = styles.dayTextPending;
-                  label       = t('calendar.status_pending');
-                } else if (todayDay) {
-                  circleStyle = styles.circleToday;
-                  textStyle   = styles.dayTextToday;
-                  label       = t('calendar.status_today');
-                } else if (inRange) {
-                  circleStyle = styles.circleInRange;
-                  textStyle   = styles.dayTextInRange;
-                  label       = t('calendar.status_active');
+                if (isPlanDay) {
+                  if (pending) {
+                    circleStyle = styles.circlePending;
+                    textStyle   = styles.dayTextPending;
+                    label       = t('calendar.status_pending');
+                  } else if (deliveryStatus === "paused") {
+                    circleStyle = styles.circlePaused;
+                    textStyle   = styles.dayTextPaused;
+                    label       = t('calendar.status_paused');
+                  } else if (deliveryStatus === "delivered") {
+                    circleStyle = styles.circleDelivered;
+                    textStyle   = styles.dayTextDelivered;
+                    label       = t('calendar.status_delivered');
+                  } else if (deliveryStatus === "preparing") {
+                    circleStyle = styles.circlePreparing;
+                    textStyle   = styles.dayTextPreparing;
+                    label       = t('calendar.status_preparing');
+                  } else {
+                    // upcoming
+                    if (todayDay) {
+                      circleStyle = styles.circleToday;
+                      textStyle   = styles.dayTextToday;
+                      label       = t('calendar.status_today');
+                    } else {
+                      circleStyle = styles.circleInRange;
+                      textStyle   = styles.dayTextInRange;
+                      label       = t('calendar.status_upcoming');
+                    }
+                  }
                 }
 
                 return (
@@ -380,7 +413,7 @@ export default function CalendarScreen() {
                     key={cell.ymd}
                     style={styles.cellWrap}
                     onPress={() => handleDayPress(cell.ymd)}
-                    activeOpacity={inRange ? 0.7 : 1}
+                    activeOpacity={isPlanDay ? 0.7 : 1}
                     disabled={submitting}
                   >
                     <View style={[styles.circle, circleStyle]}>
@@ -394,14 +427,22 @@ export default function CalendarScreen() {
           </View>
 
           {/* Legend */}
-          <View style={styles.legendRow}>
+          <View style={styles.legendGrid}>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, styles.circleToday]} />
-              <Text style={styles.legendText}>{t('calendar.status_today')}</Text>
+              <View style={[styles.legendDot, styles.circleDelivered]} />
+              <Text style={styles.legendText}>{t('calendar.status_delivered')}</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.circlePreparing]} />
+              <Text style={styles.legendText}>{t('calendar.status_preparing')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, styles.circleInRange]} />
-              <Text style={styles.legendText}>{t('calendar.status_active')}</Text>
+              <Text style={styles.legendText}>{t('calendar.status_upcoming')}</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.circleToday]} />
+              <Text style={styles.legendText}>{t('calendar.status_today')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, styles.circlePending]} />
@@ -469,6 +510,8 @@ const styles = StyleSheet.create({
   circleToday: { backgroundColor: "#FFFFFF", borderWidth: 2, borderColor: "#344225" },
   circlePaused: { backgroundColor: "#344225" },
   circlePending: { backgroundColor: "#F5A623" },
+  circleDelivered: { backgroundColor: "#4CAF50" },
+  circlePreparing: { backgroundColor: "#FF9800" },
 
   dayText: { fontSize: 14, fontWeight: "500" },
   dayTextDefault: { color: "#999999" },
@@ -476,10 +519,12 @@ const styles = StyleSheet.create({
   dayTextToday: { color: "#344225", fontWeight: "700" },
   dayTextPaused: { color: "#FAD979", fontWeight: "700" },
   dayTextPending: { color: "#FFFFFF", fontWeight: "700" },
+  dayTextDelivered: { color: "#FFFFFF", fontWeight: "700" },
+  dayTextPreparing: { color: "#FFFFFF", fontWeight: "700" },
 
   dayLabel: { fontSize: 9, fontWeight: "600", color: "#344225", marginTop: 2 },
 
-  legendRow: { flexDirection: "row", justifyContent: "center", gap: 20, marginBottom: 16 },
+  legendGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12, marginBottom: 16 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 14, height: 14, borderRadius: 7 },
   legendText: { fontSize: 12, color: "#6B7F75", fontWeight: "500" },
