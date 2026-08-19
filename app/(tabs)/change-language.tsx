@@ -8,6 +8,7 @@ import {
   Alert,
   I18nManager,
   Image,
+  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -17,10 +18,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { changeLanguage } from '@/constants/i18n';
+import { isArabicLanguage } from '@/constants/i18n';
 
 export default function ChangeLanguageScreen() {
   const { t, i18n } = useTranslation();
   const currentLanguage = i18n.language;
+  const isArabic = isArabicLanguage(currentLanguage);
   const [switching, setSwitching] = useState(false);
   const insets = useSafeAreaInsets();
 
@@ -35,20 +38,18 @@ export default function ChangeLanguageScreen() {
 
       if (rtlChanging) {
         Alert.alert(
-          language === 'ar' ? 'تم تغيير اللغة' : 'Language Changed',
-          language === 'ar'
-            ? 'سيتم إعادة تشغيل التطبيق لتطبيق اتجاه العربية.'
-            : 'The app will restart to apply the new layout direction.',
+          t('change_language.changed_title'),
+          t('change_language.restart_message'),
           [
             {
-              text: 'OK',
+              text: t('common.ok'),
               onPress: async () => {
                 try {
                   await Updates.reloadAsync();
                 } catch {
                   Alert.alert(
-                    'Restart Required',
-                    'Please close and reopen the app to apply the layout direction.',
+                    t('change_language.restart_required_title'),
+                    t('change_language.restart_required_message'),
                   );
                 }
               },
@@ -60,7 +61,7 @@ export default function ChangeLanguageScreen() {
         router.replace('/(tabs)/profile' as any);
       }
     } catch {
-      Alert.alert('Error', 'Failed to change language. Please try again.');
+      Alert.alert(t('common.error'), t('change_language.error'));
     } finally {
       setSwitching(false);
     }
@@ -69,12 +70,12 @@ export default function ChangeLanguageScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === 'ios' ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.replace('/(tabs)/profile' as any)}
         >
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name={isArabic ? 'arrow-forward' : 'arrow-back'} size={22} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('change_language.title')}</Text>
         <View style={styles.headerSpacer} />
@@ -131,6 +132,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 12,
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
   },
   backButton: {
     width: 38,

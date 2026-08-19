@@ -20,7 +20,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function OTPScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [authType, setAuthType] = useState<"login" | "signup">("signup");
   const [loading, setLoading] = useState(false);
@@ -58,15 +59,20 @@ export default function OTPScreen() {
   };
 
   const handleOtpChange = (value: string, index: number) => {
-    if (value.length <= 1 && /^\d*$/.test(value)) {
-      const newOtp = [...otp];
-      newOtp[index] = value;
-      setOtp(newOtp);
+    // Some keyboards batch keystrokes into a single onChangeText call — keep only the last digit
+    const digitsOnly = value.replace(/\D/g, "");
+    const nextValue = digitsOnly.slice(-1);
 
-      // Move to next input
-      if (value && index < 3) {
+    const newOtp = [...otp];
+    newOtp[index] = nextValue;
+    setOtp(newOtp);
+
+    // Defer the focus move a frame so this input's own value commits first —
+    // focusing synchronously here can race with the native TextInput and swallow the next keystroke.
+    if (nextValue && index < 3) {
+      requestAnimationFrame(() => {
         inputRefs.current[index + 1]?.focus();
-      }
+      });
     }
   };
 
@@ -430,7 +436,7 @@ export default function OTPScreen() {
         } else {
           Alert.alert(
             t("otp.error"),
-            verification.message || "OTP verification failed",
+            verification.message || t("otp.verification_failed"),
           );
         }
         return;
@@ -446,7 +452,7 @@ export default function OTPScreen() {
       // Handle validation errors (HTTP 422)
       if (error?.status === 422) {
         const errorData = error?.response || {};
-        let errorMessage = error.message || "Validation error";
+        let errorMessage = error.message || t("otp.validation_error");
 
         // Extract validation errors
         if (errorData.errors && typeof errorData.errors === "object") {
@@ -545,17 +551,19 @@ export default function OTPScreen() {
 
         {/* Title and Description */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>{t("otp.title")}</Text>
-          <Text style={styles.description}>
+          <Text style={[styles.title, isArabic && styles.rtlText]}>{t("otp.title")}</Text>
+          <Text style={[styles.description, isArabic && styles.rtlText]}>
             {t("otp.description")}{" "}
             {phoneDisplay ? (
-              <Text style={styles.phoneNumber}>{phoneDisplay}</Text>
+              <Text style={[styles.phoneNumber, isArabic && styles.phoneNumberRTL]}>
+                {`⁦${phoneDisplay}⁩`}
+              </Text>
             ) : null}
             {"."}
           </Text>
         </View>
 
-        {/* OTP Input Boxes */}
+        {/* OTP Input Boxes — always left-to-right, same order as English, regardless of language */}
         <View style={styles.otpContainer}>
           {otp.map((digit, index) => (
             <TextInput
@@ -637,6 +645,12 @@ const styles = StyleSheet.create({
   headerContainer: {
     marginBottom: 30,
   },
+  rtlText: {
+    textAlign: "right",
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
   title: {
     fontSize: 24,
     fontWeight: "700",
@@ -651,6 +665,9 @@ const styles = StyleSheet.create({
   phoneNumber: {
     color: "#FAD979",
     fontWeight: "700",
+  },
+  phoneNumberRTL: {
+    writingDirection: "ltr",
   },
   otpContainer: {
     flexDirection: "row",

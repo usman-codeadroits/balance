@@ -5,13 +5,14 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 interface AuthTabsProps {
   activeTab: 'login' | 'signup';
   onTabChange: (tab: 'login' | 'signup') => void;
+  isArabic?: boolean;
 }
 
-export default function AuthTabs({ activeTab, onTabChange }: AuthTabsProps) {
+export default function AuthTabs({ activeTab, onTabChange, isArabic = false }: AuthTabsProps) {
   const { t } = useTranslation();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isArabic && styles.containerRTL]}>
       <TouchableOpacity
         style={[
           styles.tab,
@@ -54,6 +55,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 4,
     marginBottom: 30,
+  },
+  containerRTL: {
+    flexDirection: 'row-reverse',
   },
   tab: {
     flex: 1,

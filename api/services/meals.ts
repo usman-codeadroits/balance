@@ -12,6 +12,26 @@ export type MealGroup = {
   weekly_limit: number;
 };
 
+/** A single option inside an extra category (e.g. "Brown Bread"). */
+export type MealExtraIngredient = {
+  id: number;
+  name: string;
+  name_ar?: string | null;
+};
+
+/** An add-on category a meal offers (e.g. "Bread", "Sauce"). */
+export type MealExtra = {
+  id: number;
+  name: string;
+  name_ar?: string | null;
+  selection_type: "single" | "multiple"; // single = pick one, multiple = pick many
+  is_required: boolean;
+  // Max options the customer may pick for this extra on this meal.
+  // 1 (always for single), N (cap for multiple), or null (no limit).
+  max_select?: number | null;
+  ingredients: MealExtraIngredient[];
+};
+
 export type Meal = {
   id: number;
   title: string;
@@ -22,13 +42,19 @@ export type Meal = {
   category: {
     id: number;
     name: string;
+    name_ar?: string | null;
   };
   category_name: string;
+  category_name_ar?: string | null;
   calories: number;
   protein_g: number;
   fat_g: number;
   carbs_g: number;
-  extras: string;
+  // Existing field: free-text allergens/extras description (not the add-on picker).
+  extras?: string | null;
+  // Add-on categories this meal offers, each with its available options.
+  // (Renamed from `extras` on the API; older responses may omit it.)
+  meal_extras?: MealExtra[];
   is_active: number;
   type: string; // "is meal" or "is snack"
   meal_group_id: number | null;
@@ -60,14 +86,14 @@ export type MealsResponse = {
 export const getMeals = async (): Promise<Meal[]> => {
   try {
     const response = await apiClient.get<MealsResponse>(API_ENDPOINTS.MEALS);
-    
+
     if (response && response.data && Array.isArray(response.data)) {
       // Filter only active meals
-      return response.data.filter((meal: Meal) => 
+      return response.data.filter((meal: Meal) =>
         meal.is_active === 1 && meal.deleted_at === null
       );
     }
-    
+
     return [];
   } catch (error) {
     if (error instanceof Error) {

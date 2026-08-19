@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -17,7 +18,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function PlanPageScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [isPersonalized, setIsPersonalized] = useState(false);
@@ -150,34 +152,34 @@ export default function PlanPageScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Header */}
-          <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 16) }]}>
+          <View style={[styles.headerRow, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerContainer}>
-              <Text style={styles.pageTitle}>Choose your days</Text>
-              <Text style={styles.pageSubtitle}>Select the days desired for your plan</Text>
+              <Text style={[styles.pageTitle, isArabic && styles.rtlText]}>{t("plan_page.page_title")}</Text>
+              <Text style={[styles.pageSubtitle, isArabic && styles.rtlText]}>{t("plan_page.page_subtitle")}</Text>
             </View>
           </View>
 
           {/* Plan Card */}
           {selectedPlan && (
             <View style={styles.planCard}>
-              <View style={styles.planCardTop}>
+              <View style={[styles.planCardTop, isArabic && styles.rtlRow]}>
                 <View style={styles.planCardLeft}>
-                  <Text style={styles.planCardTitle}>{selectedPlan.title}</Text>
-                  <Text style={styles.planCardMeta}>
-                    {selectedPlan.meal_count} meal{selectedPlan.meal_count > 1 ? "s" : ""}
+                  <Text style={[styles.planCardTitle, isArabic && styles.rtlText]}>{(isArabic && selectedPlan.title_ar) ? selectedPlan.title_ar : selectedPlan.title}</Text>
+                  <Text style={[styles.planCardMeta, isArabic && styles.rtlText]}>
+                    {selectedPlan.meal_count} {selectedPlan.meal_count > 1 ? t("plan_page.meal_plural") : t("plan_page.meal_singular")}
                     {selectedPlan.snack_count > 0
-                      ? ` + ${selectedPlan.snack_count} snack${selectedPlan.snack_count > 1 ? "s" : ""}`
+                      ? ` + ${selectedPlan.snack_count} ${selectedPlan.snack_count > 1 ? t("plan_page.snack_plural") : t("plan_page.snack_singular")}`
                       : ""}
-                    {" "}/day
+                    {" "}{t("plan_page.per_day")}
                   </Text>
                 </View>
                 <View style={styles.planCardRight}>
                   <View style={styles.weekBadge}>
                     <Text style={styles.weekBadgeText}>
-                      {planWeeks} Week{planWeeks > 1 ? "s" : ""}
+                      {planWeeks} {planWeeks > 1 ? t("plan_page.week_plural") : t("plan_page.week_singular")}
                     </Text>
                   </View>
                   <Text style={styles.planCardPrice}>KWD {totalPrice.toFixed(3)}</Text>
@@ -187,25 +189,25 @@ export default function PlanPageScreen() {
               {/* Protein + Carbs per day (personalized only) */}
               {isPersonalized && (proteinGrams > 0 || carbsGrams > 0) && (
                 <>
-                  <View style={styles.nutritionRow}>
+                  <View style={[styles.nutritionRow, isArabic && styles.rtlRow]}>
                     {proteinGrams > 0 && (
-                      <View style={styles.nutritionChip}>
+                      <View style={[styles.nutritionChip, isArabic && styles.rtlRow]}>
                         <Ionicons name="barbell-outline" size={12} color="#FAD979" />
-                        <Text style={styles.nutritionChipText}>{proteinGrams}g protein/day</Text>
+                        <Text style={styles.nutritionChipText}>{t("plan_page.protein_per_day", { grams: proteinGrams })}</Text>
                       </View>
                     )}
                     {carbsGrams > 0 && (
-                      <View style={styles.nutritionChip}>
+                      <View style={[styles.nutritionChip, isArabic && styles.rtlRow]}>
                         <Ionicons name="leaf-outline" size={12} color="#FAD979" />
-                        <Text style={styles.nutritionChipText}>{carbsGrams}g carbs/day</Text>
+                        <Text style={styles.nutritionChipText}>{t("plan_page.carbs_per_day", { grams: carbsGrams })}</Text>
                       </View>
                     )}
                   </View>
                   {proteinExtraPerMeal > 0 && (
-                    <View style={styles.extraProteinRow}>
-                      <Text style={styles.extraProteinLabel}>Extra Protein Price</Text>
+                    <View style={[styles.extraProteinRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.extraProteinLabel}>{t("plan_page.extra_protein_price")}</Text>
                       <Text style={styles.extraProteinValue}>
-                        +KWD {proteinExtraPerMeal.toFixed(3)}/meal
+                        {t("plan_page.extra_protein_per_meal", { price: proteinExtraPerMeal.toFixed(3) })}
                       </Text>
                     </View>
                   )}
@@ -216,16 +218,16 @@ export default function PlanPageScreen() {
 
           {/* Days Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, isArabic && styles.rtlText]}>
               {t("plan_page.days_question", { max: planMaxDays })}
             </Text>
-            <Text style={styles.daysSubheading}>
+            <Text style={[styles.daysSubheading, isArabic && styles.rtlText]}>
               {selectedDays.length > 0
-                ? `${selectedDays.length} of ${planMaxDays} days · repeats ${planWeeks} week${planWeeks > 1 ? "s" : ""}`
-                : "Choose your week days"}
+                ? t("plan_page.days_selected_summary", { selected: selectedDays.length, max: planMaxDays, weeks: planWeeks, s: planWeeks > 1 ? (isArabic ? "" : "s") : "" })
+                : t("plan_page.choose_week_days")}
             </Text>
 
-            <View style={styles.daysContainer}>
+            <View style={[styles.daysContainer, isArabic && styles.rtlRow]}>
               {dayLabels.map((label, dayIndex) => {
                 const isSelected = selectedDays.includes(dayIndex);
                 const isDisabled = !isSelected && selectedDays.length >= planMaxDays;
@@ -259,12 +261,12 @@ export default function PlanPageScreen() {
           {/* Schedule preview — appears after valid selection */}
           {isValid && (
             <View style={styles.scheduleCard}>
-              <Text style={styles.scheduleTitle}>Your Schedule</Text>
+              <Text style={[styles.scheduleTitle, isArabic && styles.rtlText]}>{t("plan_page.your_schedule")}</Text>
               <View style={styles.scheduleWeeks}>
                 {Array.from({ length: planWeeks }, (_, wi) => (
-                  <View key={wi} style={styles.scheduleWeekRow}>
-                    <Text style={styles.scheduleWeekLabel}>Week {wi + 1}</Text>
-                    <View style={styles.scheduleDotsRow}>
+                  <View key={wi} style={[styles.scheduleWeekRow, isArabic && styles.rtlRow]}>
+                    <Text style={styles.scheduleWeekLabel}>{t("plan_page.week_n", { n: wi + 1 })}</Text>
+                    <View style={[styles.scheduleDotsRow, isArabic && styles.rtlRow]}>
                       {selectedDays.map((d) => (
                         <View key={d} style={styles.scheduleDot}>
                           <Text style={styles.scheduleDotText}>{dayLabels[d]}</Text>
@@ -281,9 +283,9 @@ export default function PlanPageScreen() {
         {/* Bottom CTA */}
         <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {isValid && (
-            <View style={styles.priceSummary}>
-              <Text style={styles.priceSummaryLabel}>
-                {selectedDays.length} days × {planWeeks} week{planWeeks > 1 ? "s" : ""} = {totalSelectedDays} delivery days
+            <View style={[styles.priceSummary, isArabic && styles.rtlRow]}>
+              <Text style={[styles.priceSummaryLabel, isArabic && styles.rtlText]}>
+                {t("plan_page.price_summary", { days: selectedDays.length, weeks: planWeeks, s: planWeeks > 1 ? (isArabic ? "" : "s") : "", total: totalSelectedDays })}
               </Text>
               <Text style={styles.priceSummaryTotal}>KWD {totalPrice.toFixed(3)}</Text>
             </View>
@@ -302,6 +304,8 @@ export default function PlanPageScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
   scrollContainer: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
 

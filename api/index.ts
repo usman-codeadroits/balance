@@ -50,7 +50,7 @@ export type {
     HesabePaymentResponse
 } from "./services/hesabe";
 export { getMeals } from "./services/meals";
-export type { Meal } from "./services/meals";
+export type { Meal, MealExtra, MealExtraIngredient } from "./services/meals";
 export { sendOtp, verifyOtp } from "./services/otp";
 export type { VerifyOtpRequest, VerifyOtpResponse } from "./services/otp";
 export {

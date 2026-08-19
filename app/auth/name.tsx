@@ -5,19 +5,20 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function NameScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   useStaticScreen();
@@ -58,13 +59,13 @@ export default function NameScreen() {
 
         {/* Title */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>{t("name.title")}</Text>
+          <Text style={[styles.title, isArabic && styles.rtlText]}>{t("name.title")}</Text>
         </View>
 
         {/* Name Input */}
         <View style={styles.inputContainer}>
           <TextInput
-            style={[styles.input, error ? styles.inputError : null]}
+            style={[styles.input, isArabic && styles.rtlText, error ? styles.inputError : null]}
             value={name}
             onChangeText={(text) => {
               setName(text);
@@ -116,6 +117,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#344225",
   },
+  rtlText: {
+    textAlign: "right",
+  },
   inputContainer: {
     marginBottom: 20,
   },
@@ -137,6 +141,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     marginLeft: 4,
+    textAlign: "right",
   },
   spacer: {
     flex: 1,

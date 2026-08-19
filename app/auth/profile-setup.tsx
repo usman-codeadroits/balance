@@ -22,7 +22,8 @@ const DEFAULT_WEIGHT_KG = 70;
 const DEFAULT_HEIGHT_CM = 170;
 
 export default function ProfileSetupScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [weight, setWeight] = useState(String(DEFAULT_WEIGHT_KG));
   const [height, setHeight] = useState(String(DEFAULT_HEIGHT_CM));
   const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
@@ -67,12 +68,12 @@ export default function ProfileSetupScreen() {
         behavior="padding"
         keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
       >
-        <View style={styles.header}>
+        <View style={[styles.header, isArabic && styles.rtlRow]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Image
@@ -86,14 +87,14 @@ export default function ProfileSetupScreen() {
 
         {/* Title */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>{t("profile_setup.title")}</Text>
+          <Text style={[styles.title, isArabic && styles.rtlText]}>{t("profile_setup.title")}</Text>
         </View>
 
         {/* Weight Input */}
         <View style={styles.inputSection}>
-          <Text style={styles.label}>{t("profile_setup.weight_label")}</Text>
+          <Text style={[styles.label, isArabic && styles.rtlText]}>{t("profile_setup.weight_label")}</Text>
           <View style={styles.inputRow}>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, isArabic && styles.rtlRow]}>
               <TouchableOpacity
                 style={styles.controlButton}
                 onPress={() =>
@@ -129,9 +130,9 @@ export default function ProfileSetupScreen() {
 
         {/* Height Input */}
         <View style={styles.inputSection}>
-          <Text style={styles.label}>{t("profile_setup.height_label")}</Text>
+          <Text style={[styles.label, isArabic && styles.rtlText]}>{t("profile_setup.height_label")}</Text>
           <View style={styles.inputRow}>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, isArabic && styles.rtlRow]}>
               <TouchableOpacity
                 style={styles.controlButton}
                 onPress={() =>
@@ -223,6 +224,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: "#344225",
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   inputSection: {
     marginBottom: 30,

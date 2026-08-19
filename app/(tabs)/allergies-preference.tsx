@@ -2,9 +2,11 @@ import { getAllergies, updateAllergies } from '@/api/services/allergies';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -15,6 +17,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AllergiesPreferenceScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith('ar');
   const insets = useSafeAreaInsets();
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +43,7 @@ export default function AllergiesPreferenceScreen() {
 
   const handleContinue = async () => {
     if (hasAllergies === null) {
-      Alert.alert('Please select an option', 'Let us know if you have food allergies.');
+      Alert.alert(t('allergies_pref.select_option_title'), t('allergies_pref.select_option_msg'));
       return;
     }
 
@@ -54,7 +58,7 @@ export default function AllergiesPreferenceScreen() {
       await updateAllergies({ has_food_allergies: false });
       router.replace('/(tabs)/profile' as any);
     } catch {
-      Alert.alert('Error', 'Could not save your preference. Please try again.');
+      Alert.alert(t('common.error'), t('allergies_pref.save_error'));
     } finally {
       setSaving(false);
     }
@@ -62,11 +66,11 @@ export default function AllergiesPreferenceScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === 'ios' ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/profile' as any)}>
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name={isArabic ? 'arrow-forward' : 'arrow-back'} size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Allergies</Text>
+        <Text style={styles.headerTitle}>{t('allergies_pref.header_title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -84,19 +88,19 @@ export default function AllergiesPreferenceScreen() {
               <View style={styles.heroIconCircle}>
                 <Ionicons name="shield-checkmark-outline" size={40} color="#344225" />
               </View>
-              <Text style={styles.title}>Do you have food allergies?</Text>
+              <Text style={styles.title}>{t('allergies_pref.question')}</Text>
               <Text style={styles.subtitle}>
-                Knowing your allergies helps us customize your meal plan and keep you safe.
+                {t('allergies_pref.subtitle')}
               </Text>
             </View>
 
             <View style={styles.optionsContainer}>
               <TouchableOpacity
-                style={[styles.optionCard, hasAllergies === true && styles.optionCardSelected]}
+                style={[styles.optionCard, isArabic && styles.rtlRow, hasAllergies === true && styles.optionCardSelected]}
                 onPress={() => setHasAllergies(true)}
                 activeOpacity={0.8}
               >
-                <View style={styles.optionLeft}>
+                <View style={[styles.optionLeft, isArabic && styles.rtlRow]}>
                   <View style={[styles.optionIconWrap, hasAllergies === true && styles.optionIconWrapSelected]}>
                     <Ionicons
                       name="alert-circle-outline"
@@ -105,11 +109,11 @@ export default function AllergiesPreferenceScreen() {
                     />
                   </View>
                   <View style={styles.optionTextWrap}>
-                    <Text style={[styles.optionTitle, hasAllergies === true && styles.optionTitleSelected]}>
-                      Yes, I have allergies
+                    <Text style={[styles.optionTitle, isArabic && styles.rtlText, hasAllergies === true && styles.optionTitleSelected]}>
+                      {t('allergies_pref.yes_title')}
                     </Text>
-                    <Text style={[styles.optionDesc, hasAllergies === true && styles.optionDescSelected]}>
-                      I want to specify my allergies
+                    <Text style={[styles.optionDesc, isArabic && styles.rtlText, hasAllergies === true && styles.optionDescSelected]}>
+                      {t('allergies_pref.yes_desc')}
                     </Text>
                   </View>
                 </View>
@@ -119,11 +123,11 @@ export default function AllergiesPreferenceScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.optionCard, hasAllergies === false && styles.optionCardSelected]}
+                style={[styles.optionCard, isArabic && styles.rtlRow, hasAllergies === false && styles.optionCardSelected]}
                 onPress={() => setHasAllergies(false)}
                 activeOpacity={0.8}
               >
-                <View style={styles.optionLeft}>
+                <View style={[styles.optionLeft, isArabic && styles.rtlRow]}>
                   <View style={[styles.optionIconWrap, hasAllergies === false && styles.optionIconWrapSelected]}>
                     <Ionicons
                       name="checkmark-circle-outline"
@@ -132,11 +136,11 @@ export default function AllergiesPreferenceScreen() {
                     />
                   </View>
                   <View style={styles.optionTextWrap}>
-                    <Text style={[styles.optionTitle, hasAllergies === false && styles.optionTitleSelected]}>
-                      No, I have none
+                    <Text style={[styles.optionTitle, isArabic && styles.rtlText, hasAllergies === false && styles.optionTitleSelected]}>
+                      {t('allergies_pref.no_title')}
                     </Text>
-                    <Text style={[styles.optionDesc, hasAllergies === false && styles.optionDescSelected]}>
-                      I don't have any food allergies
+                    <Text style={[styles.optionDesc, isArabic && styles.rtlText, hasAllergies === false && styles.optionDescSelected]}>
+                      {t('allergies_pref.no_desc')}
                     </Text>
                   </View>
                 </View>
@@ -157,7 +161,7 @@ export default function AllergiesPreferenceScreen() {
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.continueButtonText}>
-                  {hasAllergies ? 'Continue' : 'Save'}
+                  {hasAllergies ? t('allergies_pref.continue') : t('allergies_pref.save')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -177,6 +181,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
+  },
+  rtlText: {
+    textAlign: 'right',
   },
   header: {
     flexDirection: 'row',

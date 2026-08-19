@@ -32,28 +32,29 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 type Tab = "profile" | "addresses";
 
 const GOALS = [
-  { value: "eat_healthy",     label: "Eat Healthy" },
-  { value: "lose_weight",     label: "Lose Weight" },
-  { value: "gain_weight",     label: "Gain Weight" },
-  { value: "build_muscle",    label: "Build Muscle" },
-  { value: "maintain_weight", label: "Maintain Weight" },
+  { value: "eat_healthy",     labelKey: "goal_eat_healthy" },
+  { value: "lose_weight",     labelKey: "goal_lose_weight" },
+  { value: "gain_weight",     labelKey: "goal_gain_weight" },
+  { value: "build_muscle",    labelKey: "goal_build_muscle" },
+  { value: "maintain_weight", labelKey: "goal_maintain_weight" },
 ] as const;
 
 const ACTIVITY_LEVELS = [
-  { value: "sedentary",       label: "Sedentary" },
-  { value: "lightly_active",  label: "Lightly Active" },
-  { value: "very_active",     label: "Very Active" },
-  { value: "highly_active",   label: "Highly Active" },
+  { value: "sedentary",       labelKey: "activity_sedentary" },
+  { value: "lightly_active",  labelKey: "activity_lightly_active" },
+  { value: "very_active",     labelKey: "activity_very_active" },
+  { value: "highly_active",   labelKey: "activity_highly_active" },
 ] as const;
 
 const GENDERS = [
-  { value: "male",   label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other",  label: "Other" },
+  { value: "male",   labelKey: "gender_male" },
+  { value: "female", labelKey: "gender_female" },
+  { value: "other",  labelKey: "gender_other" },
 ] as const;
 
 const emptyAddressForm = (): AddressBody => ({
@@ -74,6 +75,8 @@ const emptyAddressForm = (): AddressBody => ({
 
 
 export default function MyProfileScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
 
@@ -142,7 +145,7 @@ export default function MyProfileScreen() {
         setAllergiesText((p.allergies ?? []).join(", "));
       }
     } catch {
-      Alert.alert("Error", "Could not load profile.");
+      Alert.alert(t("profile.error"), t("my_profile.load_error"));
     } finally {
       setProfileLoading(false);
     }
@@ -165,11 +168,11 @@ export default function MyProfileScreen() {
       }
       const res = await updateProfile(body);
       if (res.success) {
-        Alert.alert("Saved", "Profile updated successfully.");
+        Alert.alert(t("my_profile.saved_title"), t("my_profile.saved_msg"));
         setProfile(res.data);
       }
     } catch (err: any) {
-      Alert.alert("Error", err?.message || "Could not save profile.");
+      Alert.alert(t("profile.error"), err?.message || t("my_profile.save_error"));
     } finally {
       setProfileSaving(false);
     }
@@ -266,24 +269,24 @@ export default function MyProfileScreen() {
       setAddressModal(false);
       loadAddresses();
     } catch (err: any) {
-      Alert.alert("Error", err?.message || "Could not save address.");
+      Alert.alert(t("profile.error"), err?.message || t("my_profile.save_address_error"));
     } finally {
       setAddrSaving(false);
     }
   };
 
   const handleDeleteAddress = (addr: Address) => {
-    Alert.alert("Delete Address", "Are you sure you want to delete this address?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("my_profile.delete_address_title"), t("my_profile.delete_address_confirm"), [
+      { text: t("profile.cancel"), style: "cancel" },
       {
-        text: "Delete",
+        text: t("my_profile.delete"),
         style: "destructive",
         onPress: async () => {
           try {
             await deleteAddress(addr.id);
             loadAddresses();
           } catch (err: any) {
-            Alert.alert("Error", err?.message || "Could not delete address.");
+            Alert.alert(t("profile.error"), err?.message || t("my_profile.delete_address_error"));
           }
         },
       },
@@ -301,29 +304,29 @@ export default function MyProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+          <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Profile</Text>
+        <Text style={styles.headerTitle}>{t("profile.title")}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabRow}>
+      <View style={[styles.tabRow, isArabic && styles.rtlRow]}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "profile" && styles.tabActive]}
+          style={[styles.tab, isArabic && styles.rtlRow, activeTab === "profile" && styles.tabActive]}
           onPress={() => setActiveTab("profile")}
         >
           <Ionicons name="person-outline" size={16} color={activeTab === "profile" ? "#344225" : "#6B7F75"} />
-          <Text style={[styles.tabLabel, activeTab === "profile" && styles.tabLabelActive]}>Profile</Text>
+          <Text style={[styles.tabLabel, activeTab === "profile" && styles.tabLabelActive]}>{t("my_profile.tab_profile")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "addresses" && styles.tabActive]}
+          style={[styles.tab, isArabic && styles.rtlRow, activeTab === "addresses" && styles.tabActive]}
           onPress={() => setActiveTab("addresses")}
         >
           <Ionicons name="location-outline" size={16} color={activeTab === "addresses" ? "#344225" : "#6B7F75"} />
-          <Text style={[styles.tabLabel, activeTab === "addresses" && styles.tabLabelActive]}>Addresses</Text>
+          <Text style={[styles.tabLabel, activeTab === "addresses" && styles.tabLabelActive]}>{t("my_profile.tab_addresses")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -340,21 +343,21 @@ export default function MyProfileScreen() {
               contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]}
               showsVerticalScrollIndicator={false}
             >
-              <Field label="Full Name">
-                <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor="#8AADA0" />
+              <Field label={t("my_profile.full_name")} isArabic={isArabic}>
+                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={name} onChangeText={setName} placeholder={t("my_profile.full_name_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
               </Field>
 
-              <Field label="Date of Birth (YYYY-MM-DD)">
-                <TextInput style={styles.input} value={dob} onChangeText={setDob} placeholder="1990-05-15" placeholderTextColor="#8AADA0" />
+              <Field label={t("my_profile.dob_label")} isArabic={isArabic}>
+                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={dob} onChangeText={setDob} placeholder={t("my_profile.dob_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
               </Field>
 
-              <Field label="Gender">
+              <Field label={t("my_profile.gender_label")} isArabic={isArabic}>
                 <TouchableOpacity
-                  style={styles.dropdownBtn}
+                  style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
                   onPress={() => { setShowGenderDropdown(!showGenderDropdown); setShowGoalDropdown(false); setShowActivityDropdown(false); }}
                 >
                   <Text style={[styles.dropdownBtnText, !gender && styles.dropdownBtnPlaceholder]}>
-                    {GENDERS.find((g) => g.value === gender)?.label ?? "Select gender"}
+                    {gender ? t(`my_profile.${GENDERS.find((g) => g.value === gender)!.labelKey}`) : t("my_profile.select_gender")}
                   </Text>
                   <Ionicons name={showGenderDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
                 </TouchableOpacity>
@@ -366,34 +369,34 @@ export default function MyProfileScreen() {
                         style={[styles.dropdownListItem, gender === g.value && styles.dropdownListItemActive, i === GENDERS.length - 1 && styles.dropdownListItemLast]}
                         onPress={() => { setGender(g.value); setShowGenderDropdown(false); }}
                       >
-                        <Text style={[styles.dropdownListItemText, gender === g.value && styles.dropdownListItemTextActive]}>{g.label}</Text>
+                        <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, gender === g.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${g.labelKey}`)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </Field>
 
-              <View style={styles.row}>
+              <View style={[styles.row, isArabic && styles.rtlRow]}>
                 <View style={{ flex: 1 }}>
-                  <Field label="Height (cm)">
-                    <TextInput style={styles.input} value={height} onChangeText={setHeight} placeholder="175" placeholderTextColor="#8AADA0" keyboardType="numeric" />
+                  <Field label={t("my_profile.height_label")} isArabic={isArabic}>
+                    <TextInput style={[styles.input, isArabic && styles.rtlText]} value={height} onChangeText={setHeight} placeholder="175" placeholderTextColor="#8AADA0" keyboardType="numeric" textAlign={isArabic ? "right" : "left"} />
                   </Field>
                 </View>
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
-                  <Field label="Weight (kg)">
-                    <TextInput style={styles.input} value={weight} onChangeText={setWeight} placeholder="70" placeholderTextColor="#8AADA0" keyboardType="numeric" />
+                  <Field label={t("my_profile.weight_label")} isArabic={isArabic}>
+                    <TextInput style={[styles.input, isArabic && styles.rtlText]} value={weight} onChangeText={setWeight} placeholder="70" placeholderTextColor="#8AADA0" keyboardType="numeric" textAlign={isArabic ? "right" : "left"} />
                   </Field>
                 </View>
               </View>
 
-              <Field label="Goal">
+              <Field label={t("my_profile.goal_label")} isArabic={isArabic}>
                 <TouchableOpacity
-                  style={styles.dropdownBtn}
+                  style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
                   onPress={() => { setShowGoalDropdown(!showGoalDropdown); setShowGenderDropdown(false); setShowActivityDropdown(false); }}
                 >
                   <Text style={[styles.dropdownBtnText, !goal && styles.dropdownBtnPlaceholder]}>
-                    {GOALS.find((g) => g.value === goal)?.label ?? "Select goal"}
+                    {goal ? t(`my_profile.${GOALS.find((g) => g.value === goal)!.labelKey}`) : t("my_profile.select_goal")}
                   </Text>
                   <Ionicons name={showGoalDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
                 </TouchableOpacity>
@@ -405,20 +408,20 @@ export default function MyProfileScreen() {
                         style={[styles.dropdownListItem, goal === g.value && styles.dropdownListItemActive, i === GOALS.length - 1 && styles.dropdownListItemLast]}
                         onPress={() => { setGoal(g.value); setShowGoalDropdown(false); }}
                       >
-                        <Text style={[styles.dropdownListItemText, goal === g.value && styles.dropdownListItemTextActive]}>{g.label}</Text>
+                        <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, goal === g.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${g.labelKey}`)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </Field>
 
-              <Field label="Activity Level">
+              <Field label={t("my_profile.activity_label")} isArabic={isArabic}>
                 <TouchableOpacity
-                  style={styles.dropdownBtn}
+                  style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
                   onPress={() => { setShowActivityDropdown(!showActivityDropdown); setShowGenderDropdown(false); setShowGoalDropdown(false); }}
                 >
                   <Text style={[styles.dropdownBtnText, !activityLevel && styles.dropdownBtnPlaceholder]}>
-                    {ACTIVITY_LEVELS.find((a) => a.value === activityLevel)?.label ?? "Select activity level"}
+                    {activityLevel ? t(`my_profile.${ACTIVITY_LEVELS.find((a) => a.value === activityLevel)!.labelKey}`) : t("my_profile.select_activity")}
                   </Text>
                   <Ionicons name={showActivityDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
                 </TouchableOpacity>
@@ -430,15 +433,15 @@ export default function MyProfileScreen() {
                         style={[styles.dropdownListItem, activityLevel === a.value && styles.dropdownListItemActive, i === ACTIVITY_LEVELS.length - 1 && styles.dropdownListItemLast]}
                         onPress={() => { setActivityLevel(a.value); setShowActivityDropdown(false); }}
                       >
-                        <Text style={[styles.dropdownListItemText, activityLevel === a.value && styles.dropdownListItemTextActive]}>{a.label}</Text>
+                        <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, activityLevel === a.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${a.labelKey}`)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </Field>
 
-              <View style={styles.switchRow}>
-                <Text style={styles.fieldLabel}>Food Allergies</Text>
+              <View style={[styles.switchRow, isArabic && styles.rtlRow]}>
+                <Text style={styles.fieldLabel}>{t("my_profile.food_allergies")}</Text>
                 <Switch
                   value={hasAllergies}
                   onValueChange={setHasAllergies}
@@ -448,13 +451,14 @@ export default function MyProfileScreen() {
               </View>
 
               {hasAllergies && (
-                <Field label="Allergies (comma-separated)">
+                <Field label={t("my_profile.allergies_label")} isArabic={isArabic}>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, isArabic && styles.rtlText]}
                     value={allergiesText}
                     onChangeText={setAllergiesText}
-                    placeholder="gluten, dairy, nuts"
+                    placeholder={t("my_profile.allergies_placeholder")}
                     placeholderTextColor="#8AADA0"
+                    textAlign={isArabic ? "right" : "left"}
                   />
                 </Field>
               )}
@@ -466,7 +470,7 @@ export default function MyProfileScreen() {
               >
                 {profileSaving
                   ? <ActivityIndicator size="small" color="#344225" />
-                  : <Text style={styles.saveBtnText}>Save Profile</Text>}
+                  : <Text style={styles.saveBtnText}>{t("my_profile.save_profile")}</Text>}
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -488,37 +492,37 @@ export default function MyProfileScreen() {
             {addresses.length === 0 ? (
               <View style={styles.emptyWrap}>
                 <Ionicons name="location-outline" size={40} color="#B8D5C5" />
-                <Text style={styles.emptyText}>No addresses yet</Text>
+                <Text style={styles.emptyText}>{t("my_profile.no_addresses")}</Text>
               </View>
             ) : (
               addresses.map((addr) => (
                 <View key={addr.id} style={styles.addrCard}>
-                  <View style={styles.addrCardTop}>
+                  <View style={[styles.addrCardTop, isArabic && styles.rtlRow]}>
                     <View style={styles.addrCardLeft}>
-                      <View style={styles.addrCategoryRow}>
+                      <View style={[styles.addrCategoryRow, isArabic && styles.rtlRow]}>
                         <Ionicons
                           name={addr.category === "home" ? "home-outline" : "briefcase-outline"}
                           size={14}
                           color="#5A7C65"
                         />
                         <Text style={styles.addrCategory}>
-                          {addr.category === "home" ? "Home" : "Office"}
+                          {addr.category === "home" ? t("my_profile.home") : t("my_profile.office")}
                         </Text>
                         {addr.is_primary && (
                           <View style={styles.primaryBadge}>
-                            <Text style={styles.primaryBadgeText}>Primary</Text>
+                            <Text style={styles.primaryBadgeText}>{t("my_profile.primary")}</Text>
                           </View>
                         )}
                       </View>
-                      <Text style={styles.addrName}>{addr.first_name}{addr.last_name ? ` ${addr.last_name}` : ""}</Text>
-                      <Text style={styles.addrLine}>
-                        {[addr.block_number && `Block ${addr.block_number}`, addr.street, addr.house_building, addr.area].filter(Boolean).join(", ")}
+                      <Text style={[styles.addrName, isArabic && styles.rtlText]}>{addr.first_name}{addr.last_name ? ` ${addr.last_name}` : ""}</Text>
+                      <Text style={[styles.addrLine, isArabic && styles.rtlText]}>
+                        {[addr.block_number && `${t("my_profile.block_prefix")} ${addr.block_number}`, addr.street, addr.house_building, addr.area].filter(Boolean).join(", ")}
                       </Text>
-                      {addr.floor_apartment ? <Text style={styles.addrLine}>Floor/Apt: {addr.floor_apartment}</Text> : null}
-                      <Text style={styles.addrLine}>{addr.phone_number}</Text>
-                      <Text style={styles.addrSlot}>{slotLabel(addr.preferred_delivery_slot)}</Text>
+                      {addr.floor_apartment ? <Text style={[styles.addrLine, isArabic && styles.rtlText]}>{t("my_profile.floor_apt_prefix")}: {addr.floor_apartment}</Text> : null}
+                      <Text style={[styles.addrLine, isArabic && styles.rtlText]}>{addr.phone_number}</Text>
+                      <Text style={[styles.addrSlot, isArabic && styles.rtlText]}>{slotLabel(addr.preferred_delivery_slot)}</Text>
                       {addr.delivery_notes ? (
-                        <Text style={styles.addrNotes}>📝 {addr.delivery_notes}</Text>
+                        <Text style={[styles.addrNotes, isArabic && styles.rtlText]}>📝 {addr.delivery_notes}</Text>
                       ) : null}
                     </View>
                     <View style={styles.addrActions}>
@@ -536,7 +540,7 @@ export default function MyProfileScreen() {
 
             <TouchableOpacity style={styles.addAddrBtn} onPress={openNewAddress}>
               <Ionicons name="add-circle-outline" size={20} color="#344225" />
-              <Text style={styles.addAddrBtnText}>Add New Address</Text>
+              <Text style={styles.addAddrBtnText}>{t("my_profile.add_new_address")}</Text>
             </TouchableOpacity>
           </ScrollView>
         )
@@ -546,25 +550,25 @@ export default function MyProfileScreen() {
       <Modal visible={addressModal} animationType="slide" transparent onRequestClose={() => setAddressModal(false)}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editingAddress ? "Edit Address" : "New Address"}</Text>
+            <View style={[styles.modalHeader, isArabic && styles.rtlRow]}>
+              <Text style={styles.modalTitle}>{editingAddress ? t("my_profile.edit_address_title") : t("my_profile.new_address_title")}</Text>
               <TouchableOpacity onPress={() => setAddressModal(false)}>
                 <Ionicons name="close" size={22} color="#344225" />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Field label="Area">
+              <Field label={t("my_profile.area_label")} isArabic={isArabic}>
                 <TouchableOpacity
-                  style={[styles.input, styles.pickerBtn]}
+                  style={[styles.input, styles.pickerBtn, isArabic && styles.rtlRow]}
                   onPress={() => !areasLoading && setShowAreaModal(true)}
                   disabled={areasLoading}
                 >
                   {areasLoading ? (
                     <ActivityIndicator size="small" color="#344225" />
                   ) : (
-                    <Text style={[styles.pickerBtnText, !selectedArea && styles.pickerBtnPlaceholder]}>
-                      {selectedArea ? selectedArea.name : "Select area"}
+                    <Text style={[styles.pickerBtnText, isArabic && styles.rtlText, !selectedArea && styles.pickerBtnPlaceholder]}>
+                      {selectedArea ? selectedArea.name : t("my_profile.select_area")}
                     </Text>
                   )}
                   <Ionicons name="chevron-down" size={16} color="#344225" />
@@ -573,34 +577,34 @@ export default function MyProfileScreen() {
 
               <View style={styles.modalRow}>
                 <View style={{ flex: 1 }}>
-                  <Field label="Block">
-                    <TextInput style={styles.input} value={addrForm.block_number ?? ""} onChangeText={(v) => setAddrField("block_number", v)} placeholder="4" placeholderTextColor="#8AADA0" keyboardType="numeric" />
+                  <Field label={t("my_profile.block_label")} isArabic={isArabic}>
+                    <TextInput style={[styles.input, isArabic && styles.rtlText]} value={addrForm.block_number ?? ""} onChangeText={(v) => setAddrField("block_number", v)} placeholder={t("my_profile.block_placeholder")} placeholderTextColor="#8AADA0" keyboardType="numeric" textAlign={isArabic ? "right" : "left"} />
                   </Field>
                 </View>
               </View>
 
-              <Field label="Street">
-                <TextInput style={styles.input} value={addrForm.street ?? ""} onChangeText={(v) => setAddrField("street", v)} placeholder="Street 12" placeholderTextColor="#8AADA0" />
+              <Field label={t("my_profile.street_label")} isArabic={isArabic}>
+                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={addrForm.street ?? ""} onChangeText={(v) => setAddrField("street", v)} placeholder={t("my_profile.street_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
               </Field>
 
-              <Field label="House / Building">
-                <TextInput style={styles.input} value={addrForm.house_building ?? ""} onChangeText={(v) => setAddrField("house_building", v)} placeholder="Villa 7" placeholderTextColor="#8AADA0" />
+              <Field label={t("my_profile.house_label")} isArabic={isArabic}>
+                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={addrForm.house_building ?? ""} onChangeText={(v) => setAddrField("house_building", v)} placeholder={t("my_profile.house_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
               </Field>
 
-              <Field label="Floor / Apartment">
-                <TextInput style={styles.input} value={addrForm.floor_apartment ?? ""} onChangeText={(v) => setAddrField("floor_apartment", v)} placeholder="Floor 3, Apt 12" placeholderTextColor="#8AADA0" />
+              <Field label={t("my_profile.floor_label")} isArabic={isArabic}>
+                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={addrForm.floor_apartment ?? ""} onChangeText={(v) => setAddrField("floor_apartment", v)} placeholder={t("my_profile.floor_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
               </Field>
 
-              <Field label="Remarks">
-                <TextInput style={styles.input} value={addrForm.remarks ?? ""} onChangeText={(v) => setAddrField("remarks", v)} placeholder="Near the park" placeholderTextColor="#8AADA0" />
+              <Field label={t("my_profile.remarks_label")} isArabic={isArabic}>
+                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={addrForm.remarks ?? ""} onChangeText={(v) => setAddrField("remarks", v)} placeholder={t("my_profile.remarks_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
               </Field>
 
-              <Field label="Delivery Notes">
-                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12 }]} value={addrForm.delivery_notes ?? ""} onChangeText={(v) => setAddrField("delivery_notes", v)} placeholder="Ring bell twice, gate code 1234" placeholderTextColor="#8AADA0" multiline textAlignVertical="top" maxLength={1000} />
+              <Field label={t("my_profile.delivery_notes_label")} isArabic={isArabic}>
+                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12 }, isArabic && styles.rtlText]} value={addrForm.delivery_notes ?? ""} onChangeText={(v) => setAddrField("delivery_notes", v)} placeholder={t("my_profile.delivery_notes_placeholder")} placeholderTextColor="#8AADA0" multiline textAlignVertical="top" maxLength={1000} textAlign={isArabic ? "right" : "left"} />
               </Field>
 
-              <Field label="Category">
-                <View style={styles.chipRow}>
+              <Field label={t("my_profile.category_label")} isArabic={isArabic}>
+                <View style={[styles.chipRow, isArabic && styles.rtlRow]}>
                   {(["home", "office"] as const).map((c) => (
                     <TouchableOpacity
                       key={c}
@@ -608,15 +612,15 @@ export default function MyProfileScreen() {
                       onPress={() => setAddrField("category", c)}
                     >
                       <Text style={[styles.chipText, addrForm.category === c && styles.chipTextActive]}>
-                        {c === "home" ? "Home" : "Office"}
+                        {c === "home" ? t("my_profile.home") : t("my_profile.office")}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </Field>
 
-              <Field label="Delivery Slot">
-                <View style={styles.chipRow}>
+              <Field label={t("my_profile.delivery_slot_label")} isArabic={isArabic}>
+                <View style={[styles.chipRow, isArabic && styles.rtlRow]}>
                   {timeSlots.map((s) => (
                     <TouchableOpacity
                       key={s.value}
@@ -629,8 +633,8 @@ export default function MyProfileScreen() {
                 </View>
               </Field>
 
-              <View style={styles.switchRow}>
-                <Text style={styles.fieldLabel}>Set as Primary</Text>
+              <View style={[styles.switchRow, isArabic && styles.rtlRow]}>
+                <Text style={styles.fieldLabel}>{t("my_profile.set_primary")}</Text>
                 <Switch
                   value={addrForm.is_primary ?? false}
                   onValueChange={(v) => setAddrField("is_primary", v)}
@@ -646,7 +650,7 @@ export default function MyProfileScreen() {
               >
                 {addrSaving
                   ? <ActivityIndicator size="small" color="#344225" />
-                  : <Text style={styles.saveBtnText}>{editingAddress ? "Update Address" : "Save Address"}</Text>}
+                  : <Text style={styles.saveBtnText}>{editingAddress ? t("my_profile.update_address") : t("my_profile.save_address")}</Text>}
               </TouchableOpacity>
 
               <View style={{ height: 20 }} />
@@ -658,7 +662,7 @@ export default function MyProfileScreen() {
                 <View style={styles.areaModalSheet}>
                   <View style={styles.areaModalHeader}>
                     <View style={styles.areaModalHeaderSpacer} />
-                    <Text style={styles.areaModalTitle}>Select Area</Text>
+                    <Text style={styles.areaModalTitle}>{t("my_profile.select_area_title")}</Text>
                     <TouchableOpacity style={styles.areaModalClose} onPress={() => setShowAreaModal(false)}>
                       <Ionicons name="close" size={20} color="#344225" />
                     </TouchableOpacity>
@@ -675,12 +679,12 @@ export default function MyProfileScreen() {
                           setShowAreaModal(false);
                         }}
                       >
-                        <Text style={[styles.areaItemText, selectedArea?.id === item.id && styles.areaItemTextSelected]}>
+                        <Text style={[styles.areaItemText, isArabic && styles.rtlText, selectedArea?.id === item.id && styles.areaItemTextSelected]}>
                           {item.name}
                         </Text>
                       </TouchableOpacity>
                     )}
-                    ListEmptyComponent={<Text style={styles.areaEmpty}>No areas available</Text>}
+                    ListEmptyComponent={<Text style={styles.areaEmpty}>{t("my_profile.no_areas")}</Text>}
                   />
                 </View>
               </View>
@@ -692,10 +696,10 @@ export default function MyProfileScreen() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, isArabic }: { label: string; children: React.ReactNode; isArabic?: boolean }) {
   return (
     <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{label}</Text>
       {children}
     </View>
   );
@@ -703,6 +707,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
+
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
 
   header: {
     flexDirection: "row",

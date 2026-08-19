@@ -2,6 +2,7 @@ import { getMeals, type Meal } from "@/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   BackHandler,
@@ -30,15 +31,19 @@ const normalizeCategoryName = (category: unknown): string => {
 type CategoryGroup = {
   id: number;
   name: string;
+  name_ar: string;
   meals: Meal[];
 };
 
 export default function LandingScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
@@ -61,11 +66,15 @@ export default function LandingScreen() {
 
     meals.forEach((m) => {
       const catName = normalizeCategoryName(m.category) || m.category_name || "";
+      const catNameAr =
+        (m.category && typeof m.category === "object" ? (m.category as any).name_ar : null) ||
+        m.category_name_ar ||
+        "";
       const catId = m.category_id ?? 0;
       if (!catName) return;
 
       if (q) {
-        const haystack = [m.title, (m as any).description, catName]
+        const haystack = [m.title, m.title_ar, (m as any).description, m.description_ar, catName, catNameAr]
           .filter(Boolean)
           .map((v) => String(v).toLowerCase())
           .join(" ");
@@ -73,7 +82,7 @@ export default function LandingScreen() {
       }
 
       if (!map.has(catId)) {
-        map.set(catId, { id: catId, name: catName, meals: [] });
+        map.set(catId, { id: catId, name: catName, name_ar: catNameAr, meals: [] });
       }
       map.get(catId)!.meals.push(m);
     });
@@ -87,7 +96,7 @@ export default function LandingScreen() {
   const renderMealCard = (meal: Meal) => (
     <View key={meal.id} style={[styles.card, { width: cardWidth }]}>
       <View style={styles.calorieBadge}>
-        <Text style={styles.calorieText}>{meal.calories} kcal</Text>
+        <Text style={styles.calorieText}>{meal.calories} {t("main.kcal")}</Text>
       </View>
       <Image
         source={meal.image_url ? { uri: meal.image_url } : require("@/assets/images/meal.jpg")}
@@ -95,30 +104,75 @@ export default function LandingScreen() {
         resizeMode="cover"
       />
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={2}>{meal.title}</Text>
-        <View style={styles.macroRow}>
-          <View style={styles.macroItem}>
+        <Text style={[styles.cardTitle, isArabic && styles.rtlText]} numberOfLines={2}>
+          {(isArabic && meal.title_ar) ? meal.title_ar : meal.title}
+        </Text>
+        <View style={[styles.macroRow, isArabic && styles.rtlRow]}>
+          <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
             <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />
-            <Text style={styles.macroText}>Cal {meal.calories}</Text>
+            <Text style={styles.macroText}>{t("main.cal")} {meal.calories}</Text>
           </View>
-          <View style={styles.macroItem}>
+          <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
             <View style={[styles.macroDot, { backgroundColor: "#D0021B" }]} />
-            <Text style={styles.macroText}>Protein {meal.protein_g}g</Text>
+            <Text style={styles.macroText}>{t("main.protein")} {meal.protein_g}g</Text>
           </View>
         </View>
-        <View style={styles.macroRow}>
-          <View style={styles.macroItem}>
+        <View style={[styles.macroRow, isArabic && styles.rtlRow]}>
+          <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
             <View style={[styles.macroDot, { backgroundColor: "#7ED321" }]} />
-            <Text style={styles.macroText}>Carbs {meal.carbs_g}g</Text>
+            <Text style={styles.macroText}>{t("main.carbs")} {meal.carbs_g}g</Text>
           </View>
-          <View style={styles.macroItem}>
+          <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
             <View style={[styles.macroDot, { backgroundColor: "#F5A623" }]} />
-            <Text style={styles.macroText}>Fat {meal.fat_g}g</Text>
+            <Text style={styles.macroText}>{t("main.fat")} {meal.fat_g}g</Text>
           </View>
         </View>
       </View>
     </View>
   );
+
+  const renderMealListRow = (meal: Meal) => {
+    const desc = (isArabic && meal.description_ar) ? meal.description_ar : (meal as any).description;
+    return (
+      <View style={[styles.listRow, isArabic && styles.rtlRow]}>
+        <View style={styles.listInfo}>
+          <Text style={[styles.listTitle, isArabic && styles.rtlText]} numberOfLines={2}>
+            {(isArabic && meal.title_ar) ? meal.title_ar : meal.title}
+          </Text>
+          {!!desc && (
+            <Text style={[styles.listDesc, isArabic && styles.rtlText]} numberOfLines={3}>{desc}</Text>
+          )}
+          <View style={[styles.listMacroRow, isArabic && styles.rtlRow]}>
+            <View style={styles.listMacroCol}>
+              <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                <View style={[styles.listMacroDot, { backgroundColor: "#4A90E2" }]} />
+                <Text style={styles.listMacroText}>{t("main.cal")} {meal.calories}</Text>
+              </View>
+              <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                <View style={[styles.listMacroDot, { backgroundColor: "#7ED321" }]} />
+                <Text style={styles.listMacroText}>{t("main.carbs")} {meal.carbs_g}g</Text>
+              </View>
+            </View>
+            <View style={styles.listMacroCol}>
+              <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                <View style={[styles.listMacroDot, { backgroundColor: "#D0021B" }]} />
+                <Text style={styles.listMacroText}>{t("main.protein")} {meal.protein_g}g</Text>
+              </View>
+              <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                <View style={[styles.listMacroDot, { backgroundColor: "#F5A623" }]} />
+                <Text style={styles.listMacroText}>{t("main.fat")} {meal.fat_g}g</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <Image
+          source={meal.image_url ? { uri: meal.image_url } : require("@/assets/images/meal.jpg")}
+          style={styles.listImage}
+          resizeMode="cover"
+        />
+      </View>
+    );
+  };
 
   const renderCategorySection = (group: CategoryGroup) => {
     const rows: Meal[][] = [];
@@ -129,20 +183,36 @@ export default function LandingScreen() {
     return (
       <View key={group.id} style={styles.categorySection}>
         {/* Section header */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{group.name}</Text>
+        <View style={[styles.sectionHeader, isArabic && styles.rtlRow]}>
+          <Text style={[styles.sectionTitle, isArabic && styles.rtlText]}>
+            {(isArabic && group.name_ar) ? group.name_ar : group.name}
+          </Text>
           <Text style={styles.sectionCount}>{group.meals.length}</Text>
         </View>
 
-        {/* 2-column grid */}
-        <View style={styles.grid}>
-          {rows.map((row, rowIdx) => (
-            <View key={rowIdx} style={styles.gridRow}>
-              {row.map(renderMealCard)}
-              {row.length === 1 && <View style={{ width: cardWidth }} />}
-            </View>
-          ))}
-        </View>
+        {viewMode === "grid" ? (
+          <View style={styles.grid}>
+            {rows.map((row, rowIdx) => (
+              <View key={rowIdx}>
+                <View style={styles.gridRow}>
+                  {row.map(renderMealCard)}
+                  {row.length === 1 && <View style={{ width: cardWidth }} />}
+                  {row.length === 2 && <View style={styles.colDivider} pointerEvents="none" />}
+                </View>
+                {rowIdx < rows.length - 1 && <View style={styles.rowDivider} />}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.listWrap}>
+            {group.meals.map((meal, idx) => (
+              <View key={meal.id}>
+                {renderMealListRow(meal)}
+                {idx < group.meals.length - 1 && <View style={styles.listDivider} />}
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     );
   };
@@ -170,8 +240,8 @@ export default function LandingScreen() {
       {/* Search */}
       <View style={styles.searchWrap}>
         <TextInput
-          style={styles.searchInput}
-          placeholder="Search"
+          style={[styles.searchInput, isArabic && styles.searchInputRTL]}
+          placeholder={t("landing.search_placeholder")}
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholderTextColor="#6B7F75"
@@ -180,8 +250,15 @@ export default function LandingScreen() {
           returnKeyType="search"
           clearButtonMode="while-editing"
           selectTextOnFocus
+          textAlign={isArabic ? "right" : "left"}
         />
-        <Ionicons name="search" size={18} color="#6B7F75" style={styles.searchIcon} pointerEvents="none" />
+        <Ionicons
+          name="search"
+          size={18}
+          color="#6B7F75"
+          style={[styles.searchIcon, isArabic && styles.searchIconRTL]}
+          pointerEvents="none"
+        />
       </View>
 
       {/* Content */}
@@ -191,7 +268,7 @@ export default function LandingScreen() {
         </View>
       ) : groupedCategories.length === 0 ? (
         <View style={styles.loadingWrap}>
-          <Text style={styles.emptyText}>No meals found</Text>
+          <Text style={styles.emptyText}>{t("main.no_meals")}</Text>
         </View>
       ) : (
         <ScrollView
@@ -203,25 +280,45 @@ export default function LandingScreen() {
         >
           {/* Greeting scrolls with content */}
           <View style={styles.greetingRow}>
-            <Text style={styles.greetingText}>Glad to see you!</Text>
-            <Text style={styles.greetingSubtext}>
-              Browse our menu and discover fresh, balanced meals crafted just for you.
-            </Text>
+            <View style={[styles.greetingTopRow, isArabic && styles.rtlRow]}>
+              <View style={[styles.greetingTextBlock, isArabic && styles.rtlTextBlock]}>
+                <Text style={[styles.greetingText, isArabic && styles.rtlText]}>{t("landing.greeting")}</Text>
+                <Text style={[styles.greetingSubtext, isArabic && styles.rtlText]}>
+                  {t("landing.subtitle")}
+                </Text>
+              </View>
+              <View style={styles.viewToggleRow}>
+                <TouchableOpacity
+                  style={[styles.viewToggleBtn, viewMode === "grid" && styles.viewToggleBtnActive]}
+                  onPress={() => setViewMode("grid")}
+                  activeOpacity={1}
+                >
+                  <Ionicons name="grid-outline" size={18} color={viewMode === "grid" ? "#FFFFFF" : "#344225"} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.viewToggleBtn, viewMode === "list" && styles.viewToggleBtnActive]}
+                  onPress={() => setViewMode("list")}
+                  activeOpacity={1}
+                >
+                  <Ionicons name="list-outline" size={20} color={viewMode === "list" ? "#FFFFFF" : "#344225"} />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
           {groupedCategories.map(renderCategorySection)}
         </ScrollView>
       )}
 
       {/* Bottom nav — all tabs redirect to login on landing screen */}
-      <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View style={[styles.bottomNav, isArabic && styles.rtlRow, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
         {([
-          { icon: "home", label: "Home" },
-          { icon: "time", label: "History" },
-          { icon: "calendar", label: "Calendar" },
-          { icon: "person", label: "Profile" },
+          { icon: "home", label: t("nav.home") },
+          { icon: "time", label: t("nav.history") },
+          { icon: "calendar", label: t("nav.calendar") },
+          { icon: "person", label: t("nav.profile") },
         ] as const).map((item) => (
           <TouchableOpacity
-            key={item.label}
+            key={item.icon}
             style={styles.navItem}
             onPress={() => router.replace("/auth")}
             activeOpacity={0.7}
@@ -282,20 +379,123 @@ const styles = StyleSheet.create({
     right: 14,
     top: 12,
   },
+  searchInputRTL: {
+    paddingRight: 14,
+    paddingLeft: 42,
+  },
+  searchIconRTL: {
+    right: undefined,
+    left: 14,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+  },
   greetingRow: {
     paddingHorizontal: 16,
     marginBottom: 16,
+  },
+  greetingTextBlock: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  rtlTextBlock: {
+    paddingRight: 0,
+    paddingLeft: 12,
+    alignItems: "flex-end",
   },
   greetingText: {
     fontSize: 16,
     color: "#344225",
     fontWeight: "700",
-    marginBottom: 4,
   },
   greetingSubtext: {
     fontSize: 13,
     color: "#5A7C65",
     lineHeight: 19,
+  },
+  greetingTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  viewToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  viewToggleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#C9D7CE",
+  },
+  viewToggleBtnActive: {
+    backgroundColor: "#344225",
+    borderColor: "#344225",
+  },
+  listWrap: {
+    paddingHorizontal: 16,
+  },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 18,
+  },
+  listInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 8,
+  },
+  listDesc: {
+    fontSize: 14,
+    color: "#8A8F8B",
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  listMacroRow: {
+    flexDirection: "row",
+  },
+  listMacroCol: {
+    flex: 1,
+    gap: 10,
+  },
+  listMacroItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  listMacroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  listMacroText: {
+    fontSize: 14,
+    color: "#344225",
+  },
+  listImage: {
+    width: 128,
+    height: 118,
+    borderRadius: 12,
+    alignSelf: "center",
+  },
+  listDivider: {
+    height: 1,
+    backgroundColor: "#93A79B",
   },
   list: {
     flex: 1,
@@ -336,19 +536,27 @@ const styles = StyleSheet.create({
   },
   grid: {
     paddingHorizontal: 16,
-    gap: 12,
   },
   gridRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "stretch",
+    position: "relative",
+    paddingVertical: 10,
   },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 10,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#D7E3DC",
+  colDivider: {
+    position: "absolute",
+    left: "50%",
+    top: 10,
+    bottom: 10,
+    width: 1,
+    backgroundColor: "#C9D7CE",
   },
+  rowDivider: {
+    height: 1,
+    backgroundColor: "#C9D7CE",
+  },
+  card: {},
   calorieBadge: {
     position: "absolute",
     zIndex: 1,
@@ -367,9 +575,10 @@ const styles = StyleSheet.create({
   cardImage: {
     width: "100%",
     height: 130,
+    borderRadius: 10,
   },
   cardBody: {
-    padding: 10,
+    paddingVertical: 8,
   },
   cardTitle: {
     fontSize: 13,

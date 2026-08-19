@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "supportsRtl": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/appstore.png"

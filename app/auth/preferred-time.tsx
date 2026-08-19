@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -21,6 +22,7 @@ type TimeSlot = { value: string; label_en: string; label_ar: string };
 
 export default function PreferredTimeScreen() {
   const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const insets = useSafeAreaInsets();
 
   const [selectedSlot, setSelectedSlot] = useState<string>("");
@@ -51,14 +53,14 @@ export default function PreferredTimeScreen() {
 
   const handleContinue = async () => {
     if (!selectedSlot) {
-      Alert.alert(t("common.error"), "Please select a delivery time slot.");
+      Alert.alert(t("common.error"), t("preferred_time.select_slot_error"));
       return;
     }
     setLoading(true);
     try {
       const addressDataStr = await AsyncStorage.getItem("pendingAddressData");
       if (!addressDataStr) {
-        Alert.alert(t("common.error"), "Address data not found. Please go back and fill in your address.");
+        Alert.alert(t("common.error"), t("preferred_time.address_not_found"));
         return;
       }
       const addressData = JSON.parse(addressDataStr);
@@ -78,7 +80,7 @@ export default function PreferredTimeScreen() {
       const proteinOptionsRaw = await AsyncStorage.getItem("proteinOptionsData");
 
       if (!planData || !durationData || !daysData || !dateData || !mealsData) {
-        Alert.alert(t("common.error"), "Subscription data not found. Please start over.");
+        Alert.alert(t("common.error"), t("preferred_time.subscription_not_found"));
         return;
       }
       if (!userId) {
@@ -95,7 +97,7 @@ export default function PreferredTimeScreen() {
       const appliedCoupon = couponData ? JSON.parse(couponData) : null;
 
       if (!selectedPlan?.id) {
-        Alert.alert(t("common.error"), "Subscription plan data is invalid. Please select a plan again.");
+        Alert.alert(t("common.error"), t("preferred_time.invalid_plan"));
         return;
       }
 
@@ -145,17 +147,25 @@ export default function PreferredTimeScreen() {
 
       const totalPrice = Math.max(0, basePrice - discountAmount) + proteinExtra;
 
-      const mealsArray: { day: string; meal_id: number; type: "is meal" | "is snack" }[] = [];
+      const mealsArray: { day: string; meal_id: number; type: "is meal" | "is snack"; extra_ingredient_ids?: number[] }[] = [];
+      const pushMeal = (dayName: string, item: any, type: "is meal" | "is snack") => {
+        if (!item?.id) return;
+        const entry: { day: string; meal_id: number; type: "is meal" | "is snack"; extra_ingredient_ids?: number[] } = {
+          day: dayName,
+          meal_id: parseInt(item.id, 10),
+          type,
+        };
+        if (Array.isArray(item.selectedExtraIds) && item.selectedExtraIds.length > 0) {
+          entry.extra_ingredient_ids = item.selectedExtraIds;
+        }
+        mealsArray.push(entry);
+      };
       Object.keys(dayMeals).forEach((dayIndexStr) => {
         const di = parseInt(dayIndexStr, 10);
         const dayName = dayNames[di];
         const dm = dayMeals[di];
-        dm?.meals?.forEach((meal: any) => {
-          if (meal?.id) mealsArray.push({ day: dayName, meal_id: parseInt(meal.id, 10), type: "is meal" });
-        });
-        dm?.snacks?.forEach((snack: any) => {
-          if (snack?.id) mealsArray.push({ day: dayName, meal_id: parseInt(snack.id, 10), type: "is snack" });
-        });
+        dm?.meals?.forEach((meal: any) => pushMeal(dayName, meal, "is meal"));
+        dm?.snacks?.forEach((snack: any) => pushMeal(dayName, snack, "is snack"));
       });
 
       const [sYear, sMonth, sDay] = startDate.split("-").map(Number);
@@ -164,7 +174,7 @@ export default function PreferredTimeScreen() {
       if (typeof selectedPlan.id === "string") {
         planId = parseInt(selectedPlan.id, 10);
         if (Number.isNaN(planId) || planId <= 0) {
-          Alert.alert(t("common.error"), "Invalid subscription plan ID. Please select a plan again.");
+          Alert.alert(t("common.error"), t("preferred_time.invalid_plan_id"));
           return;
         }
       } else {
@@ -242,13 +252,13 @@ export default function PreferredTimeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerTextBlock}>
-            <Text style={styles.title}>{t("preferred_time.title")}</Text>
-            <Text style={styles.subtitle}>{t("preferred_time.subtitle")}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("preferred_time.title")}</Text>
+            <Text style={[styles.subtitle, isArabic && styles.rtlText]}>{t("preferred_time.subtitle")}</Text>
           </View>
         </View>
 
@@ -269,14 +279,14 @@ export default function PreferredTimeScreen() {
                 return (
                   <TouchableOpacity
                     key={slot.value}
-                    style={[styles.slotCard, isActive && styles.slotCardActive]}
+                    style={[styles.slotCard, isArabic && styles.rtlRow, isActive && styles.slotCardActive]}
                     onPress={() => setSelectedSlot(slot.value)}
                     activeOpacity={0.8}
                   >
                     <View style={[styles.slotRadio, isActive && styles.slotRadioActive]}>
                       {isActive && <View style={styles.slotRadioInner} />}
                     </View>
-                    <Text style={[styles.slotLabel, isActive && styles.slotLabelActive]}>{label}</Text>
+                    <Text style={[styles.slotLabel, isArabic && styles.rtlText, isActive && styles.slotLabelActive]}>{label}</Text>
                     {isActive && (
                       <Ionicons name="checkmark-circle" size={22} color="#FAD979" />
                     )}
@@ -306,6 +316,8 @@ export default function PreferredTimeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
   header: {
     flexDirection: "row",
     alignItems: "center",

@@ -14,6 +14,12 @@ const RESOURCES = {
 
 const LANGUAGE_KEY = 'appLanguage';
 
+export const isArabicLanguage = (language?: string | null) =>
+  (language ?? '').toLowerCase().startsWith('ar');
+
+const normalizeLanguage = (language?: string | null): 'en' | 'ar' =>
+  isArabicLanguage(language) ? 'ar' : 'en';
+
 export const initI18n = async () => {
   let savedLanguage = await AsyncStorage.getItem(LANGUAGE_KEY);
 
@@ -21,6 +27,8 @@ export const initI18n = async () => {
     const deviceLanguage = Localization.getLocales()[0].languageCode;
     savedLanguage = deviceLanguage === 'ar' ? 'ar' : 'en';
   }
+
+  savedLanguage = normalizeLanguage(savedLanguage);
 
   await i18n
     .use(initReactI18next)
@@ -37,7 +45,7 @@ export const initI18n = async () => {
     });
 
   // Ensure RTL is correctly set based on the current language
-  const isRTL = savedLanguage === 'ar';
+    const isRTL = isArabicLanguage(savedLanguage);
   if (I18nManager.isRTL !== isRTL) {
     I18nManager.allowRTL(isRTL);
     I18nManager.forceRTL(isRTL);
@@ -50,10 +58,11 @@ export const initI18n = async () => {
 
 export const changeLanguage = async (lang: 'en' | 'ar') => {
   try {
-    await AsyncStorage.setItem(LANGUAGE_KEY, lang);
-    await i18n.changeLanguage(lang);
+    const normalized = normalizeLanguage(lang);
+    await AsyncStorage.setItem(LANGUAGE_KEY, normalized);
+    await i18n.changeLanguage(normalized);
 
-    const isRTL = lang === 'ar';
+    const isRTL = isArabicLanguage(normalized);
     I18nManager.allowRTL(isRTL);
     I18nManager.forceRTL(isRTL);
   } catch (error) {

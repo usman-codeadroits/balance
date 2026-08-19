@@ -17,7 +17,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllergiesPreferencesScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
 
   const allergy_list_data = [
     { id: "Milk", title: t("allergy_list.milk") },
@@ -118,14 +119,14 @@ export default function AllergiesPreferencesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.header}>
+        <View style={[styles.header, isArabic && styles.rtlRow]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t("allergies_prefs.title")}</Text>
+          <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("allergies_prefs.title")}</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -134,10 +135,10 @@ export default function AllergiesPreferencesScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.description}>
+          <Text style={[styles.description, isArabic && styles.rtlText]}>
             {t("allergies_prefs.description")}
           </Text>
-          <Text style={styles.subtitle}>{t("allergies_prefs.subtitle")}</Text>
+          <Text style={[styles.subtitle, isArabic && styles.rtlText]}>{t("allergies_prefs.subtitle")}</Text>
 
           <View style={styles.allergiesContainer}>
             {allergy_list_data.map((allergy) => (
@@ -145,6 +146,7 @@ export default function AllergiesPreferencesScreen() {
                 key={allergy.id}
                 style={[
                   styles.allergyItem,
+                  isArabic && styles.rtlRow,
                   selectedAllergies.includes(allergy.id) &&
                   styles.allergyItemSelected,
                 ]}
@@ -154,6 +156,7 @@ export default function AllergiesPreferencesScreen() {
                 <Text
                   style={[
                     styles.allergyText,
+                    isArabic && styles.rtlText,
                     selectedAllergies.includes(allergy.id) &&
                     styles.allergyTextSelected,
                   ]}
@@ -212,6 +215,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#344225",
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   placeholder: {
     width: 36,

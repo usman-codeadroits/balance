@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -27,7 +28,8 @@ interface ActiveSubscription {
 }
 
 export default function PersonalizedPlanSelectScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const insets = useSafeAreaInsets();
   const [selectedPlan, setSelectedPlan] = useState<string>("");
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
@@ -123,13 +125,13 @@ export default function PersonalizedPlanSelectScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerTextBlock}>
-            <Text style={styles.headerTitle}>Your Plan is Ready!</Text>
-            <Text style={styles.headerSubtitle}>Personalized macros set, Now select a subscription to activate it.</Text>
+            <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("personalized_plan_select.header_title")}</Text>
+            <Text style={[styles.headerSubtitle, isArabic && styles.rtlText]}>{t("personalized_plan_select.header_subtitle")}</Text>
           </View>
         </View>
 
@@ -142,12 +144,12 @@ export default function PersonalizedPlanSelectScreen() {
           <PersonalizedBanner />
 
           {/* Disclaimer */}
-          <View style={styles.disclaimerCard}>
+          <View style={[styles.disclaimerCard, isArabic && styles.rtlRow]}>
             <Ionicons name="information-circle-outline" size={18} color="#5A7C65" style={{ marginTop: 1 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.disclaimerLabel}>Disclaimer</Text>
-              <Text style={styles.disclaimerText}>
-                2 Beef and 2 Salmon items available per week based on US dietary recommendations.
+              <Text style={[styles.disclaimerLabel, isArabic && styles.rtlText]}>{t("subscription_screen.disclaimer_label")}</Text>
+              <Text style={[styles.disclaimerText, isArabic && styles.rtlText]}>
+                {t("subscription_screen.disclaimer_text")}
               </Text>
             </View>
           </View>
@@ -155,16 +157,16 @@ export default function PersonalizedPlanSelectScreen() {
           {/* Active subscription warning */}
           {!checkingSubscription && activeSubscription && (
             <View style={styles.activeSubscriptionCard}>
-              <View style={styles.activeSubscriptionHeader}>
+              <View style={[styles.activeSubscriptionHeader, isArabic && styles.rtlRow]}>
                 <Ionicons name="information-circle" size={24} color="#344225" />
-                <Text style={styles.activeSubscriptionTitle}>
+                <Text style={[styles.activeSubscriptionTitle, isArabic && styles.rtlText]}>
                   {t("subscription_screen.active_sub_title")}
                 </Text>
               </View>
-              <Text style={styles.activeSubscriptionText}>
+              <Text style={[styles.activeSubscriptionText, isArabic && styles.rtlText]}>
                 {t("subscription_screen.active_sub_msg", { date: formatDate(activeSubscription.endDate) })}
               </Text>
-              <Text style={styles.activeSubscriptionSubtext}>
+              <Text style={[styles.activeSubscriptionSubtext, isArabic && styles.rtlText]}>
                 {t("subscription_screen.active_sub_overlap")}
               </Text>
               <TouchableOpacity
@@ -194,11 +196,11 @@ export default function PersonalizedPlanSelectScreen() {
             <>
               {mealPlans.map((plan) => (
                 <View key={plan.id} style={styles.planCard}>
-                  <View style={styles.planContentColumn}>
-                    <Text style={styles.planTitle}>{plan.title}</Text>
-                    <Text style={styles.planPrice}>{formatPlanPrice(plan)}</Text>
+                  <View style={[styles.planContentColumn, isArabic && styles.rtlColumn]}>
+                    <Text style={[styles.planTitle, isArabic && styles.rtlText]}>{(isArabic && plan.title_ar) ? plan.title_ar : plan.title}</Text>
+                    <Text style={[styles.planPrice, isArabic && styles.rtlText]}>{formatPlanPrice(plan)}</Text>
                   </View>
-                  <Text style={styles.planDescription}>
+                  <Text style={[styles.planDescription, isArabic && styles.rtlText]}>
                     {t("subscription_screen.choose_prefix")} {plan.meal_count}{" "}
                     {plan.meal_count > 1
                       ? t("subscription_screen.meals_label_plural")
@@ -212,6 +214,7 @@ export default function PersonalizedPlanSelectScreen() {
                   <TouchableOpacity
                     style={[
                       styles.chooseButton,
+                      isArabic && styles.chooseButtonRTL,
                       String(selectedPlan) === String(plan.id) && styles.chooseButtonSelected,
                     ]}
                     onPress={() => setSelectedPlan(String(plan.id))}
@@ -247,7 +250,8 @@ export default function PersonalizedPlanSelectScreen() {
 }
 
 function PersonalizedBanner() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
   const [extraPrice, setExtraPrice] = useState("0.000");
@@ -268,11 +272,11 @@ function PersonalizedBanner() {
   const isFree = parseFloat(extraPrice) === 0;
 
   return (
-    <View style={styles.banner}>
+    <View style={[styles.banner, isArabic && styles.rtlRow]}>
       <Ionicons name="checkmark-circle" size={20} color="#344225" style={{ marginTop: 2 }} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.bannerTitle}>{t("personalized_summary.your_choices")}</Text>
-        <Text style={styles.bannerBody}>
+        <Text style={[styles.bannerTitle, isArabic && styles.rtlText]}>{t("personalized_summary.your_choices")}</Text>
+        <Text style={[styles.bannerBody, isArabic && styles.rtlText]}>
           {protein}g Protein{isFree ? "" : ` (+${parseFloat(extraPrice).toFixed(3)} KWD/meal)`}{"  ·  "}{carbs}g Carbs
         </Text>
       </View>
@@ -283,6 +287,9 @@ function PersonalizedBanner() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
+  rtlColumn: { alignItems: "flex-end" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -345,6 +352,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginTop: 4,
   },
+  chooseButtonRTL: { alignSelf: "flex-end" },
   chooseButtonSelected: { backgroundColor: "#FAD979", borderWidth: 2, borderColor: "#344225" },
   chooseButtonText: { color: "#FAD979", fontSize: 14, fontWeight: "600" },
   chooseButtonTextSelected: { color: "#344225", fontWeight: "bold" },

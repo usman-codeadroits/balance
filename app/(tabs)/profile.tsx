@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -18,9 +19,11 @@ import { resetAppCache } from "@/utils/reset-app-cache";
 
 import { useTranslation } from "react-i18next";
 
+import { isArabicLanguage } from "@/constants/i18n";
+
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
-  const isArabic = i18n.language === "ar";
+  const isArabic = isArabicLanguage(i18n.language);
   const insets = useSafeAreaInsets();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -66,7 +69,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Title */}
-        <View style={[styles.titleContainer, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.titleContainer, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <Text style={styles.title}>{t("profile.title")}</Text>
         </View>
 

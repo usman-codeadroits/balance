@@ -12,9 +12,12 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, I18nManager, Image, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isArabicLanguage } from '@/constants/i18n';
+
 export default function AuthScreen() {
   const { t, i18n } = useTranslation();
   const currentLanguage = i18n.language;
+  const isArabic = isArabicLanguage(currentLanguage);
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Kuwait by default
@@ -24,27 +27,25 @@ export default function AuthScreen() {
 
   const handleLangToggle = async () => {
     if (langSwitching) return;
-    const next = currentLanguage === 'ar' ? 'en' : 'ar';
-    const rtlChanging = (next === 'ar') !== I18nManager.isRTL;
+    const next = isArabic ? 'en' : 'ar';
+    const rtlChanging = isArabicLanguage(next) !== I18nManager.isRTL;
     setLangSwitching(true);
     try {
       await changeLanguage(next);
       if (rtlChanging) {
         Alert.alert(
-          next === 'ar' ? 'تم تغيير اللغة' : 'Language Changed',
-          next === 'ar'
-            ? 'سيتم إعادة تشغيل التطبيق لتطبيق اتجاه العربية.'
-            : 'The app will restart to apply the new layout direction.',
-          [{ text: 'OK', onPress: async () => {
+          t('change_language.changed_title'),
+          t('change_language.restart_message'),
+          [{ text: t('common.ok'), onPress: async () => {
             try { await Updates.reloadAsync(); } catch {
-              Alert.alert('Restart Required', 'Please close and reopen the app to apply the layout direction.');
+              Alert.alert(t('change_language.restart_required_title'), t('change_language.restart_required_message'));
             }
           }}],
           { cancelable: false },
         );
       }
     } catch {
-      Alert.alert('Error', 'Failed to change language.');
+      Alert.alert(t('common.error'), t('change_language.error'));
     } finally {
       setLangSwitching(false);
     }
@@ -106,15 +107,15 @@ export default function AuthScreen() {
         <View style={styles.content}>
           {/* Logo + language toggle */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.skipBtn} onPress={() => router.replace('/landing')} activeOpacity={0.75}>
-              <Text style={styles.skipText}>Skip</Text>
+            <TouchableOpacity style={[styles.skipBtn, isArabic && styles.skipBtnRTL]} onPress={() => router.replace('/landing')} activeOpacity={0.75}>
+              <Text style={styles.skipText}>{t('auth.skip')}</Text>
             </TouchableOpacity>
             <Image
               source={require('@/assets/images/authlogo.png')}
               style={styles.logo}
               resizeMode="contain"
             />
-            <TouchableOpacity style={styles.langPill} onPress={handleLangToggle} disabled={langSwitching} activeOpacity={0.75}>
+            <TouchableOpacity style={[styles.langPill, isArabic && styles.langPillRTL]} onPress={handleLangToggle} disabled={langSwitching} activeOpacity={0.75}>
               {langSwitching ? (
                 <ActivityIndicator size="small" color="#FAD979" />
               ) : (
@@ -129,13 +130,14 @@ export default function AuthScreen() {
 
           {/* Tabs + Phone input — static, centred in remaining space */}
           <View style={styles.formSection}>
-            <AuthTabs activeTab={activeTab} onTabChange={handleTabChange} />
+            <AuthTabs activeTab={activeTab} onTabChange={handleTabChange} isArabic={isArabic} />
             <PhoneInput
               value={phoneNumber}
               onChangeText={setPhoneNumber}
               placeholder={t('auth.phone_placeholder')}
               selectedCountry={selectedCountry}
               onSelectCountry={setSelectedCountry}
+              isArabic={isArabic}
             />
           </View>
 
@@ -147,7 +149,7 @@ export default function AuthScreen() {
               disabled={loading}
             />
 
-            <View style={styles.bottomTextContainer}>
+            <View style={[styles.bottomTextContainer, isArabic && styles.rtlRow]}>
               <Text style={styles.bottomText}>
                 {activeTab === 'login' ? t('auth.no_account') : t('auth.have_account')}
               </Text>
@@ -159,10 +161,10 @@ export default function AuthScreen() {
               </Text>
             </View>
 
-            <View style={styles.menuLinkContainer}>
-              <Text style={styles.menuLinkText}>Check menu? </Text>
+            <View style={[styles.menuLinkContainer, isArabic && styles.rtlRow]}>
+              <Text style={styles.menuLinkText}>{t('auth.check_menu')} </Text>
               <Text style={styles.menuLinkBtn} onPress={() => router.replace('/landing')}>
-                Click here
+                {t('auth.click_here')}
               </Text>
             </View>
           </View>
@@ -201,6 +203,17 @@ const styles = StyleSheet.create({
     color: '#FAD979',
     fontSize: 15,
     fontWeight: '600',
+  },
+  skipBtnRTL: {
+    left: undefined,
+    right: 0,
+  },
+  langPillRTL: {
+    right: undefined,
+    left: 0,
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
   },
   logo: {
     width: 80,

@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Linking,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -17,6 +19,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const WHATSAPP_NUMBER = '96595516810';
 
 export default function ContactUsScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith('ar');
   const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [subject, setSubject] = useState('');
@@ -24,7 +28,7 @@ export default function ContactUsScreen() {
 
   const handleSendMessage = async () => {
     if (!fullName.trim() || !subject.trim() || !message.trim()) {
-      Alert.alert('Missing information', 'Please fill in all fields');
+      Alert.alert(t('contact_us.missing_info_title'), t('contact_us.missing_info_msg'));
       return;
     }
 
@@ -37,17 +41,17 @@ export default function ContactUsScreen() {
     try {
       await Linking.openURL(supported ? url : fallback);
     } catch {
-      Alert.alert('WhatsApp not found', 'Please install WhatsApp or contact us directly at +965 9551 6810');
+      Alert.alert(t('contact_us.whatsapp_not_found_title'), t('contact_us.whatsapp_not_found_msg'));
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === 'ios' ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/profile' as any)}>
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name={isArabic ? 'arrow-forward' : 'arrow-back'} size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Contact Us</Text>
+        <Text style={styles.headerTitle}>{t('contact_us.header_title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -57,54 +61,57 @@ export default function ContactUsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* WhatsApp info card */}
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, isArabic && styles.rtlRow]}>
           <View style={styles.infoIconWrap}>
             <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
           </View>
           <View style={styles.infoTextWrap}>
-            <Text style={styles.infoTitle}>WhatsApp Support</Text>
-            <Text style={styles.infoSubtitle}>+965 9001 2820</Text>
-            <Text style={styles.infoHint}>Fill the form below to send us a message directly on WhatsApp</Text>
+            <Text style={[styles.infoTitle, isArabic && styles.rtlText]}>{t('contact_us.whatsapp_support')}</Text>
+            <Text style={[styles.infoSubtitle, isArabic && styles.rtlText]}>+965 9001 2820</Text>
+            <Text style={[styles.infoHint, isArabic && styles.rtlText]}>{t('contact_us.whatsapp_hint')}</Text>
           </View>
         </View>
 
         <View style={styles.divider} />
 
-        <Text style={styles.formLabel}>Full Name</Text>
+        <Text style={[styles.formLabel, isArabic && styles.rtlText]}>{t('contact_us.full_name')}</Text>
         <TextInput
-          style={styles.input}
-          placeholder="Your full name"
+          style={[styles.input, isArabic && styles.rtlText]}
+          placeholder={t('contact_us.full_name_placeholder')}
           placeholderTextColor="#8AADA0"
           value={fullName}
           onChangeText={setFullName}
+          textAlign={isArabic ? 'right' : 'left'}
         />
 
-        <Text style={styles.formLabel}>Subject</Text>
+        <Text style={[styles.formLabel, isArabic && styles.rtlText]}>{t('contact_us.subject')}</Text>
         <TextInput
-          style={styles.input}
-          placeholder="What is this about?"
+          style={[styles.input, isArabic && styles.rtlText]}
+          placeholder={t('contact_us.subject_placeholder')}
           placeholderTextColor="#8AADA0"
           value={subject}
           onChangeText={setSubject}
+          textAlign={isArabic ? 'right' : 'left'}
         />
 
-        <Text style={styles.formLabel}>Message</Text>
+        <Text style={[styles.formLabel, isArabic && styles.rtlText]}>{t('contact_us.message')}</Text>
         <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Write your message here..."
+          style={[styles.input, styles.textArea, isArabic && styles.rtlText]}
+          placeholder={t('contact_us.message_placeholder')}
           placeholderTextColor="#8AADA0"
           value={message}
           onChangeText={setMessage}
           multiline
           numberOfLines={6}
           textAlignVertical="top"
+          textAlign={isArabic ? 'right' : 'left'}
         />
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
         <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
           <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
-          <Text style={styles.sendButtonText}>Send via WhatsApp</Text>
+          <Text style={styles.sendButtonText}>{t('contact_us.send_button')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -122,6 +129,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingBottom: 16,
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
+  },
+  rtlText: {
+    textAlign: 'right',
   },
   backButton: {
     width: 40,

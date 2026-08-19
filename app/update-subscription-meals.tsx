@@ -1,8 +1,8 @@
-import { getMeals, type Meal } from "@/api/services/meals";
+import { getMeals, type Meal, type MealExtra } from "@/api/services/meals";
 import {
-  getSubscriptionDetails,
-  updateSubscriptionMeal,
-  type UserSubscriptionDetails,
+    getSubscriptionDetails,
+    updateSubscriptionMeal,
+    type UserSubscriptionDetails,
 } from "@/api/services/subscriptions";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,19 +10,24 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
 
 const normalizeCategoryName = (category: unknown): string => {
   if (typeof category === "string") return category;
@@ -34,6 +39,14 @@ const normalizeCategoryName = (category: unknown): string => {
   return "";
 };
 
+const getMealCategoryName = (meal: Meal): string => {
+  return normalizeCategoryName(meal.category) || meal.category_name || "";
+};
+
+const getMealCategoryNameAr = (meal: Meal): string => {
+  return (meal.category && typeof meal.category === "object" ? (meal.category as any).name_ar : null) || meal.category_name_ar || "";
+};
+
 interface SlotState {
   day: string;
   mealId: number | null;
@@ -43,7 +56,7 @@ interface SlotState {
 
 export default function UpdateSubscriptionMealsScreen() {
   const { subscriptionId } = useLocalSearchParams();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isArabic = i18n.language.startsWith("ar");
   const [details, setDetails] = useState<UserSubscriptionDetails | null>(null);
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
@@ -60,7 +73,16 @@ export default function UpdateSubscriptionMealsScreen() {
     subscriptionMealId?: number;
     slotIndex: number;
   } | null>(null);
+  // Extras sub-step inside the picker modal
+  const [extrasMeal, setExtrasMeal] = useState<Meal | null>(null);
+  const [extrasSelected, setExtrasSelected] = useState<Record<number, number[]>>({});
   const insets = useSafeAreaInsets();
+
+  const weekdayNames = t("calendar.weekdays", { returnObjects: true }) as string[];
+  const getDayName = (day: string) => {
+    const idx = DAY_NAME_TO_INDEX[(day || "").toLowerCase()];
+    return idx !== undefined ? weekdayNames[idx] : (day.charAt(0).toUpperCase() + day.slice(1));
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -128,11 +150,11 @@ export default function UpdateSubscriptionMealsScreen() {
         setDetails(subResponse.data);
         setSlots(buildSlots(subResponse.data));
       } else {
-        setError("Failed to load subscription details");
+        setError(t("update_meals.load_error_details"));
       }
       setAllMeals(mealsData);
     } catch {
-      setError("Failed to load data. Please try again.");
+      setError(t("update_meals.load_error_generic"));
     } finally {
       setLoading(false);
     }
@@ -147,11 +169,78 @@ export default function UpdateSubscriptionMealsScreen() {
     setPickerContext({ day, type, subscriptionMealId, slotIndex });
     setSearchQuery("");
     setSelectedCategory(null);
+    setExtrasMeal(null);
+    setExtrasSelected({});
     setPickerVisible(true);
   };
 
-  const handleSelectMeal = async (meal: Meal) => {
+  const closePicker = () => {
+    setPickerVisible(false);
+    setPickerContext(null);
+    setExtrasMeal(null);
+    setExtrasSelected({});
+  };
+
+  // Prefill extras from the slot's currently-saved choices when re-picking the same meal
+  const seedExtrasForSlot = (meal: Meal): Record<number, number[]> => {
+    const seed: Record<number, number[]> = {};
+    if (!meal.meal_extras?.length || !pickerContext) return seed;
+    const day = details?.subscription_days?.find((d) => d.day === pickerContext.day);
+    const sm = (day?.subscription_meals as any[] | undefined)?.find(
+      (m: any) => m.id === pickerContext.subscriptionMealId && m.meal_id === meal.id,
+    );
+    const selExtras = (sm as any)?.selected_extras;
+    const selectedIds: number[] = Array.isArray(selExtras)
+      ? selExtras.flatMap((se: any) => (Array.isArray(se.options) ? se.options.map((o: any) => o.id) : []))
+      : [];
+    meal.meal_extras.forEach((ex) => {
+      const ids = ex.ingredients.filter((ing) => selectedIds.includes(ing.id)).map((ing) => ing.id);
+      if (ids.length) seed[ex.id] = ids;
+    });
+    return seed;
+  };
+
+  const toggleExtraOption = (extra: MealExtra, optionId: number) => {
+    setExtrasSelected((prev) => {
+      const current = prev[extra.id] ?? [];
+      if (extra.selection_type === "single") {
+        return { ...prev, [extra.id]: current[0] === optionId ? [] : [optionId] };
+      }
+      if (current.includes(optionId)) {
+        return { ...prev, [extra.id]: current.filter((id) => id !== optionId) };
+      }
+      const max = extra.max_select;
+      if (max != null && current.length >= max) return prev;
+      return { ...prev, [extra.id]: [...current, optionId] };
+    });
+  };
+
+  const confirmExtras = () => {
+    if (!extrasMeal?.meal_extras) return;
+    const missing = extrasMeal.meal_extras.filter(
+      (ex) => ex.is_required && (extrasSelected[ex.id]?.length ?? 0) === 0,
+    );
+    if (missing.length > 0) {
+      const names = missing
+        .map((ex) => (isArabic && ex.name_ar ? ex.name_ar : ex.name))
+        .join(", ");
+      Alert.alert(t("meal_extras.required_title"), t("meal_extras.required_msg", { names }));
+      return;
+    }
+    const ids = extrasMeal.meal_extras.flatMap((ex) => extrasSelected[ex.id] ?? []);
+    handleSelectMeal(extrasMeal, ids);
+  };
+
+  const handleSelectMeal = async (meal: Meal, extraIngredientIds?: number[]) => {
     if (!pickerContext || !details) return;
+
+    // If the meal offers extras and we haven't collected them yet, switch to the extras step
+    if ((meal.meal_extras?.length ?? 0) > 0 && extraIngredientIds === undefined) {
+      setExtrasSelected(seedExtrasForSlot(meal));
+      setExtrasMeal(meal);
+      return;
+    }
+
     try {
       setSavingSlot(true);
       const subscriptionDayId = details.subscription_days?.find(
@@ -165,6 +254,7 @@ export default function UpdateSubscriptionMealsScreen() {
         meal_id: meal.id,
         type: pickerContext.type,
         subscription_meal_id: pickerContext.subscriptionMealId,
+        ...(extraIngredientIds !== undefined ? { extra_ingredient_ids: extraIngredientIds } : {}),
       });
 
       const newSubMealId =
@@ -180,10 +270,9 @@ export default function UpdateSubscriptionMealsScreen() {
         return updated;
       });
 
-      setPickerVisible(false);
-      setPickerContext(null);
+      closePicker();
     } catch {
-      Alert.alert("Update failed", "Could not update meal. Please try again.");
+      Alert.alert(t("update_meals.update_failed_title"), t("update_meals.update_failed_msg"));
     } finally {
       setSavingSlot(false);
     }
@@ -193,7 +282,7 @@ export default function UpdateSubscriptionMealsScreen() {
     ? allMeals.filter((meal) => {
         if (meal.type !== pickerContext.type) return false;
         if (!details?.is_personalized) return true;
-        const catName = normalizeCategoryName(meal.category).toLowerCase();
+        const catName = getMealCategoryName(meal).toLowerCase();
         return pickerContext.type === "is meal"
           ? catName.includes("main course")
           : catName.includes("snack");
@@ -204,7 +293,7 @@ export default function UpdateSubscriptionMealsScreen() {
     new Map(
       typeFilteredMeals.map((meal) => [
         meal.category_id,
-        { id: meal.category_id, name: normalizeCategoryName(meal.category) },
+        { id: meal.category_id, name: getMealCategoryName(meal), name_ar: getMealCategoryNameAr(meal) },
       ]),
     ).values(),
   ).filter((c) => c.name.length > 0);
@@ -247,7 +336,7 @@ export default function UpdateSubscriptionMealsScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#344225" />
-          <Text style={styles.loadingText}>Loading meals...</Text>
+          <Text style={styles.loadingText}>{t("update_meals.loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -256,22 +345,22 @@ export default function UpdateSubscriptionMealsScreen() {
   if (error) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Update Meals</Text>
+          <Text style={styles.headerTitle}>{t("update_meals.header_title")}</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color="#D64545" />
-          <Text style={styles.errorTitle}>Could not load</Text>
+          <Text style={styles.errorTitle}>{t("update_meals.load_error_title")}</Text>
           <Text style={styles.errorDesc}>{error}</Text>
           <TouchableOpacity
             style={styles.retryBtn}
             onPress={() => { if (subscriptionId) loadData(Number(subscriptionId)); }}
           >
-            <Text style={styles.retryBtnText}>Try Again</Text>
+            <Text style={styles.retryBtnText}>{t("update_meals.try_again")}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -281,27 +370,27 @@ export default function UpdateSubscriptionMealsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Update Meals</Text>
+          <Text style={styles.headerTitle}>{t("update_meals.header_title")}</Text>
           <View style={{ width: 40 }} />
         </View>
 
         {/* Plan capacity info */}
-        <View style={styles.capacityBanner}>
-          <View style={styles.capacityItem}>
+        <View style={[styles.capacityBanner, isArabic && styles.rtlRow]}>
+          <View style={[styles.capacityItem, isArabic && styles.rtlRow]}>
             <View style={[styles.capDot, { backgroundColor: "#344225" }]} />
-            <Text style={styles.capacityText}>{`${planCounts.meals} meal${planCounts.meals !== 1 ? "s" : ""} per day`}</Text>
+            <Text style={styles.capacityText}>{t("update_meals.meals_per_day", { count: planCounts.meals, s: planCounts.meals !== 1 ? "s" : "" })}</Text>
           </View>
           {planCounts.snacks > 0 ? (
-            <View style={styles.capacityItem}>
+            <View style={[styles.capacityItem, isArabic && styles.rtlRow]}>
               <View style={[styles.capDot, { backgroundColor: "#FAD979" }]} />
-              <Text style={styles.capacityText}>{`${planCounts.snacks} snack${planCounts.snacks !== 1 ? "s" : ""} per day`}</Text>
+              <Text style={styles.capacityText}>{t("update_meals.snacks_per_day", { count: planCounts.snacks, s: planCounts.snacks !== 1 ? "s" : "" })}</Text>
             </View>
           ) : null}
-          <Text style={styles.capacityHint}>Tap any slot to change or add</Text>
+          <Text style={[styles.capacityHint, isArabic && styles.capacityHintRTL]}>{t("update_meals.tap_to_change")}</Text>
         </View>
 
         <ScrollView
@@ -318,17 +407,17 @@ export default function UpdateSubscriptionMealsScreen() {
 
             return (
               <View key={dayIndex} style={styles.dayCard}>
-                <View style={styles.dayHeader}>
+                <View style={[styles.dayHeader, isArabic && styles.rtlRow]}>
                   <Text style={styles.dayHeaderText}>
-                    {day.day ? day.day.charAt(0).toUpperCase() + day.day.slice(1) : ""}
+                    {day.day ? getDayName(day.day) : ""}
                   </Text>
-                  <View style={styles.dayProgressRow}>
+                  <View style={[styles.dayProgressRow, isArabic && styles.rtlRow]}>
                     <Text style={styles.dayProgressText}>
                       {`${filledMeals}/${planCounts.meals}`}
                     </Text>
                     {planCounts.snacks > 0 ? (
                       <Text style={styles.dayProgressTextSnack}>
-                        {` · ${filledSnacks}/${planCounts.snacks} snacks`}
+                        {` · ${filledSnacks}/${planCounts.snacks} ${t("update_meals.snacks_label").toLowerCase()}`}
                       </Text>
                     ) : null}
                   </View>
@@ -337,10 +426,10 @@ export default function UpdateSubscriptionMealsScreen() {
                 <View style={styles.dayBody}>
                   {/* Meal slots */}
                   <View style={styles.slotSection}>
-                    <View style={styles.slotSectionLabel}>
+                    <View style={[styles.slotSectionLabel, isArabic && styles.rtlRow]}>
                       <View style={[styles.slotDot, { backgroundColor: "#344225" }]} />
                       <Text style={styles.slotSectionText}>
-                        {`Meals  (${filledMeals} of ${planCounts.meals} set)`}
+                        {t("update_meals.meals_label")}  {t("update_meals.set_count", { filled: filledMeals, total: planCounts.meals })}
                       </Text>
                     </View>
                     {mealSlots.map((slot, i) => {
@@ -349,7 +438,7 @@ export default function UpdateSubscriptionMealsScreen() {
                       return (
                         <SlotRow
                           key={`${day.day}-meal-${i}`}
-                          label={`Meal ${i + 1}`}
+                          label={t("update_meals.meal_n", { n: i + 1 })}
                           mealDetails={mealDetails}
                           isEmpty={slot.mealId == null}
                           onPress={() => openPicker(day.day, "is meal", slot.subscriptionMealId, globalIdx)}
@@ -362,10 +451,10 @@ export default function UpdateSubscriptionMealsScreen() {
                     <>
                       <View style={styles.sectionSep} />
                       <View style={styles.slotSection}>
-                        <View style={styles.slotSectionLabel}>
+                        <View style={[styles.slotSectionLabel, isArabic && styles.rtlRow]}>
                           <View style={[styles.slotDot, { backgroundColor: "#FAD979" }]} />
                           <Text style={styles.slotSectionText}>
-                            {`Snacks  (${filledSnacks} of ${planCounts.snacks} set)`}
+                            {t("update_meals.snacks_label")}  {t("update_meals.set_count", { filled: filledSnacks, total: planCounts.snacks })}
                           </Text>
                         </View>
                         {snackSlots.map((slot, i) => {
@@ -374,7 +463,7 @@ export default function UpdateSubscriptionMealsScreen() {
                           return (
                             <SlotRow
                               key={`${day.day}-snack-${i}`}
-                              label={`Snack ${i + 1}`}
+                              label={t("update_meals.snack_n", { n: i + 1 })}
                               mealDetails={snackDetails}
                               isEmpty={slot.mealId == null}
                               onPress={() => openPicker(day.day, "is snack", slot.subscriptionMealId, globalIdx)}
@@ -395,111 +484,189 @@ export default function UpdateSubscriptionMealsScreen() {
           visible={pickerVisible}
           animationType="slide"
           transparent
-          onRequestClose={() => setPickerVisible(false)}
+          onRequestClose={closePicker}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalSheet}>
               <View style={styles.modalHandle} />
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {pickerContext?.type === "is meal" ? "Choose a Meal" : "Choose a Snack"}
+              <View style={[styles.modalHeader, isArabic && styles.rtlRow]}>
+                {extrasMeal ? (
+                  <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setExtrasMeal(null)}>
+                    <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={18} color="#344225" />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ width: 30 }} />
+                )}
+                <Text style={styles.modalTitle} numberOfLines={1}>
+                  {extrasMeal
+                    ? t("meal_extras.title")
+                    : pickerContext?.type === "is meal" ? t("update_meals.choose_meal") : t("update_meals.choose_snack")}
                 </Text>
-                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setPickerVisible(false)}>
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={closePicker}>
                   <Ionicons name="close" size={18} color="#344225" />
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.searchWrap}>
-                <Ionicons name="search" size={16} color="#6B7F75" />
-                <TextInput
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Search..."
-                  placeholderTextColor="#9AA5A0"
-                  style={styles.searchInput}
-                />
-              </View>
-
-              {/* Category chips */}
-              {pickerCategories.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.categoryScroll}
-                  style={styles.categoryRow}
-                >
-                  <TouchableOpacity
-                    style={[styles.categoryChip, selectedCategory == null && styles.categoryChipActive]}
-                    onPress={() => setSelectedCategory(null)}
-                  >
-                    <Text style={[styles.categoryChipText, selectedCategory == null && styles.categoryChipTextActive]}>
-                      All
-                    </Text>
-                  </TouchableOpacity>
-                  {pickerCategories.map((cat) => (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={[styles.categoryChip, selectedCategory === cat.id && styles.categoryChipActive]}
-                      onPress={() => setSelectedCategory(cat.id)}
-                    >
-                      <Text style={[styles.categoryChipText, selectedCategory === cat.id && styles.categoryChipTextActive]}>
-                        {cat.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
-
               {savingSlot ? (
                 <View style={styles.modalSaving}>
                   <ActivityIndicator size="small" color="#344225" />
-                  <Text style={styles.modalSavingText}>Saving...</Text>
+                  <Text style={styles.modalSavingText}>{t("update_meals.saving")}</Text>
                 </View>
-              ) : (
-                <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
-                  {filteredMeals.map((meal) => {
-                    const atLimit = isMealAtLimit(meal);
-                    return (
-                      <TouchableOpacity
-                        key={meal.id}
-                        style={[styles.modalMealRow, atLimit && styles.modalMealRowDisabled]}
-                        onPress={() => !atLimit && handleSelectMeal(meal)}
-                        activeOpacity={atLimit ? 1 : 0.7}
-                      >
-                        {meal.image_url || meal.image_thumb_url ? (
-                          <Image
-                            source={{ uri: meal.image_url || meal.image_thumb_url }}
-                            style={[styles.modalMealThumb, atLimit && { opacity: 0.4 }]}
-                          />
-                        ) : (
-                          <View style={[styles.modalMealThumb, styles.thumbPlaceholder, atLimit && { opacity: 0.4 }]}>
-                            <Ionicons name="restaurant-outline" size={20} color="#6B7F75" />
+              ) : extrasMeal ? (
+                <>
+                  <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+                    <Text style={[styles.extrasMealName, isArabic && styles.rtlText]} numberOfLines={2}>
+                      {(isArabic && extrasMeal.title_ar) ? extrasMeal.title_ar : extrasMeal.title}
+                    </Text>
+                    {(extrasMeal.meal_extras ?? []).map((extra) => {
+                      const sel = extrasSelected[extra.id] ?? [];
+                      const single = extra.selection_type === "single";
+                      const atCap = !single && extra.max_select != null && sel.length >= extra.max_select;
+                      const hint = single
+                        ? t("meal_extras.pick_one")
+                        : extra.max_select != null
+                          ? t("meal_extras.pick_up_to", { count: extra.max_select })
+                          : t("meal_extras.pick_any");
+                      return (
+                        <View key={extra.id} style={styles.extraBlock}>
+                          <View style={[styles.extraHeaderRow, isArabic && styles.rtlRow]}>
+                            <Text style={[styles.extraName, isArabic && styles.rtlText]}>
+                              {isArabic && extra.name_ar ? extra.name_ar : extra.name}
+                            </Text>
+                            {extra.is_required ? (
+                              <View style={styles.reqBadge}>
+                                <Text style={styles.reqBadgeText}>{t("meal_extras.required")}</Text>
+                              </View>
+                            ) : (
+                              <Text style={styles.optHint}>{t("meal_extras.optional")}</Text>
+                            )}
                           </View>
-                        )}
-                        <View style={styles.modalMealInfo}>
-                          <Text style={[styles.modalMealName, atLimit && { color: "#B8D5C5" }]} numberOfLines={2}>
-                            {(isArabic && meal.title_ar) ? meal.title_ar : meal.title}
+                          <Text style={[styles.pickHintText, isArabic && styles.rtlText]}>{hint}</Text>
+                          {extra.ingredients.map((opt) => {
+                            const checked = sel.includes(opt.id);
+                            const disabled = atCap && !checked;
+                            return (
+                              <TouchableOpacity
+                                key={opt.id}
+                                style={[styles.optRow, isArabic && styles.rtlRow, disabled && { opacity: 0.4 }]}
+                                disabled={disabled}
+                                activeOpacity={0.7}
+                                onPress={() => toggleExtraOption(extra, opt.id)}
+                              >
+                                <View style={[single ? styles.radioOuter : styles.checkOuter, checked && styles.controlOn]}>
+                                  {checked &&
+                                    (single ? (
+                                      <View style={styles.radioInner} />
+                                    ) : (
+                                      <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                                    ))}
+                                </View>
+                                <Text style={[styles.optLabel, isArabic && styles.rtlText]}>
+                                  {isArabic && opt.name_ar ? opt.name_ar : opt.name}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                  <TouchableOpacity style={styles.extrasConfirmBtn} onPress={confirmExtras} activeOpacity={0.85}>
+                    <Text style={styles.extrasConfirmText}>{t("meal_extras.save")}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <View style={[styles.searchWrap, isArabic && styles.rtlRow]}>
+                    <Ionicons name="search" size={16} color="#6B7F75" />
+                    <TextInput
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder={t("update_meals.search_placeholder")}
+                      placeholderTextColor="#9AA5A0"
+                      style={[styles.searchInput, isArabic && styles.rtlText]}
+                      textAlign={isArabic ? "right" : "left"}
+                    />
+                  </View>
+
+                  {/* Category chips */}
+                  {pickerCategories.length > 0 && (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={[styles.categoryScroll, isArabic && { flexDirection: "row-reverse" }]}
+                      style={styles.categoryRow}
+                    >
+                      <TouchableOpacity
+                        style={[styles.categoryChip, selectedCategory == null && styles.categoryChipActive]}
+                        onPress={() => setSelectedCategory(null)}
+                      >
+                        <Text style={[styles.categoryChipText, selectedCategory == null && styles.categoryChipTextActive]}>
+                          {t("update_meals.all")}
+                        </Text>
+                      </TouchableOpacity>
+                      {pickerCategories.map((cat) => (
+                        <TouchableOpacity
+                          key={cat.id}
+                          style={[styles.categoryChip, selectedCategory === cat.id && styles.categoryChipActive]}
+                          onPress={() => setSelectedCategory(cat.id)}
+                        >
+                          <Text style={[styles.categoryChipText, selectedCategory === cat.id && styles.categoryChipTextActive]}>
+                            {isArabic && cat.name_ar ? cat.name_ar : cat.name}
                           </Text>
-                          <Text style={styles.modalMealMeta}>
-                            {`${meal.calories} kcal · P ${meal.protein_g}g · C ${meal.carbs_g}g`}
-                          </Text>
-                          {atLimit && (
-                            <View style={styles.limitBadge}>
-                              <Text style={styles.limitBadgeText}>Limit Reached</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+                    {filteredMeals.map((meal) => {
+                      const atLimit = isMealAtLimit(meal);
+                      return (
+                        <TouchableOpacity
+                          key={meal.id}
+                          style={[styles.modalMealRow, isArabic && styles.rtlRow, atLimit && styles.modalMealRowDisabled]}
+                          onPress={() => !atLimit && handleSelectMeal(meal)}
+                          activeOpacity={atLimit ? 1 : 0.7}
+                        >
+                          {meal.image_url || meal.image_thumb_url ? (
+                            <Image
+                              source={{ uri: meal.image_url || meal.image_thumb_url }}
+                              style={[styles.modalMealThumb, atLimit && { opacity: 0.4 }]}
+                            />
+                          ) : (
+                            <View style={[styles.modalMealThumb, styles.thumbPlaceholder, atLimit && { opacity: 0.4 }]}>
+                              <Ionicons name="restaurant-outline" size={20} color="#6B7F75" />
                             </View>
                           )}
-                        </View>
-                        {!atLimit && <Ionicons name="chevron-forward" size={16} color="#B8D5C5" />}
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {filteredMeals.length === 0 ? (
-                    <View style={styles.modalEmpty}>
-                      <Ionicons name="search-outline" size={36} color="#B8D5C5" />
-                      <Text style={styles.modalEmptyText}>No results found</Text>
-                    </View>
-                  ) : null}
-                </ScrollView>
+                          <View style={styles.modalMealInfo}>
+                            <Text style={[styles.modalMealName, isArabic && styles.rtlText, atLimit && { color: "#B8D5C5" }]} numberOfLines={2}>
+                              {(isArabic && meal.title_ar) ? meal.title_ar : meal.title}
+                            </Text>
+                            <Text style={[styles.modalMealMeta, isArabic && styles.rtlText]}>
+                              {`${meal.calories} kcal · P ${meal.protein_g}g · C ${meal.carbs_g}g`}
+                            </Text>
+                            {(meal.meal_extras?.length ?? 0) > 0 && (
+                              <Text style={styles.modalMealExtrasHint}>{t("meal_extras.customizable")}</Text>
+                            )}
+                            {atLimit && (
+                              <View style={styles.limitBadge}>
+                                <Text style={styles.limitBadgeText}>{t("update_meals.limit_reached")}</Text>
+                              </View>
+                            )}
+                          </View>
+                          {!atLimit && <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color="#B8D5C5" />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {filteredMeals.length === 0 ? (
+                      <View style={styles.modalEmpty}>
+                        <Ionicons name="search-outline" size={36} color="#B8D5C5" />
+                        <Text style={styles.modalEmptyText}>{t("update_meals.no_results")}</Text>
+                      </View>
+                    ) : null}
+                  </ScrollView>
+                </>
               )}
             </View>
           </View>
@@ -519,26 +686,26 @@ interface SlotRowProps {
 }
 
 function SlotRow({ label, mealDetails, isEmpty, onPress }: SlotRowProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isArabic = i18n.language.startsWith("ar");
 
   if (isEmpty) {
     return (
-      <TouchableOpacity style={styles.emptySlot} onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity style={[styles.emptySlot, isArabic && styles.rtlRow]} onPress={onPress} activeOpacity={0.7}>
         <View style={styles.emptySlotIcon}>
           <Ionicons name="add" size={18} color="#344225" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.emptySlotLabel}>{label}</Text>
-          <Text style={styles.emptySlotHint}>Tap to add</Text>
+          <Text style={[styles.emptySlotLabel, isArabic && styles.rtlText]}>{label}</Text>
+          <Text style={[styles.emptySlotHint, isArabic && styles.rtlText]}>{t("update_meals.tap_to_add")}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color="#B8D5C5" />
+        <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color="#B8D5C5" />
       </TouchableOpacity>
     );
   }
 
   return (
-    <View style={styles.mealSlotRow}>
+    <View style={[styles.mealSlotRow, isArabic && styles.rtlRow]}>
       {mealDetails?.image_url || mealDetails?.image_thumb_url ? (
         <Image
           source={{ uri: mealDetails.image_url || mealDetails.image_thumb_url }}
@@ -550,11 +717,11 @@ function SlotRow({ label, mealDetails, isEmpty, onPress }: SlotRowProps) {
         </View>
       )}
       <View style={styles.mealSlotInfo}>
-        <Text style={styles.slotSlotLabel}>{label}</Text>
-        <Text style={styles.mealSlotName} numberOfLines={1}>
-          {(isArabic && mealDetails?.title_ar) ? mealDetails.title_ar : (mealDetails?.title ?? "Unknown")}
+        <Text style={[styles.slotSlotLabel, isArabic && styles.rtlText]}>{label}</Text>
+        <Text style={[styles.mealSlotName, isArabic && styles.rtlText]} numberOfLines={1}>
+          {(isArabic && mealDetails?.title_ar) ? mealDetails.title_ar : (mealDetails?.title ?? t("update_meals.unknown_meal"))}
         </Text>
-        <Text style={styles.mealSlotMeta}>
+        <Text style={[styles.mealSlotMeta, isArabic && styles.rtlText]}>
           {[
             mealDetails?.calories ? `${mealDetails.calories} kcal` : null,
             mealDetails?.protein_g ? `P ${mealDetails.protein_g}g` : null,
@@ -564,7 +731,7 @@ function SlotRow({ label, mealDetails, isEmpty, onPress }: SlotRowProps) {
       </View>
       <TouchableOpacity style={styles.changeBtn} onPress={onPress}>
         <Ionicons name="create-outline" size={14} color="#344225" />
-        <Text style={styles.changeBtnText}>Change</Text>
+        <Text style={styles.changeBtnText}>{t("update_meals.change")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -573,6 +740,8 @@ function SlotRow({ label, mealDetails, isEmpty, onPress }: SlotRowProps) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
   header: {
     flexDirection: "row",
@@ -608,6 +777,7 @@ const styles = StyleSheet.create({
   capDot: { width: 8, height: 8, borderRadius: 4 },
   capacityText: { fontSize: 12, fontWeight: "600", color: "#FFFFFF" },
   capacityHint: { fontSize: 11, color: "#B8D5C5", marginLeft: "auto" },
+  capacityHintRTL: { marginLeft: 0, marginRight: "auto" },
 
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16 },
@@ -750,4 +920,42 @@ const styles = StyleSheet.create({
   },
   categoryChipText: { fontSize: 13, fontWeight: "500", color: "#4A6040" },
   categoryChipTextActive: { color: "#FFFFFF", fontWeight: "700" },
+
+  // Extras step (inside picker modal)
+  modalMealExtrasHint: { fontSize: 11, color: "#4A6040", fontWeight: "600", marginTop: 3 },
+  extrasMealName: { fontSize: 16, fontWeight: "700", color: "#344225", marginBottom: 12 },
+  extraBlock: {
+    backgroundColor: "#F7FAF8",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E4EDE8",
+  },
+  extraHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  extraName: { fontSize: 15, fontWeight: "700", color: "#344225", flexShrink: 1 },
+  reqBadge: { backgroundColor: "#344225", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  reqBadgeText: { fontSize: 10, fontWeight: "700", color: "#FAD979" },
+  optHint: { fontSize: 11, color: "#8A8F8B", fontWeight: "500" },
+  pickHintText: { fontSize: 12, color: "#8A8F8B", marginTop: 2, marginBottom: 8 },
+  optRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
+  radioOuter: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#B8C6BD",
+    alignItems: "center", justifyContent: "center",
+  },
+  radioInner: { width: 11, height: 11, borderRadius: 6, backgroundColor: "#344225" },
+  checkOuter: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "#B8C6BD",
+    alignItems: "center", justifyContent: "center",
+  },
+  controlOn: { borderColor: "#344225", backgroundColor: "#344225" },
+  optLabel: { flex: 1, fontSize: 14, color: "#344225" },
+  extrasConfirmBtn: {
+    backgroundColor: "#FAD979",
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginTop: 12,
+  },
+  extrasConfirmText: { fontSize: 16, fontWeight: "700", color: "#344225" },
 });

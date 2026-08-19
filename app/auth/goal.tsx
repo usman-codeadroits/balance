@@ -6,13 +6,13 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -25,7 +25,8 @@ type Goal =
   | null;
 
 export default function GoalScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
 
   const goals_list = [
     {
@@ -92,12 +93,12 @@ export default function GoalScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
+          <View style={[styles.header, isArabic && styles.rtlRow]}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image
@@ -111,7 +112,7 @@ export default function GoalScreen() {
 
           {/* Title */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>{t("goal.title")}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("goal.title")}</Text>
           </View>
 
           {/* Goal Options */}
@@ -121,14 +122,15 @@ export default function GoalScreen() {
                 key={goal.id}
                 style={[
                   styles.optionCard,
+                  isArabic && styles.rtlRow,
                   selectedGoal === goal.id && styles.optionCardSelected,
                 ]}
                 onPress={() => setSelectedGoal(goal.id)}
                 activeOpacity={0.7}
               >
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>{goal.title}</Text>
-                  <Text style={styles.optionSubtitle}>{goal.subtitle}</Text>
+                  <Text style={[styles.optionTitle, isArabic && styles.rtlText]}>{goal.title}</Text>
+                  <Text style={[styles.optionSubtitle, isArabic && styles.rtlText]}>{goal.subtitle}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -198,6 +200,12 @@ const styles = StyleSheet.create({
   optionsContainer: {
     gap: 12,
   },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+  },
   optionCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
@@ -224,6 +232,4 @@ const styles = StyleSheet.create({
   },
   bottomSection: {
     paddingHorizontal: 24,
-    paddingBottom: 16,
-  },
-});
+    paddingBottom: 16

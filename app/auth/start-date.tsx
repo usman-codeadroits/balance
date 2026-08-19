@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -17,7 +18,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function StartDateScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const minDate = new Date(today);
@@ -148,27 +150,27 @@ export default function StartDateScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Header */}
-          <View style={[styles.headerRow, { paddingTop: Math.max(insets.top, 16) }]}>
+          <View style={[styles.headerRow, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerContainer}>
-              <Text style={styles.title}>{t("start_date_screen.title")}</Text>
+              <Text style={[styles.title, isArabic && styles.rtlText]}>{t("start_date_screen.title")}</Text>
             </View>
           </View>
 
           {/* Selected date display */}
           {selectedDate && (
-            <View style={styles.selectedBadge}>
+            <View style={[styles.selectedBadge, isArabic && styles.rtlRow]}>
               <Ionicons name="calendar-outline" size={18} color="#344225" />
               <Text style={styles.selectedBadgeText}>{formatSelectedDate(selectedDate)}</Text>
             </View>
           )}
 
           {/* Availability note */}
-          <View style={styles.noteContainer}>
+          <View style={[styles.noteContainer, isArabic && styles.noteContainerRTL]}>
             <Ionicons name="information-circle-outline" size={18} color="#5A7C65" />
-            <Text style={styles.noteText}>{t("start_date_screen.availability_note")}</Text>
+            <Text style={[styles.noteText, isArabic && styles.rtlText]}>{t("start_date_screen.availability_note")}</Text>
           </View>
 
           {/* Calendar card — matches calendar tab style */}
@@ -214,6 +216,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   headerRow: {
     flexDirection: "row",
@@ -272,6 +280,12 @@ const styles = StyleSheet.create({
     gap: 8,
     borderLeftWidth: 3,
     borderLeftColor: "#5A7C65",
+  },
+  noteContainerRTL: {
+    flexDirection: "row-reverse",
+    borderLeftWidth: 0,
+    borderRightWidth: 3,
+    borderRightColor: "#5A7C65",
   },
   noteText: {
     flex: 1,

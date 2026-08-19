@@ -19,7 +19,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllergiesScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   useStaticScreen();
@@ -92,12 +93,12 @@ export default function AllergiesScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
+          <View style={[styles.header, isArabic && styles.rtlRow]}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image
@@ -110,8 +111,8 @@ export default function AllergiesScreen() {
           </View>
 
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>{t("allergies.title")}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("allergies.title")}</Text>
+            <Text style={[styles.subtitle, isArabic && styles.rtlText]}>
               {t("allergies.subtitle")}
             </Text>
           </View>
@@ -120,24 +121,26 @@ export default function AllergiesScreen() {
             <TouchableOpacity
               style={[
                 styles.optionCard,
+                isArabic && styles.rtlRow,
                 hasAllergies === true && styles.optionCardSelected,
               ]}
               onPress={() => setHasAllergies(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.optionText}>{t("allergies.yes")}</Text>
+              <Text style={[styles.optionText, isArabic && styles.rtlText]}>{t("allergies.yes")}</Text>
               <Text style={styles.emoji}>👍</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.optionCard,
+                isArabic && styles.rtlRow,
                 hasAllergies === false && styles.optionCardSelected,
               ]}
               onPress={() => setHasAllergies(false)}
               activeOpacity={0.7}
             >
-              <Text style={styles.optionText}>{t("allergies.no")}</Text>
+              <Text style={[styles.optionText, isArabic && styles.rtlText]}>{t("allergies.no")}</Text>
               <Text style={styles.emoji}>👎</Text>
             </TouchableOpacity>
           </View>
@@ -207,6 +210,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#6B7F75",
     lineHeight: 18,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   optionsContainer: {
     gap: 12,

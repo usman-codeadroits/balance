@@ -1,6 +1,5 @@
 import type { Duration } from "@/api";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
-import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -9,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import {
   Alert,
   Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -345,6 +345,68 @@ export default function SelectedMealsScreen() {
     } as any);
   };
 
+  // Open the full-screen extras picker to edit an already-chosen meal's extras
+  const openExtrasEditor = (
+    item: any,
+    slotType: "meal" | "snack",
+    slotDayIndex: number,
+    slotIndex: number,
+  ) => {
+    const selectedIds: number[] = Array.isArray(item?.selectedExtraIds) ? item.selectedExtraIds : [];
+    router.push({
+      pathname: "/auth/meal-extras",
+      params: {
+        mealId: String(item.id),
+        dayIndex: String(slotDayIndex),
+        mealIndex: String(slotIndex),
+        type: slotType,
+        from: "slots",
+        preselected: selectedIds.join(","),
+        ...(item.subscriptionMealId ? { subscriptionMealId: String(item.subscriptionMealId) } : {}),
+      },
+    } as any);
+  };
+
+  // Render the chosen extras + a customize button for a filled slot
+  const renderSlotExtras = (
+    item: any,
+    slotType: "meal" | "snack",
+    slotDayIndex: number,
+    slotIndex: number,
+  ) => {
+    const extras = Array.isArray(item?.extras) ? item.extras : [];
+    if (extras.length === 0) return null;
+    const selectedIds: number[] = Array.isArray(item?.selectedExtraIds) ? item.selectedExtraIds : [];
+    const lines: string[] = extras
+      .map((ex: any) => {
+        const chosen = (ex.ingredients || []).filter((ing: any) => selectedIds.includes(ing.id));
+        if (chosen.length === 0) return null;
+        const exName = isArabic && ex.name_ar ? ex.name_ar : ex.name;
+        const opts = chosen
+          .map((ing: any) => (isArabic && ing.name_ar ? ing.name_ar : ing.name))
+          .join(", ");
+        return `${exName}: ${opts}`;
+      })
+      .filter(Boolean) as string[];
+    return (
+      <View style={styles.slotExtras}>
+        {lines.map((line, i) => (
+          <Text key={i} style={styles.slotExtraLine} numberOfLines={1}>{line}</Text>
+        ))}
+        <TouchableOpacity
+          style={styles.customizeBtn}
+          activeOpacity={0.7}
+          onPress={() => openExtrasEditor(item, slotType, slotDayIndex, slotIndex)}
+        >
+          <Ionicons name="options-outline" size={13} color="#FAD979" />
+          <Text style={styles.customizeText}>
+            {lines.length > 0 ? t("selected_meals.edit_extras") : t("selected_meals.add_extras")}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const handleContinue = async () => {
     // If in update mode, just go back (meals are updated via API when selected)
     if (isUpdateMode) {
@@ -476,12 +538,12 @@ export default function SelectedMealsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {isUpdateMode ? t("selected_meals.title_update") : t("selected_meals.title_select")}
@@ -496,10 +558,10 @@ export default function SelectedMealsScreen() {
         >
           {/* Plan Summary Card */}
           <View style={styles.summaryCard}>
-            <View style={styles.summaryHeader}>
+            <View style={[styles.summaryHeader, isArabic && styles.rtlRow]}>
               <View style={styles.summaryTextContainer}>
-                <Text style={styles.summaryTitle}>{t("selected_meals.summary_title")}</Text>
-                <Text style={styles.summarySubtitle}>
+                <Text style={[styles.summaryTitle, isArabic && styles.rtlText]}>{t("selected_meals.summary_title")}</Text>
+                <Text style={[styles.summarySubtitle, isArabic && styles.rtlText]}>
                   {getPlanSummaryText()}
                 </Text>
               </View>
@@ -510,9 +572,9 @@ export default function SelectedMealsScreen() {
               />
             </View>
             <View style={styles.summaryDivider} />
-            <View style={styles.summaryDetails}>
+            <View style={[styles.summaryDetails, isArabic && styles.rtlRow]}>
               <Text style={styles.summaryLabel}>{t("selected_meals.total")}</Text>
-              <View style={{ alignItems: "flex-end" }}>
+              <View style={{ alignItems: isArabic ? "flex-start" : "flex-end" }}>
                 <Text style={styles.summaryPrice}>{getPlanDisplayPrice()}</Text>
                 {hasPersonalizedPlan && proteinExtraCharge > 0 && (
                   <Text style={styles.summaryProteinNote}>
@@ -544,7 +606,7 @@ export default function SelectedMealsScreen() {
               return (
                 <View key={dayIndex}>
                   <TouchableOpacity
-                    style={[styles.mealCard, isExpanded && styles.mealCardExpanded]}
+                    style={[styles.mealCard, isArabic && styles.rtlRow, isExpanded && styles.mealCardExpanded]}
                     activeOpacity={0.7}
                     onPress={() => toggleDay(dayIndex)}
                   >
@@ -562,20 +624,20 @@ export default function SelectedMealsScreen() {
                     <View style={styles.dropdownContent}>
                       {/* Nutrition summary — yellow card, 2×2 grid */}
                       {!hasPersonalizedPlan && (
-                        <View style={styles.nutritionBar}>
-                          <View style={styles.nutritionItem}>
+                        <View style={[styles.nutritionBar, isArabic && styles.rtlRow]}>
+                          <View style={[styles.nutritionItem, isArabic && styles.rtlRow]}>
                             <View style={[styles.nutritionDot, { backgroundColor: "#4A90E2" }]} />
                             <Text style={styles.nutritionText}>{t("selected_meals.cal_label")} {calculateTotalCalories(dayIndex)}</Text>
                           </View>
-                          <View style={styles.nutritionItem}>
+                          <View style={[styles.nutritionItem, isArabic && styles.rtlRow]}>
                             <View style={[styles.nutritionDot, { backgroundColor: "#D0021B" }]} />
                             <Text style={styles.nutritionText}>{t("selected_meals.protein_label")} {calculateTotalProtein(dayIndex)}g</Text>
                           </View>
-                          <View style={styles.nutritionItem}>
+                          <View style={[styles.nutritionItem, isArabic && styles.rtlRow]}>
                             <View style={[styles.nutritionDot, { backgroundColor: "#7ED321" }]} />
                             <Text style={styles.nutritionText}>{t("selected_meals.carbs_label")} {calculateTotalCarbs(dayIndex)}g</Text>
                           </View>
-                          <View style={styles.nutritionItem}>
+                          <View style={[styles.nutritionItem, isArabic && styles.rtlRow]}>
                             <View style={[styles.nutritionDot, { backgroundColor: "#F5A623" }]} />
                             <Text style={styles.nutritionText}>{t("selected_meals.fat_label")} {calculateTotalFat(dayIndex)}g</Text>
                           </View>
@@ -596,40 +658,41 @@ export default function SelectedMealsScreen() {
                             activeOpacity={0.8}
                           >
                             {meal ? (
-                              <View style={styles.slotRow}>
+                              <View style={[styles.slotRow, isArabic && styles.rtlRow]}>
                                 <Image
                                   source={meal.imageUrl ? { uri: meal.imageUrl } : require("@/assets/images/meal.jpg")}
                                   style={styles.slotThumb}
                                   resizeMode="cover"
                                 />
                                 <View style={styles.slotInfo}>
-                                  <Text style={styles.slotName}>{(isArabic && meal.name_ar) ? meal.name_ar : meal.name}</Text>
+                                  <Text style={[styles.slotName, isArabic && styles.rtlText]}>{(isArabic && meal.name_ar) ? meal.name_ar : meal.name}</Text>
                                   {!hasPersonalizedPlan && (
-                                    <View style={styles.slotMacros}>
-                                      <View style={styles.macroItem}>
+                                    <View style={[styles.slotMacros, isArabic && styles.rtlRow]}>
+                                      <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                         <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />
                                         <Text style={styles.macroText}>{t("selected_meals.cal_label")} {meal.calories}</Text>
                                       </View>
-                                      <View style={styles.macroItem}>
+                                      <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                         <View style={[styles.macroDot, { backgroundColor: "#D0021B" }]} />
                                         <Text style={styles.macroText}>{t("selected_meals.protein_label")} {meal.protein}g</Text>
                                       </View>
-                                      <View style={styles.macroItem}>
+                                      <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                         <View style={[styles.macroDot, { backgroundColor: "#7ED321" }]} />
                                         <Text style={styles.macroText}>{t("selected_meals.carbs_label")} {meal.carbs}g</Text>
                                       </View>
-                                      <View style={styles.macroItem}>
+                                      <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                         <View style={[styles.macroDot, { backgroundColor: "#F5A623" }]} />
                                         <Text style={styles.macroText}>{t("selected_meals.fat_label")} {meal.fat}g</Text>
                                       </View>
                                     </View>
                                   )}
+                                  {renderSlotExtras(meal, "meal", dayIndex, mealIndex)}
                                 </View>
                               </View>
                             ) : (
                               <>
-                                <Text style={styles.slotEmptyTitle}>{t("selected_meals.select_meal_prompt", { number: mealNumber })}</Text>
-                                <Text style={styles.slotEmptyHint}>{t("selected_meals.tap_select_meal")}</Text>
+                                <Text style={[styles.slotEmptyTitle, isArabic && styles.rtlText]}>{t("selected_meals.select_meal_prompt", { number: mealNumber })}</Text>
+                                <Text style={[styles.slotEmptyHint, isArabic && styles.rtlText]}>{t("selected_meals.tap_select_meal")}</Text>
                               </>
                             )}
                           </TouchableOpacity>
@@ -650,40 +713,41 @@ export default function SelectedMealsScreen() {
                               activeOpacity={0.8}
                             >
                               {snack ? (
-                                <View style={styles.slotRow}>
+                                <View style={[styles.slotRow, isArabic && styles.rtlRow]}>
                                   <Image
                                     source={snack.imageUrl ? { uri: snack.imageUrl } : require("@/assets/images/meal.jpg")}
                                     style={styles.slotThumb}
                                     resizeMode="cover"
                                   />
                                   <View style={styles.slotInfo}>
-                                    <Text style={styles.slotName}>{(isArabic && snack.name_ar) ? snack.name_ar : snack.name}</Text>
+                                    <Text style={[styles.slotName, isArabic && styles.rtlText]}>{(isArabic && snack.name_ar) ? snack.name_ar : snack.name}</Text>
                                     {!hasPersonalizedPlan && (
-                                      <View style={styles.slotMacros}>
-                                        <View style={styles.macroItem}>
+                                      <View style={[styles.slotMacros, isArabic && styles.rtlRow]}>
+                                        <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                           <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />
                                           <Text style={styles.macroText}>{t("selected_meals.cal_label")} {snack.calories}</Text>
                                         </View>
-                                        <View style={styles.macroItem}>
+                                        <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                           <View style={[styles.macroDot, { backgroundColor: "#D0021B" }]} />
                                           <Text style={styles.macroText}>{t("selected_meals.protein_label")} {snack.protein}g</Text>
                                         </View>
-                                        <View style={styles.macroItem}>
+                                        <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                           <View style={[styles.macroDot, { backgroundColor: "#7ED321" }]} />
                                           <Text style={styles.macroText}>{t("selected_meals.carbs_label")} {snack.carbs}g</Text>
                                         </View>
-                                        <View style={styles.macroItem}>
+                                        <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
                                           <View style={[styles.macroDot, { backgroundColor: "#F5A623" }]} />
                                           <Text style={styles.macroText}>{t("selected_meals.fat_label")} {snack.fat}g</Text>
                                         </View>
                                       </View>
                                     )}
+                                    {renderSlotExtras(snack, "snack", dayIndex, snackIndex)}
                                   </View>
                                 </View>
                               ) : (
                                 <>
-                                  <Text style={styles.slotEmptyTitle}>{t("selected_meals.select_snack_prompt", { number: snackNumber })}</Text>
-                                  <Text style={styles.slotEmptyHint}>{t("selected_meals.tap_select_snack")}</Text>
+                                  <Text style={[styles.slotEmptyTitle, isArabic && styles.rtlText]}>{t("selected_meals.select_snack_prompt", { number: snackNumber })}</Text>
+                                  <Text style={[styles.slotEmptyHint, isArabic && styles.rtlText]}>{t("selected_meals.tap_select_snack")}</Text>
                                 </>
                               )}
                             </TouchableOpacity>
@@ -698,10 +762,6 @@ export default function SelectedMealsScreen() {
         </ScrollView>
       </View>
 
-      <BottomTabNav
-        activeTab="home"
-        onHomePress={() => router.replace("/main-screen")}
-      />
     </SafeAreaView>
   );
 }
@@ -713,6 +773,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   header: {
     flexDirection: "row",
@@ -744,7 +810,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: "5%",
-    paddingBottom: 100,
+    paddingBottom: 24,
   },
   summaryCard: {
     backgroundColor: "#344225",
@@ -929,5 +995,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#5A7C65",
     fontWeight: "500",
+  },
+  slotExtras: {
+    marginTop: 8,
+    gap: 4,
+    alignItems: "flex-start",
+  },
+  slotExtraLine: {
+    fontSize: 11,
+    color: "#5A7C65",
+    fontWeight: "500",
+  },
+  customizeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#344225",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 2,
+  },
+  customizeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FAD979",
   },
 });

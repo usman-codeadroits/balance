@@ -2,9 +2,11 @@ import { getAllergies, updateAllergies } from '@/api/services/allergies';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -16,20 +18,22 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ALLERGIES_LIST = [
-  { id: 'Milk', label: 'Milk', icon: 'water-outline' },
-  { id: 'Tree Nuts', label: 'Tree Nuts', icon: 'leaf-outline' },
-  { id: 'Eggs', label: 'Eggs', icon: 'ellipse-outline' },
-  { id: 'Peanuts', label: 'Peanuts', icon: 'fitness-outline' },
-  { id: 'Shellfish', label: 'Shellfish', icon: 'fish-outline' },
-  { id: 'Soybeans', label: 'Soybeans', icon: 'nutrition-outline' },
-  { id: 'Wheat', label: 'Wheat', icon: 'flower-outline' },
-  { id: 'Fish', label: 'Fish', icon: 'fish-outline' },
-  { id: 'Sesame', label: 'Sesame', icon: 'grid-outline' },
+  { id: 'Milk', labelKey: 'milk', icon: 'water-outline' },
+  { id: 'Tree Nuts', labelKey: 'tree_nuts', icon: 'leaf-outline' },
+  { id: 'Eggs', labelKey: 'eggs', icon: 'ellipse-outline' },
+  { id: 'Peanuts', labelKey: 'peanuts', icon: 'fitness-outline' },
+  { id: 'Shellfish', labelKey: 'shellfish', icon: 'fish-outline' },
+  { id: 'Soybeans', labelKey: 'soybeans', icon: 'nutrition-outline' },
+  { id: 'Wheat', labelKey: 'wheat', icon: 'flower-outline' },
+  { id: 'Fish', labelKey: 'fish', icon: 'fish-outline' },
+  { id: 'Sesame', labelKey: 'sesame', icon: 'grid-outline' },
 ] as const;
 
 const KNOWN_IDS = new Set(ALLERGIES_LIST.map((a) => a.id));
 
 export default function AllergiesListScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith('ar');
   const insets = useSafeAreaInsets();
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [otherSelected, setOtherSelected] = useState(false);
@@ -85,12 +89,12 @@ export default function AllergiesListScreen() {
 
   const handleUpdate = async () => {
     if (totalSelected === 0) {
-      Alert.alert('Select at least one', 'Please select at least one allergy, or go back and choose "No".');
+      Alert.alert(t('allergies_list.select_at_least_one_title'), t('allergies_list.select_at_least_one_msg'));
       return;
     }
 
     if (otherSelected && !otherText.trim()) {
-      Alert.alert('Enter your allergy', 'Please type your allergy in the "Other" field, or deselect it.');
+      Alert.alert(t('allergies_list.enter_allergy_title'), t('allergies_list.enter_allergy_msg'));
       return;
     }
 
@@ -107,11 +111,11 @@ export default function AllergiesListScreen() {
     setSaving(true);
     try {
       await updateAllergies({ has_food_allergies: true, allergies: allAllergies });
-      Alert.alert('Updated', 'Your allergies have been saved.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/profile' as any) },
+      Alert.alert(t('allergies_list.updated_title'), t('allergies_list.updated_msg'), [
+        { text: t('common.ok'), onPress: () => router.replace('/(tabs)/profile' as any) },
       ]);
     } catch {
-      Alert.alert('Error', 'Could not save allergies. Please try again.');
+      Alert.alert(t('common.error'), t('allergies_list.save_error'));
     } finally {
       setSaving(false);
     }
@@ -119,11 +123,11 @@ export default function AllergiesListScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === 'ios' ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/profile' as any)}>
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name={isArabic ? 'arrow-forward' : 'arrow-back'} size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select Allergies</Text>
+        <Text style={styles.headerTitle}>{t('allergies_list.header_title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -138,11 +142,11 @@ export default function AllergiesListScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.description}>
-              Select all foods you are allergic to. We will make sure your meals are free of these ingredients.
+            <Text style={[styles.description, isArabic && styles.rtlText]}>
+              {t('allergies_list.description')}
             </Text>
-            <Text style={styles.selectionHint}>
-              {totalSelected === 0 ? 'No allergies selected' : `${totalSelected} selected`}
+            <Text style={[styles.selectionHint, isArabic && styles.rtlText]}>
+              {totalSelected === 0 ? t('allergies_list.none_selected') : t('allergies_list.selected_count', { count: totalSelected })}
             </Text>
 
             <View style={styles.listContainer}>
@@ -151,7 +155,7 @@ export default function AllergiesListScreen() {
                 return (
                   <TouchableOpacity
                     key={allergy.id}
-                    style={[styles.allergyItem, selected && styles.allergyItemSelected]}
+                    style={[styles.allergyItem, isArabic && styles.rtlRow, selected && styles.allergyItemSelected]}
                     onPress={() => toggleAllergy(allergy.id)}
                     activeOpacity={0.8}
                   >
@@ -162,11 +166,11 @@ export default function AllergiesListScreen() {
                         color={selected ? '#FAD979' : '#344225'}
                       />
                     </View>
-                    <Text style={[styles.allergyText, selected && styles.allergyTextSelected]}>
-                      {allergy.label}
+                    <Text style={[styles.allergyText, isArabic && styles.rtlText, selected && styles.allergyTextSelected]}>
+                      {t(`allergies_list.${allergy.labelKey}`)}
                     </Text>
                     {selected && (
-                      <Ionicons name="checkmark-circle" size={20} color="#FAD979" style={styles.checkIcon} />
+                      <Ionicons name="checkmark-circle" size={20} color="#FAD979" style={isArabic ? styles.checkIconRTL : styles.checkIcon} />
                     )}
                   </TouchableOpacity>
                 );
@@ -174,7 +178,7 @@ export default function AllergiesListScreen() {
 
               {/* Other option */}
               <TouchableOpacity
-                style={[styles.allergyItem, otherSelected && styles.allergyItemSelected]}
+                style={[styles.allergyItem, isArabic && styles.rtlRow, otherSelected && styles.allergyItemSelected]}
                 onPress={toggleOther}
                 activeOpacity={0.8}
               >
@@ -185,11 +189,11 @@ export default function AllergiesListScreen() {
                     color={otherSelected ? '#FAD979' : '#344225'}
                   />
                 </View>
-                <Text style={[styles.allergyText, otherSelected && styles.allergyTextSelected]}>
-                  Other
+                <Text style={[styles.allergyText, isArabic && styles.rtlText, otherSelected && styles.allergyTextSelected]}>
+                  {t('allergies_list.other')}
                 </Text>
                 {otherSelected && (
-                  <Ionicons name="checkmark-circle" size={20} color="#FAD979" style={styles.checkIcon} />
+                  <Ionicons name="checkmark-circle" size={20} color="#FAD979" style={isArabic ? styles.checkIconRTL : styles.checkIcon} />
                 )}
               </TouchableOpacity>
 
@@ -198,16 +202,17 @@ export default function AllergiesListScreen() {
                 <View style={styles.otherInputWrap}>
                   <TextInput
                     ref={otherInputRef}
-                    style={styles.otherInput}
-                    placeholder="e.g. Soy sauce, Mango, Mustard..."
+                    style={[styles.otherInput, isArabic && styles.rtlText]}
+                    placeholder={t('allergies_list.other_placeholder')}
                     placeholderTextColor="#8AADA0"
                     value={otherText}
                     onChangeText={setOtherText}
                     returnKeyType="done"
                     maxLength={500}
+                    textAlign={isArabic ? 'right' : 'left'}
                   />
-                  <Text style={styles.otherInputHint}>
-                    Separate multiple items with a comma
+                  <Text style={[styles.otherInputHint, isArabic && styles.rtlText]}>
+                    {t('allergies_list.other_hint')}
                   </Text>
                 </View>
               )}
@@ -223,7 +228,7 @@ export default function AllergiesListScreen() {
               {saving ? (
                 <ActivityIndicator size="small" color="#344225" />
               ) : (
-                <Text style={styles.updateButtonText}>Save Allergies</Text>
+                <Text style={styles.updateButtonText}>{t('allergies_list.save_allergies')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -242,6 +247,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
+  },
+  rtlText: {
+    textAlign: 'right',
   },
   header: {
     flexDirection: 'row',
@@ -326,6 +337,9 @@ const styles = StyleSheet.create({
   },
   checkIcon: {
     marginLeft: 'auto',
+  },
+  checkIconRTL: {
+    marginRight: 'auto',
   },
   otherInputWrap: {
     backgroundColor: '#FFFFFF',

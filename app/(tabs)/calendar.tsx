@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   I18nManager,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -62,7 +63,8 @@ const formatApiDate = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export default function CalendarScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const insets = useSafeAreaInsets();
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
@@ -224,20 +226,20 @@ export default function CalendarScreen() {
     if (approvedReq) {
       // Approved pause → ask to resume
       Alert.alert(
-        "Resume this day?",
-        `Do you want to resume delivery for ${ymd}?`,
+        t("calendar.resume_title"),
+        t("calendar.resume_message", { date: ymd }),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("common.cancel"), style: "cancel" },
           {
-            text: "Resume",
+            text: t("calendar.resume_btn"),
             onPress: async () => {
               try {
                 setSubmitting(true);
                 await resumePauseRequest(range.id, approvedReq.id);
                 await loadSubscription();
-                Alert.alert("Done", "Day resumed successfully.");
+                Alert.alert(t("calendar.done_title"), t("calendar.resumed_msg"));
               } catch (err: any) {
-                Alert.alert("Error", err?.message || "Something went wrong. Please try again.");
+                Alert.alert(t("common.error"), err?.message || t("calendar.generic_error"));
               } finally {
                 setSubmitting(false);
               }
@@ -248,12 +250,12 @@ export default function CalendarScreen() {
     } else if (pendingReq) {
       // Pending pause → ask to cancel request
       Alert.alert(
-        "Cancel pause request?",
-        `Your pause request for ${ymd} is pending approval. Do you want to cancel it?`,
+        t("calendar.cancel_pause_title"),
+        t("calendar.cancel_pause_message", { date: ymd }),
         [
-          { text: "Keep", style: "cancel" },
+          { text: t("calendar.keep_btn"), style: "cancel" },
           {
-            text: "Cancel Request",
+            text: t("calendar.cancel_request_btn"),
             style: "destructive",
             onPress: async () => {
               try {
@@ -261,10 +263,10 @@ export default function CalendarScreen() {
                 await cancelPauseRequest(range.id, pendingReq.id);
                 // Optimistic update — drop the pending request so the day stops showing Pending
                 setPauseRequests(prev => prev.filter(r => r.id !== pendingReq.id));
-                Alert.alert("Done", "Pause request cancelled.");
+                Alert.alert(t("calendar.done_title"), t("calendar.cancelled_msg"));
                 loadPauseRequests(range.id);
               } catch (err: any) {
-                Alert.alert("Error", err?.message || "Something went wrong. Please try again.");
+                Alert.alert(t("common.error"), err?.message || t("calendar.generic_error"));
               } finally {
                 setSubmitting(false);
               }
@@ -275,12 +277,12 @@ export default function CalendarScreen() {
     } else {
       // Active day → ask to pause
       Alert.alert(
-        "Pause this day?",
-        `Do you want to pause delivery for ${ymd}?`,
+        t("calendar.pause_title"),
+        t("calendar.pause_message", { date: ymd }),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("common.cancel"), style: "cancel" },
           {
-            text: "Pause",
+            text: t("calendar.pause_btn"),
             onPress: async () => {
               try {
                 setSubmitting(true);
@@ -288,12 +290,12 @@ export default function CalendarScreen() {
                 await submitPauseRequest(range.id, {
                   pause_start_date: formatApiDate(dayDate),
                   pause_end_date: formatApiDate(dayDate),
-                  reason: "Not available on this day",
+                  reason: t("calendar.pause_reason"),
                 });
-                Alert.alert("Done", "Pause request submitted. Waiting for approval.");
+                Alert.alert(t("calendar.done_title"), t("calendar.submitted_msg"));
                 loadPauseRequests(range.id);
               } catch (err: any) {
-                Alert.alert("Error", err?.message || "Something went wrong. Please try again.");
+                Alert.alert(t("common.error"), err?.message || t("calendar.generic_error"));
               } finally {
                 setSubmitting(false);
               }
@@ -306,7 +308,7 @@ export default function CalendarScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
         <Text style={styles.headerTitle}>{t('calendar.my_subscriptions')}</Text>
       </View>
 
@@ -317,10 +319,10 @@ export default function CalendarScreen() {
       ) : !startDate || !endDate ? (
         <View style={styles.center}>
           <Ionicons name="calendar-outline" size={48} color="#B8D5C5" />
-          <Text style={styles.emptyTitle}>No Active Subscription</Text>
-          <Text style={styles.emptyDesc}>Subscribe to a plan to view your calendar.</Text>
+          <Text style={styles.emptyTitle}>{t("calendar.no_active_title")}</Text>
+          <Text style={styles.emptyDesc}>{t("calendar.no_active_desc")}</Text>
           <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/auth/subscription")}>
-            <Text style={styles.emptyBtnText}>Get a Plan</Text>
+            <Text style={styles.emptyBtnText}>{t("calendar.get_plan")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -331,12 +333,12 @@ export default function CalendarScreen() {
         >
           {/* Summary card */}
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryEndDate}>
+            <Text style={[styles.summaryEndDate, isArabic && styles.rtlText]}>
               {t('calendar.end_date')} : {formatDisplayDate(endDate)}
               {"  "}
               <Text style={styles.summaryDaysLeft}>• {getDaysRemaining(endDate)} {t('calendar.days_left')}</Text>
             </Text>
-            <Text style={styles.summaryDetails}>
+            <Text style={[styles.summaryDetails, isArabic && styles.rtlText]}>
               {range.meals ?? 2} {t('calendar.meals')}{"  "}•{"  "}{range.days ?? 0} {t('calendar.days')}{"  "}•{"  "}{range.weeks ?? 0} {t('calendar.weeks')}
             </Text>
           </View>
@@ -428,27 +430,27 @@ export default function CalendarScreen() {
 
           {/* Legend */}
           <View style={styles.legendGrid}>
-            <View style={styles.legendItem}>
+            <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circleDelivered]} />
               <Text style={styles.legendText}>{t('calendar.status_delivered')}</Text>
             </View>
-            <View style={styles.legendItem}>
+            <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circlePreparing]} />
               <Text style={styles.legendText}>{t('calendar.status_preparing')}</Text>
             </View>
-            <View style={styles.legendItem}>
+            <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circleInRange]} />
               <Text style={styles.legendText}>{t('calendar.status_upcoming')}</Text>
             </View>
-            <View style={styles.legendItem}>
+            <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circleToday]} />
               <Text style={styles.legendText}>{t('calendar.status_today')}</Text>
             </View>
-            <View style={styles.legendItem}>
+            <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circlePending]} />
               <Text style={styles.legendText}>{t('calendar.status_pending')}</Text>
             </View>
-            <View style={styles.legendItem}>
+            <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circlePaused]} />
               <Text style={styles.legendText}>{t('calendar.status_paused')}</Text>
             </View>
@@ -469,6 +471,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerTitle: { fontSize: 24, fontWeight: "700", color: "#344225", textAlign: "center" },
+
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
 
   center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, backgroundColor: "#D4E8E0" },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: "#344225", marginTop: 16, marginBottom: 8 },

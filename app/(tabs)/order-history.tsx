@@ -4,6 +4,7 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -83,7 +84,7 @@ export default function OrderHistoryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <Text style={styles.headerTitle}>{t("history.title")}</Text>
         </View>
 

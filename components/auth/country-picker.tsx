@@ -27,9 +27,10 @@ const COUNTRIES: Country[] = [
 interface CountryPickerProps {
   selectedCountry: Country;
   onSelectCountry: (country: Country) => void;
+  isArabic?: boolean;
 }
 
-export default function CountryPicker({ selectedCountry, onSelectCountry }: CountryPickerProps) {
+export default function CountryPicker({ selectedCountry, onSelectCountry, isArabic = false }: CountryPickerProps) {
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -41,7 +42,7 @@ export default function CountryPicker({ selectedCountry, onSelectCountry }: Coun
   return (
     <>
       <TouchableOpacity
-        style={styles.pickerButton}
+        style={[styles.pickerButton, isArabic && styles.pickerButtonRTL]}
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
       >
@@ -57,8 +58,8 @@ export default function CountryPicker({ selectedCountry, onSelectCountry }: Coun
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('country_picker.select_country')}</Text>
+            <View style={[styles.modalHeader, isArabic && styles.rtlRow]}>
+              <Text style={[styles.modalTitle, isArabic && styles.rtlText]}>{t('country_picker.select_country')}</Text>
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 style={styles.closeButton}
@@ -74,13 +75,14 @@ export default function CountryPicker({ selectedCountry, onSelectCountry }: Coun
                 <TouchableOpacity
                   style={[
                     styles.countryItem,
+                    isArabic && styles.rtlRow,
                     item.code === selectedCountry.code && styles.selectedCountryItem,
                   ]}
                   onPress={() => handleSelectCountry(item)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.countryFlag} allowFontScaling={false}>{item.flag}</Text>
-                  <Text style={styles.countryName}>{t(`country_picker.countries.${item.code}`)}</Text>
+                  <Text style={[styles.countryName, isArabic && styles.rtlText]}>{t(`country_picker.countries.${item.code}`)}</Text>
                   <Text style={styles.countryDialCode}>{item.dialCode}</Text>
                 </TouchableOpacity>
               )}
@@ -97,6 +99,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 8,
+  },
+  pickerButtonRTL: {
+    flexDirection: 'row-reverse',
+    paddingRight: 0,
+    paddingLeft: 8,
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
+  },
+  rtlText: {
+    textAlign: 'right',
   },
   flag: {
     fontSize: 24,

@@ -2,6 +2,7 @@ import { getDislikes, updateDislikes } from '@/api/services/dislikes';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +18,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const EXAMPLES = [
+  'example_spicy_food',
+  'example_coriander',
+  'example_mushrooms',
+  'example_raw_onion',
+  'example_lamb',
+  'example_sushi',
+] as const;
+
 export default function DislikesInputScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith('ar');
   const insets = useSafeAreaInsets();
   const [dislikesText, setDislikesText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -42,7 +54,7 @@ export default function DislikesInputScreen() {
 
   const handleSave = async () => {
     if (!dislikesText.trim()) {
-      Alert.alert('Empty', 'Please enter at least one food or ingredient you dislike, or go back and choose "No".');
+      Alert.alert(t('dislikes_input.empty_title'), t('dislikes_input.empty_msg'));
       return;
     }
     setSaving(true);
@@ -52,11 +64,11 @@ export default function DislikesInputScreen() {
         .map((item) => item.trim())
         .filter((item) => item.length > 0);
       await updateDislikes(dislikesArray);
-      Alert.alert('Saved', 'Your dislikes have been saved.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/profile' as any) },
+      Alert.alert(t('dislikes_input.saved_title'), t('dislikes_input.saved_msg'), [
+        { text: t('common.ok'), onPress: () => router.replace('/(tabs)/profile' as any) },
       ]);
     } catch {
-      Alert.alert('Error', 'Could not save dislikes. Please try again.');
+      Alert.alert(t('common.error'), t('dislikes_input.save_error'));
     } finally {
       setSaving(false);
     }
@@ -64,11 +76,11 @@ export default function DislikesInputScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === 'ios' ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/profile' as any)}>
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name={isArabic ? 'arrow-forward' : 'arrow-back'} size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Dislikes</Text>
+        <Text style={styles.headerTitle}>{t('dislikes_input.header_title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -83,47 +95,51 @@ export default function DislikesInputScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.infoCard}>
+            <View style={[styles.infoCard, isArabic && styles.rtlRow]}>
               <View style={styles.infoIconWrap}>
                 <Ionicons name="information-circle-outline" size={22} color="#344225" />
               </View>
-              <Text style={styles.infoText}>
-                Enter foods, ingredients, or cuisines you prefer to avoid. You can type anything — e.g. "spicy food, coriander, lamb, sushi".
+              <Text style={[styles.infoText, isArabic && styles.rtlText]}>
+                {t('dislikes_input.info_text')}
               </Text>
             </View>
 
-            <Text style={styles.fieldLabel}>What do you dislike?</Text>
+            <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t('dislikes_input.field_label')}</Text>
             <TextInput
-              style={styles.textArea}
-              placeholder="e.g. spicy food, coriander, mushrooms, lamb, raw onion..."
+              style={[styles.textArea, isArabic && styles.rtlText]}
+              placeholder={t('dislikes_input.placeholder')}
               placeholderTextColor="#8AADA0"
               value={dislikesText}
               onChangeText={setDislikesText}
               multiline
               textAlignVertical="top"
               maxLength={1000}
+              textAlign={isArabic ? 'right' : 'left'}
             />
-            <Text style={styles.charCount}>{dislikesText.length}/1000</Text>
+            <Text style={[styles.charCount, isArabic && { textAlign: 'left' }]}>{dislikesText.length}/1000</Text>
 
             <View style={styles.examplesSection}>
-              <Text style={styles.examplesTitle}>Examples</Text>
-              <View style={styles.examplesRow}>
-                {['Spicy food', 'Coriander', 'Mushrooms', 'Raw onion', 'Lamb', 'Sushi'].map((ex) => (
-                  <TouchableOpacity
-                    key={ex}
-                    style={styles.exampleChip}
-                    onPress={() => {
-                      const current = dislikesText.trim();
-                      const already = current.toLowerCase().includes(ex.toLowerCase());
-                      if (!already) {
-                        setDislikesText(current ? `${current}, ${ex}` : ex);
-                      }
-                    }}
-                  >
-                    <Ionicons name="add" size={13} color="#344225" />
-                    <Text style={styles.exampleChipText}>{ex}</Text>
-                  </TouchableOpacity>
-                ))}
+              <Text style={[styles.examplesTitle, isArabic && styles.rtlText]}>{t('dislikes_input.examples_title')}</Text>
+              <View style={[styles.examplesRow, isArabic && styles.rtlRow]}>
+                {EXAMPLES.map((exKey) => {
+                  const ex = t(`dislikes_input.${exKey}`);
+                  return (
+                    <TouchableOpacity
+                      key={exKey}
+                      style={[styles.exampleChip, isArabic && styles.rtlRow]}
+                      onPress={() => {
+                        const current = dislikesText.trim();
+                        const already = current.toLowerCase().includes(ex.toLowerCase());
+                        if (!already) {
+                          setDislikesText(current ? `${current}, ${ex}` : ex);
+                        }
+                      }}
+                    >
+                      <Ionicons name="add" size={13} color="#344225" />
+                      <Text style={styles.exampleChipText}>{ex}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </ScrollView>
@@ -137,7 +153,7 @@ export default function DislikesInputScreen() {
               {saving ? (
                 <ActivityIndicator size="small" color="#344225" />
               ) : (
-                <Text style={styles.saveButtonText}>Save Dislikes</Text>
+                <Text style={styles.saveButtonText}>{t('dislikes_input.save_dislikes')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -156,6 +172,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
+  },
+  rtlText: {
+    textAlign: 'right',
   },
   header: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import {
   type Meal,
   updateSubscriptionMeal,
 } from "@/api";
+import { assignMealToSlot } from "@/app/auth/utils/assign-meal-to-slot";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -15,12 +16,14 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -83,6 +86,10 @@ export default function SelectMealsScreen() {
     : undefined;
   useStaticScreen();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  // grid content is padded 16 on each side with a 12 gutter (matches main screen)
+  const cardWidth = (windowWidth - 44) / 2;
 
   useEffect(() => {
     loadPlanData();
@@ -210,15 +217,43 @@ export default function SelectMealsScreen() {
 
       (day.subscription_meals || []).forEach((subMeal: any) => {
         const mealData = subMeal.meal || {};
+        // Map the meal's available extras (subscription responses use `available_extras`;
+        // fall back to `meal_extras` if a full meal object is embedded).
+        const availableExtras = Array.isArray(mealData.available_extras)
+          ? mealData.available_extras
+          : Array.isArray(mealData.meal_extras)
+            ? mealData.meal_extras
+            : [];
+        const extras = availableExtras.map((ex: any) => ({
+          id: ex.id,
+          name: ex.name,
+          name_ar: ex.name_ar,
+          selection_type: ex.selection_type,
+          is_required: ex.is_required,
+          max_select: ex.max_select ?? null,
+          ingredients: Array.isArray(ex.ingredients)
+            ? ex.ingredients
+            : Array.isArray(ex.options)
+              ? ex.options
+              : [],
+        }));
+        // Flatten the customer's already-picked option ids
+        const selectedExtras = Array.isArray(subMeal.selected_extras) ? subMeal.selected_extras : [];
+        const selectedExtraIds = selectedExtras.flatMap((se: any) =>
+          Array.isArray(se.options) ? se.options.map((o: any) => o.id) : [],
+        );
         const mealItem = {
           id: (mealData.id ?? subMeal.meal_id)?.toString() || "",
           name: mealData.title || mealData.name || "",
+          name_ar: mealData.title_ar || mealData.name_ar,
           calories: mealData.calories || 0,
           protein: mealData.protein_g || 0,
           carbs: mealData.carbs_g || 0,
           fat: mealData.fat_g || 0,
           imageUrl: mealData.image_url || mealData.image_thumb_url,
           subscriptionMealId: subMeal.id,
+          extras,
+          selectedExtraIds,
         } as any;
 
         if (subMeal.type === "is meal") {
@@ -343,218 +378,39 @@ export default function SelectMealsScreen() {
       return;
     }
 
-    const item = convertMealToItem(meal);
-
-    // Check if we're in update mode
-    const activeSubscriptionData =
-      await AsyncStorage.getItem("activeSubscription");
-    const subscriptionMealsDataStr = await AsyncStorage.getItem(
-      "subscriptionMealsData",
-    );
-    const subscriptionDaysDataStr = await AsyncStorage.getItem(
-      "subscriptionDaysData",
-    );
-    const userSubscriptionIdStr =
-      await AsyncStorage.getItem("userSubscriptionId");
-
-    if (
-      activeSubscriptionData &&
-      subscriptionMealsDataStr &&
-      subscriptionDaysDataStr &&
-      userSubscriptionIdStr
-    ) {
-      // Update mode: Call API to update/create meal
-      try {
-        const subscriptionMeals = JSON.parse(subscriptionMealsDataStr);
-        const userId = await AsyncStorage.getItem("userId");
-
-        if (!userId) {
-          Alert.alert(t("common.error"), t("select_meals.error_user_not_found"));
-          return;
-        }
-
-        const dayNames = [
-          "sunday",
-          "monday",
-          "tuesday",
-          "wednesday",
-          "thursday",
-          "friday",
-          "saturday",
-        ];
-        const dayName = dayNames[dayIndex];
-
-        const mealType = type === "meal" ? "is meal" : "is snack";
-
-        // Look up subscription_day_id from cached subscription days
-        let resolvedSubscriptionDayId: number | undefined;
-        try {
-          const daysCache = await AsyncStorage.getItem("subscriptionDaysData");
-          if (daysCache) {
-            const parsedDays: { id: number; day: string }[] = JSON.parse(daysCache);
-            const match = parsedDays.find((d) => d.day === dayName);
-            if (match) resolvedSubscriptionDayId = match.id;
-          }
-        } catch {
-          // fall back to sending day string
-        }
-
-        const updateRequest: any = {
-          user_id: parseInt(userId),
-          meal_id: meal.id,
-          type: mealType,
-        };
-
-        if (resolvedSubscriptionDayId !== undefined) {
-          updateRequest.subscription_day_id = resolvedSubscriptionDayId;
-        } else {
-          updateRequest.day = dayName;
-        }
-
-        // If subscription_meal_id is provided (from params), use it for update
-        // Otherwise, omit it to create new meal
-        // Try provided id first, otherwise lookup from cached dayMeals
-        let resolvedSubscriptionMealId = subscriptionMealId;
-        if (
-          resolvedSubscriptionMealId === undefined ||
-          resolvedSubscriptionMealId <= 0
-        ) {
-          try {
-            const dayMealsCache =
-              await AsyncStorage.getItem("selectedDayMeals");
-            if (dayMealsCache) {
-              const parsed = JSON.parse(dayMealsCache) as {
-                [key: number]: DayMeals;
-              };
-              const targetDay = parsed[dayIndex];
-              if (targetDay) {
-                const slotItem =
-                  type === "meal"
-                    ? targetDay.meals[mealIndex]
-                    : targetDay.snacks[mealIndex];
-                if (slotItem && (slotItem as any).subscriptionMealId) {
-                  resolvedSubscriptionMealId = (slotItem as any)
-                    .subscriptionMealId;
-                }
-              }
-            }
-          } catch (err) {
-          }
-        }
-
-        if (
-          resolvedSubscriptionMealId !== undefined &&
-          resolvedSubscriptionMealId > 0
-        ) {
-          updateRequest.subscription_meal_id = resolvedSubscriptionMealId;
-        }
-
-        const response = await updateSubscriptionMeal(updateRequest);
-
-        // Update subscription meals data in AsyncStorage with the response
-        if (response.data?.subscription_meal) {
-          const updatedMeal = response.data.subscription_meal;
-          const updatedMeals = [...subscriptionMeals];
-
-          const targetId = updateRequest.subscription_meal_id;
-          if (targetId) {
-            const index = updatedMeals.findIndex((m: any) => m.id === targetId);
-            if (index !== -1) {
-              updatedMeals[index] = updatedMeal;
-            } else {
-              updatedMeals.push(updatedMeal);
-            }
-          } else {
-            updatedMeals.push(updatedMeal);
-          }
-
-          await AsyncStorage.setItem(
-            "subscriptionMealsData",
-            JSON.stringify(updatedMeals),
-          );
-        }
-
-        // Update local storage
-        const savedMeals = await AsyncStorage.getItem("selectedDayMeals");
-        let dayMeals: { [key: number]: DayMeals } = {};
-
-        if (savedMeals) {
-          dayMeals = JSON.parse(savedMeals);
-        }
-
-        if (!dayMeals[dayIndex]) {
-          const planData = await AsyncStorage.getItem("selectedPlan");
-          const activeSub = JSON.parse(activeSubscriptionData);
-          const plan = activeSub.plan || { meal_count: 0, snack_count: 0 };
-          dayMeals[dayIndex] = {
-            meals: new Array(plan.meal_count || 0).fill(null),
-            snacks: new Array(plan.snack_count || 0).fill(null),
-          };
-        }
-
-        // Store subscription meal ID with the meal item
-        const mealItem = {
-          ...item,
-          subscriptionMealId:
-            response.data?.subscription_meal?.id ||
-            updateRequest.subscription_meal_id,
-        };
-
-        if (type === "meal") {
-          dayMeals[dayIndex].meals[mealIndex] = mealItem;
-        } else {
-          dayMeals[dayIndex].snacks[mealIndex] = mealItem;
-        }
-
-        await AsyncStorage.setItem(
-          "selectedDayMeals",
-          JSON.stringify(dayMeals),
-        );
-
-        Alert.alert(t("common.ok"), t("select_meals.success_updated"));
-        router.back();
-      } catch (error) {
-        Alert.alert(
-          t("common.error"),
-          error instanceof Error ? error.message : t("select_meals.error_update_failed"),
-        );
-      }
+    // If the meal offers extras, let the customer pick them on the extras screen first
+    if (meal.meal_extras && meal.meal_extras.length > 0) {
+      router.push({
+        pathname: "/auth/meal-extras",
+        params: {
+          mealId: String(meal.id),
+          dayIndex: String(dayIndex),
+          mealIndex: String(mealIndex),
+          type,
+          from: "browse",
+          ...(subscriptionMealId ? { subscriptionMealId: String(subscriptionMealId) } : {}),
+        },
+      } as any);
       return;
     }
 
-    // New subscription flow: Save to AsyncStorage
+    // No extras: save directly (handles both update mode and onboarding)
     try {
-      const savedMeals = await AsyncStorage.getItem("selectedDayMeals");
-      let dayMeals: { [key: number]: DayMeals } = {};
-
-      if (savedMeals) {
-        dayMeals = JSON.parse(savedMeals);
-      }
-
-      if (!dayMeals[dayIndex]) {
-        const planData = await AsyncStorage.getItem("selectedPlan");
-        const plan = planData
-          ? JSON.parse(planData)
-          : { meal_count: 0, snack_count: 0 };
-        dayMeals[dayIndex] = {
-          meals: new Array(plan.meal_count || 0).fill(null),
-          snacks: new Array(plan.snack_count || 0).fill(null),
-        };
-      }
-
-      if (type === "meal") {
-        dayMeals[dayIndex].meals[mealIndex] = item;
-      } else {
-        dayMeals[dayIndex].snacks[mealIndex] = item;
-      }
-
-      await AsyncStorage.setItem("selectedDayMeals", JSON.stringify(dayMeals));
-      setCurrentDayMeals(dayMeals);
-
-      // Navigate back
+      const { updateMode } = await assignMealToSlot({
+        meal,
+        dayIndex,
+        mealIndex,
+        type: type as "meal" | "snack",
+        subscriptionMealId,
+      });
+      const saved = await AsyncStorage.getItem("selectedDayMeals");
+      if (saved) setCurrentDayMeals(JSON.parse(saved));
+      if (updateMode) Alert.alert(t("common.ok"), t("select_meals.success_updated"));
       router.back();
     } catch (error) {
-      Alert.alert(t("common.error"), t("select_meals.error_save_failed"));
+      const msg =
+        error instanceof Error ? error.message : t("select_meals.error_save_failed");
+      Alert.alert(t("common.error"), msg);
     }
   };
 
@@ -620,128 +476,207 @@ export default function SelectMealsScreen() {
 
   const isLoadingState = loading || loadingExisting;
 
+  // Group filtered items by category so we can render section headers like the main screen
+  const groupedCategories = (() => {
+    const map = new Map<number, { id: number; name: string; name_ar: string; meals: Meal[] }>();
+    filteredItems.forEach((meal) => {
+      const catId = (meal as any).category_id ?? 0;
+      const catName = normalizeCategoryName(meal.category) || (meal as any).category_name || "";
+      const catNameAr =
+        (meal.category && typeof meal.category === "object" ? (meal.category as any).name_ar : null) ||
+        (meal as any).category_name_ar ||
+        "";
+      if (!catName) return;
+      if (!map.has(catId)) map.set(catId, { id: catId, name: catName, name_ar: catNameAr, meals: [] });
+      map.get(catId)!.meals.push(meal);
+    });
+    return Array.from(map.values()).filter((g) => g.meals.length > 0);
+  })();
+
+  // Grid card — same visual language as the main screen, with an Add button
+  const renderGridCard = (meal: Meal) => {
+    const item = convertMealToItem(meal);
+    const atLimit = isMealAtLimit(meal);
+    const desc = (isArabic && (meal as any).description_ar) ? (meal as any).description_ar : (meal as any).description;
+    return (
+      <View
+        key={meal.id}
+        style={[styles.card, { width: cardWidth }, atLimit && styles.cardDisabled]}
+      >
+        {!hasPersonalizedPlan && !atLimit && (
+          <View style={styles.calorieBadge}>
+            <Text style={styles.calorieText}>{item.calories} {t("select_meals.kcal")}</Text>
+          </View>
+        )}
+        {atLimit && (
+          <View style={styles.limitBadge}>
+            <Text style={styles.limitBadgeText}>{t("select_meals.limit_reached")}</Text>
+          </View>
+        )}
+        <Image
+          source={item.imageUrl ? { uri: item.imageUrl } : require("@/assets/images/meal.jpg")}
+          style={[styles.cardImage, atLimit && { opacity: 0.4 }]}
+          resizeMode="cover"
+        />
+        <View style={styles.cardBody}>
+          <Text style={[styles.cardTitle, isArabic && styles.rtlText, atLimit && { color: "#B8D5C5" }]} numberOfLines={2}>
+            {(isArabic && item.name_ar) ? item.name_ar : item.name}
+          </Text>
+          {hasPersonalizedPlan ? (
+            desc ? <Text style={[styles.cardDesc, isArabic && styles.rtlText]} numberOfLines={3}>{desc}</Text> : null
+          ) : (
+            <>
+              <View style={[styles.macroRow, isArabic && styles.rtlRow]}>
+                <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.macroDot, { backgroundColor: "#4A90E2" }]} />
+                  <Text style={styles.macroText}>{t("select_meals.cal_label")} {item.calories}</Text>
+                </View>
+                <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.macroDot, { backgroundColor: "#D0021B" }]} />
+                  <Text style={styles.macroText}>{t("select_meals.protein_label")} {item.protein}g</Text>
+                </View>
+              </View>
+              <View style={[styles.macroRow, isArabic && styles.rtlRow]}>
+                <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.macroDot, { backgroundColor: "#7ED321" }]} />
+                  <Text style={styles.macroText}>{t("select_meals.carbs_label")} {item.carbs}g</Text>
+                </View>
+                <View style={[styles.macroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.macroDot, { backgroundColor: "#F5A623" }]} />
+                  <Text style={styles.macroText}>{t("select_meals.fat_label")} {item.fat}g</Text>
+                </View>
+              </View>
+            </>
+          )}
+          <TouchableOpacity
+            style={[styles.addButton, styles.addButtonGrid, atLimit && styles.addButtonDisabled]}
+            onPress={() => !atLimit && handleAddItem(meal)}
+            disabled={atLimit}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.addButtonText}>
+              {atLimit ? t("select_meals.limit_reached") : t("select_meals.add_button")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  // List row — same visual language as the main screen list view, tap to add
+  const renderListRow = (meal: Meal) => {
+    const item = convertMealToItem(meal);
+    const atLimit = isMealAtLimit(meal);
+    const desc = (isArabic && (meal as any).description_ar) ? (meal as any).description_ar : (meal as any).description;
+    return (
+      <View style={[styles.listRow, isArabic && styles.rtlRow, atLimit && styles.cardDisabled]}>
+        <View style={styles.listInfo}>
+          <Text style={[styles.listTitle, isArabic && styles.rtlText, atLimit && { color: "#B8D5C5" }]} numberOfLines={2}>
+            {(isArabic && item.name_ar) ? item.name_ar : item.name}
+          </Text>
+          {!!desc && <Text style={[styles.listDesc, isArabic && styles.rtlText]} numberOfLines={3}>{desc}</Text>}
+          {!hasPersonalizedPlan && (
+            <View style={[styles.listMacroRow, isArabic && styles.rtlRow]}>
+              <View style={styles.listMacroCol}>
+                <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.listMacroDot, { backgroundColor: "#4A90E2" }]} />
+                  <Text style={styles.listMacroText}>{t("select_meals.cal_label")} {item.calories}</Text>
+                </View>
+                <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.listMacroDot, { backgroundColor: "#7ED321" }]} />
+                  <Text style={styles.listMacroText}>{t("select_meals.carbs_label")} {item.carbs}g</Text>
+                </View>
+              </View>
+              <View style={styles.listMacroCol}>
+                <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.listMacroDot, { backgroundColor: "#D0021B" }]} />
+                  <Text style={styles.listMacroText}>{t("select_meals.protein_label")} {item.protein}g</Text>
+                </View>
+                <View style={[styles.listMacroItem, isArabic && styles.rtlRow]}>
+                  <View style={[styles.listMacroDot, { backgroundColor: "#F5A623" }]} />
+                  <Text style={styles.listMacroText}>{t("select_meals.fat_label")} {item.fat}g</Text>
+                </View>
+              </View>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[styles.addButton, styles.addButtonListInline, atLimit && styles.addButtonDisabled]}
+            onPress={() => !atLimit && handleAddItem(meal)}
+            disabled={atLimit}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.addButtonText}>
+              {atLimit ? t("select_meals.limit_reached") : t("select_meals.add_button")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <Image
+          source={item.imageUrl ? { uri: item.imageUrl } : require("@/assets/images/meal.jpg")}
+          style={[styles.listImage, atLimit && { opacity: 0.4 }]}
+          resizeMode="cover"
+        />
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {type === "snack" ? t("select_meals.title_snacks") : t("select_meals.title_meals")}
-          </Text>
-          <View style={styles.placeholder} />
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
+          <View style={[styles.headerLeft, isArabic && styles.rtlRow]}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, isArabic && styles.rtlText]} numberOfLines={1}>
+              {type === "snack" ? t("select_meals.title_snacks") : t("select_meals.title_meals")}
+            </Text>
+          </View>
+          {/* Grid/List toggle */}
+          <View style={styles.viewToggleRow}>
+            <TouchableOpacity
+              style={[styles.viewToggleBtn, viewMode === "grid" && styles.viewToggleBtnActive]}
+              onPress={() => setViewMode("grid")}
+              activeOpacity={1}
+            >
+              <Ionicons name="grid-outline" size={16} color={viewMode === "grid" ? "#FFFFFF" : "#344225"} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewToggleBtn, viewMode === "list" && styles.viewToggleBtnActive]}
+              onPress={() => setViewMode("list")}
+              activeOpacity={1}
+            >
+              <Ionicons name="list-outline" size={18} color={viewMode === "list" ? "#FFFFFF" : "#344225"} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, isArabic && styles.searchInputRTL]}
             placeholder={t("select_meals.search_placeholder")}
             placeholderTextColor="#6B7F75"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            textAlign={isArabic ? "right" : "left"}
           />
           <Ionicons
             name="search"
             size={20}
             color="#6B7F75"
-            style={styles.searchIcon}
+            style={[styles.searchIcon, isArabic && styles.searchIconRTL]}
           />
         </View>
-
-        {/* Category Filter — hidden for personalized plan users */}
-        {!hasPersonalizedPlan && categories.length > 0 && (
-          <View style={styles.categoryContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoryScroll}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.categoryChip,
-                  !selectedCategory && styles.categoryChipActive,
-                ]}
-                onPress={() => setSelectedCategory(null)}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    !selectedCategory && styles.categoryChipTextActive,
-                  ]}
-                >
-                  {t("select_meals.category_all")}
-                </Text>
-              </TouchableOpacity>
-              {categories.map((category: any) => (
-                <TouchableOpacity
-                  key={category.id}
-                  style={[
-                    styles.categoryChip,
-                    selectedCategory === category.id &&
-                    styles.categoryChipActive,
-                  ]}
-                  onPress={() => setSelectedCategory(category.id)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      selectedCategory === category.id &&
-                      styles.categoryChipTextActive,
-                    ]}
-                  >
-                    {category.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
 
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Summary Card */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryHeader}>
-              <View style={styles.summaryTextContainer}>
-                <Text style={styles.summaryTitle}>{t("select_meals.summary_title")}</Text>
-                <Text style={styles.summarySubtitle}>
-                  {getPlanSummaryText()}
-                </Text>
-              </View>
-              <Image
-                source={require("@/assets/images/bag.png")}
-                style={styles.summaryIcon}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.summaryFooter}>
-              <Text style={styles.summaryTotal}>{t("select_meals.total")}</Text>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.summaryPrice}>{getPlanDisplayPrice()}</Text>
-                {hasPersonalizedPlan && proteinExtraCharge > 0 && (
-                  <Text style={styles.summaryProteinNote}>
-                    incl. +{proteinExtraCharge.toFixed(3)} protein ({proteinGrams}g)
-                  </Text>
-                )}
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.continueButton}
-              onPress={() => router.back()}
-            >
-              <Text style={styles.continueButtonText}>{t("select_meals.continue")}</Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Loading State */}
           {isLoadingState ? (
             <View style={styles.loadingContainer}>
@@ -750,132 +685,58 @@ export default function SelectMealsScreen() {
                 {type === "snack" ? t("select_meals.loading_snacks") : t("select_meals.loading_meals")}
               </Text>
             </View>
-          ) : (
-            <>
-              {/* Items Grid */}
-              {filteredItems.length > 0 ? (
-                <View style={styles.itemsGrid}>
-                  {filteredItems.map((meal) => {
-                    const item = convertMealToItem(meal);
-                    const atLimit = isMealAtLimit(meal);
-                    return (
-                      <View key={meal.id} style={[styles.itemCard, atLimit && styles.itemCardDisabled]}>
-                        {!hasPersonalizedPlan && !atLimit && (
-                          <View style={styles.caloriesBadge}>
-                            <Text style={styles.caloriesText}>
-                              {item.calories} {t("select_meals.kcal")}
-                            </Text>
+          ) : groupedCategories.length > 0 ? (
+            groupedCategories.map((group) => {
+              const rows: Meal[][] = [];
+              for (let i = 0; i < group.meals.length; i += 2) {
+                rows.push(group.meals.slice(i, i + 2));
+              }
+              return (
+                <View key={group.id} style={styles.categorySection}>
+                  {/* Category header bar */}
+                  <View style={[styles.sectionHeader, isArabic && styles.rtlRow]}>
+                    <Text style={[styles.sectionTitle, isArabic && styles.rtlText]}>
+                      {isArabic && group.name_ar ? group.name_ar : group.name}
+                    </Text>
+                    <Text style={styles.sectionCount}>{group.meals.length}</Text>
+                  </View>
+
+                  {viewMode === "grid" ? (
+                    <View style={styles.grid}>
+                      {rows.map((row, rowIdx) => (
+                        <View key={rowIdx}>
+                          <View style={styles.gridRow}>
+                            {row.map((meal) => renderGridCard(meal))}
+                            {row.length === 1 && <View style={{ width: cardWidth }} />}
+                            {row.length === 2 && <View style={styles.colDivider} pointerEvents="none" />}
                           </View>
-                        )}
-                        {atLimit && (
-                          <View style={styles.limitBadge}>
-                            <Text style={styles.limitBadgeText}>Limit Reached</Text>
-                          </View>
-                        )}
-                        {item.imageUrl ? (
-                          <Image
-                            source={{ uri: item.imageUrl }}
-                            style={[styles.itemImage, atLimit && { opacity: 0.4 }]}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <Image
-                            source={require("@/assets/images/meal.jpg")}
-                            style={[styles.itemImage, atLimit && { opacity: 0.4 }]}
-                            resizeMode="cover"
-                          />
-                        )}
-                        <View style={styles.itemInfo}>
-                          <Text style={[styles.itemName, atLimit && { color: "#B8D5C5" }]}>
-                            {(isArabic && item.name_ar) ? item.name_ar : item.name}
-                          </Text>
-                          {hasPersonalizedPlan ? (
-                            ((isArabic && (meal as any).description_ar) ? (meal as any).description_ar : (meal as any).description) ? (
-                              <Text style={styles.itemDescription} numberOfLines={3}>
-                                {(isArabic && (meal as any).description_ar) ? (meal as any).description_ar : (meal as any).description}
-                              </Text>
-                            ) : null
-                          ) : (
-                            <>
-                              <View style={styles.nutritionRow}>
-                                <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: "#4A90E2" }]} />
-                                  <Text style={styles.nutritionText}>{t("select_meals.cal_label")} {item.calories}</Text>
-                                </View>
-                                <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: "#D0021B" }]} />
-                                  <Text style={styles.nutritionText}>{t("select_meals.protein_label")} {item.protein}g</Text>
-                                </View>
-                              </View>
-                              <View style={styles.nutritionRow}>
-                                <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: "#7ED321" }]} />
-                                  <Text style={styles.nutritionText}>{t("select_meals.carbs_label")} {item.carbs}g</Text>
-                                </View>
-                                <View style={styles.nutritionItem}>
-                                  <View style={[styles.nutritionDot, { backgroundColor: "#F5A623" }]} />
-                                  <Text style={styles.nutritionText}>{t("select_meals.fat_label")} {item.fat}g</Text>
-                                </View>
-                              </View>
-                            </>
-                          )}
-                          <TouchableOpacity
-                            style={[styles.addButton, atLimit && styles.addButtonDisabled]}
-                            onPress={() => !atLimit && handleAddItem(meal)}
-                            disabled={atLimit}
-                          >
-                            <Text style={styles.addButtonText}>
-                              {atLimit ? t("select_meals.limit_reached") : t("select_meals.add_button")}
-                            </Text>
-                          </TouchableOpacity>
+                          {rowIdx < rows.length - 1 && <View style={styles.rowDivider} />}
                         </View>
-                      </View>
-                    );
-                  })}
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.listWrap}>
+                      {group.meals.map((meal, idx) => (
+                        <View key={meal.id}>
+                          {renderListRow(meal)}
+                          {idx < group.meals.length - 1 && <View style={styles.listDivider} />}
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
-              ) : (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>
-                    {type === "snack" ? t("select_meals.no_snacks_found") : t("select_meals.no_meals_found")}
-                  </Text>
-                </View>
-              )}
-            </>
+              );
+            })
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {type === "snack" ? t("select_meals.no_snacks_found") : t("select_meals.no_meals_found")}
+              </Text>
+            </View>
           )}
         </ScrollView>
       </View>
 
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 20) }]}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/" as any)}
-        >
-          <Ionicons name="home" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.home")}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/order-history" as any)}
-        >
-          <Ionicons name="time" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.history")}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/calendar" as any)}
-        >
-          <Ionicons name="calendar" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.calendar")}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/(tabs)/profile" as any)}
-        >
-          <Ionicons name="person" size={26} color="#FFFFFF" />
-          <Text style={styles.navLabel}>{t("nav.profile")}</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -888,13 +749,18 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: "5%",
-    paddingTop: 10,
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   backButton: {
     width: 40,
@@ -904,12 +770,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#344225",
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     flex: 1,
-    textAlign: "center",
+    marginRight: 8,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#344225",
+    flexShrink: 1,
   },
   placeholder: {
     width: 40,
@@ -924,7 +796,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingLeft: 44,
+    paddingRight: 44,
     fontSize: 14,
     color: "#344225",
     borderWidth: 1,
@@ -932,8 +804,16 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     position: "absolute",
-    left: 30,
+    right: 30,
     top: 13,
+  },
+  searchInputRTL: {
+    paddingRight: 16,
+    paddingLeft: 44,
+  },
+  searchIconRTL: {
+    right: undefined,
+    left: 30,
   },
   categoryContainer: {
     marginBottom: 16,
@@ -966,8 +846,194 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: "5%",
-    paddingBottom: 120,
+    paddingBottom: 32,
+  },
+  categorySection: {
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#344225",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FAD979",
+    flex: 1,
+  },
+  sectionCount: {
+    fontSize: 13,
+    color: "#FAD979",
+    fontWeight: "600",
+  },
+  // View toggle (header, right side)
+  viewToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  viewToggleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#C9D7CE",
+  },
+  viewToggleBtnActive: {
+    backgroundColor: "#344225",
+    borderColor: "#344225",
+  },
+  // Grid layout (matches main screen)
+  grid: {
+    paddingHorizontal: 16,
+  },
+  gridRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "stretch",
+    position: "relative",
+    paddingVertical: 10,
+  },
+  colDivider: {
+    position: "absolute",
+    left: "50%",
+    top: 10,
+    bottom: 10,
+    width: 1,
+    backgroundColor: "#C9D7CE",
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: "#C9D7CE",
+  },
+  card: {},
+  cardDisabled: {
+    opacity: 0.6,
+  },
+  calorieBadge: {
+    position: "absolute",
+    zIndex: 1,
+    top: 8,
+    left: 8,
+    backgroundColor: "#E52C49",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  calorieText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  cardImage: {
+    width: "100%",
+    height: 130,
+    borderRadius: 10,
+  },
+  cardBody: {
+    flex: 1,
+    paddingVertical: 8,
+  },
+  cardTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 8,
+  },
+  cardDesc: {
+    fontSize: 11,
+    color: "#6B7F75",
+    lineHeight: 15,
+  },
+  macroRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  macroItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  macroDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  macroText: {
+    fontSize: 10,
+    color: "#344225",
+  },
+  // List layout (matches main screen)
+  listWrap: {
+    paddingHorizontal: 16,
+  },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 18,
+  },
+  listInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#344225",
+    marginBottom: 8,
+  },
+  listDesc: {
+    fontSize: 14,
+    color: "#8A8F8B",
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  listMacroRow: {
+    flexDirection: "row",
+  },
+  listMacroCol: {
+    flex: 1,
+    gap: 10,
+  },
+  listMacroItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  listMacroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  listMacroText: {
+    fontSize: 14,
+    color: "#344225",
+  },
+  listImage: {
+    width: 128,
+    height: 118,
+    borderRadius: 12,
+    alignSelf: "center",
+  },
+  listDivider: {
+    height: 1,
+    backgroundColor: "#93A79B",
+  },
+  limitInlineText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#C0392B",
+    marginTop: 4,
   },
   summaryCard: {
     backgroundColor: "#344225",
@@ -1112,6 +1178,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
+  // Grid: small, consistent gap between the description/macros and the Add button
+  addButtonGrid: {
+    marginTop: 4,
+  },
   addButtonDisabled: {
     backgroundColor: "#B8D5C5",
   },
@@ -1119,6 +1189,12 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "600",
+  },
+  // List-view Add button: compact, left-aligned under the macros
+  addButtonListInline: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 28,
+    marginTop: 12,
   },
   itemCardDisabled: {
     opacity: 0.85,

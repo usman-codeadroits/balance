@@ -24,7 +24,8 @@ type ActivityLevel =
   | null;
 
 export default function ActivityLevelScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
 
   const activityLevels_list = [
     {
@@ -86,12 +87,12 @@ export default function ActivityLevelScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
+          <View style={[styles.header, isArabic && styles.rtlRow]}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Image
@@ -105,7 +106,7 @@ export default function ActivityLevelScreen() {
 
           {/* Title */}
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>{t("activity_level.title")}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("activity_level.title")}</Text>
           </View>
 
           {/* Activity Level Options */}
@@ -115,14 +116,15 @@ export default function ActivityLevelScreen() {
                 key={level.id}
                 style={[
                   styles.optionCard,
+                  isArabic && styles.rtlRow,
                   selectedLevel === level.id && styles.optionCardSelected,
                 ]}
                 onPress={() => setSelectedLevel(level.id)}
                 activeOpacity={0.7}
               >
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>{level.title}</Text>
-                  <Text style={styles.optionSubtitle}>{level.subtitle}</Text>
+                  <Text style={[styles.optionTitle, isArabic && styles.rtlText]}>{level.title}</Text>
+                  <Text style={[styles.optionSubtitle, isArabic && styles.rtlText]}>{level.subtitle}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -191,6 +193,12 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     gap: 12,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   optionCard: {
     backgroundColor: "#FFFFFF",

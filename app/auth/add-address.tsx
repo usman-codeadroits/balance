@@ -11,6 +11,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -25,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AddAddressScreen() {
   const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [blockNumber, setBlockNumber] = useState("");
   const [street, setStreet] = useState("");
   const [houseBuliding, setHouseBuliding] = useState("");
@@ -94,19 +96,19 @@ export default function AddAddressScreen() {
       }));
       router.push("/auth/preferred-time" as any);
     } catch {
-      Alert.alert(t("common.error"), "Failed to save address. Please try again.");
+      Alert.alert(t("common.error"), t("address.save_error"));
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerTextBlock}>
-            <Text style={styles.title}>{t("address.title")}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("address.title")}</Text>
           </View>
         </View>
 
@@ -116,92 +118,98 @@ export default function AddAddressScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Area Picker */}
-          <Text style={styles.fieldLabel}>{t("address.select_area")} <Text style={styles.required}>*</Text></Text>
+          <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.select_area")} <Text style={styles.required}>*</Text></Text>
           <TouchableOpacity
-            style={styles.pickerButton}
+            style={[styles.pickerButton, isArabic && styles.rtlRow]}
             onPress={() => !areasLoading && setShowAreaModal(true)}
             disabled={areasLoading}
           >
             {areasLoading ? (
               <ActivityIndicator size="small" color="#6B7F75" />
             ) : (
-              <Text style={[styles.pickerText, !selectedArea && styles.pickerPlaceholder]}>
+              <Text style={[styles.pickerText, isArabic && styles.rtlText, !selectedArea && styles.pickerPlaceholder]}>
                 {selectedArea ? (i18n.language === "ar" && selectedArea.name_ar ? selectedArea.name_ar : selectedArea.name) : t("address.select_area")}
               </Text>
             )}
             <Text style={styles.pickerChevron}>▾</Text>
           </TouchableOpacity>
 
-          <Text style={styles.fieldLabel}>{t("address.block")} <Text style={styles.required}>*</Text></Text>
+          <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.block")} <Text style={styles.required}>*</Text></Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isArabic && styles.rtlText]}
             placeholder={t("address.block")}
             placeholderTextColor="#6B7F75"
             value={blockNumber}
             onChangeText={setBlockNumber}
             keyboardType="numeric"
+            textAlign={isArabic ? "right" : "left"}
           />
 
-          <Text style={styles.fieldLabel}>{t("address.street")} <Text style={styles.required}>*</Text></Text>
+          <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.street")} <Text style={styles.required}>*</Text></Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isArabic && styles.rtlText]}
             placeholder={t("address.street")}
             placeholderTextColor="#6B7F75"
             value={street}
             onChangeText={setStreet}
+            textAlign={isArabic ? "right" : "left"}
           />
 
-          <Text style={styles.fieldLabel}>{t("address.house")} <Text style={styles.required}>*</Text></Text>
+          <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.house")} <Text style={styles.required}>*</Text></Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isArabic && styles.rtlText]}
             placeholder={t("address.house")}
             placeholderTextColor="#6B7F75"
             value={houseBuliding}
             onChangeText={setHouseBuliding}
+            textAlign={isArabic ? "right" : "left"}
           />
 
-          <Text style={styles.fieldLabel}>{t("address.apartment")} <Text style={styles.required}>*</Text></Text>
+          <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.apartment")} <Text style={styles.required}>*</Text></Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isArabic && styles.rtlText]}
             placeholder={t("address.apartment")}
             placeholderTextColor="#6B7F75"
             value={floorApartment}
             onChangeText={setFloorApartment}
+            textAlign={isArabic ? "right" : "left"}
           />
 
-          <Text style={styles.fieldLabel}>{t("address.remarks")}</Text>
+          <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.remarks")}</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isArabic && styles.rtlText]}
             placeholder={t("address.remarks")}
             placeholderTextColor="#6B7F75"
             value={remarks}
             onChangeText={setRemarks}
             multiline
+            textAlign={isArabic ? "right" : "left"}
           />
 
-          <Text style={styles.fieldLabel}>Delivery Notes</Text>
+          <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.delivery_notes_label")}</Text>
           <TextInput
-            style={[styles.input, styles.inputMultiline]}
-            placeholder="Add note if you have allergies/dislikes or any other note"
+            style={[styles.input, styles.inputMultiline, isArabic && styles.rtlText]}
+            placeholder={t("address.delivery_notes_placeholder")}
             placeholderTextColor="#6B7F75"
             value={deliveryNotes}
             onChangeText={setDeliveryNotes}
             multiline
             maxLength={1000}
             textAlignVertical="top"
+            textAlign={isArabic ? "right" : "left"}
           />
 
           {/* Address Category */}
-          <Text style={styles.sectionLabel}>{t("address.category_title")}</Text>
-          <View style={styles.radioGroup}>
-            <TouchableOpacity style={styles.radioOption} onPress={() => setAddressCategory("home")}>
+          <Text style={[styles.sectionLabel, isArabic && styles.rtlText]}>{t("address.category_title")}</Text>
+          <View style={[styles.radioGroup, isArabic && styles.rtlRow]}>
+            <TouchableOpacity style={[styles.radioOption, isArabic && styles.rtlRow]} onPress={() => setAddressCategory("home")}>
               <View style={styles.radioOuter}>
                 {addressCategory === "home" && <View style={styles.radioInner} />}
               </View>
               <Text style={styles.radioLabel}>{t("address.home")}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.radioOption} onPress={() => setAddressCategory("office")}>
+            <TouchableOpacity style={[styles.radioOption, isArabic && styles.rtlRow]} onPress={() => setAddressCategory("office")}>
               <View style={styles.radioOuter}>
                 {addressCategory === "office" && <View style={styles.radioInner} />}
               </View>
@@ -210,7 +218,7 @@ export default function AddAddressScreen() {
           </View>
 
           {/* Save as Primary Address */}
-          <View style={styles.switchRow}>
+          <View style={[styles.switchRow, isArabic && styles.rtlRow]}>
             <Text style={styles.switchLabel}>{t("address.primary_label")}</Text>
             <Switch
               value={isPrimary}
@@ -237,7 +245,7 @@ export default function AddAddressScreen() {
       <Modal visible={showAreaModal} transparent animationType="slide" onRequestClose={() => setShowAreaModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, isArabic && styles.rtlRow]}>
               <Text style={styles.modalTitle}>{t("address.select_area")}</Text>
               <TouchableOpacity onPress={() => setShowAreaModal(false)}>
                 <Text style={styles.modalClose}>✕</Text>
@@ -251,7 +259,7 @@ export default function AddAddressScreen() {
                   style={[styles.modalItem, selectedArea?.id === item.id && styles.modalItemSelected]}
                   onPress={() => { setSelectedArea(item); setShowAreaModal(false); }}
                 >
-                  <Text style={[styles.modalItemText, selectedArea?.id === item.id && styles.modalItemTextSelected]}>
+                  <Text style={[styles.modalItemText, isArabic && styles.rtlText, selectedArea?.id === item.id && styles.modalItemTextSelected]}>
                     {i18n.language === "ar" && item.name_ar ? item.name_ar : item.name}
                   </Text>
                 </TouchableOpacity>
@@ -268,6 +276,8 @@ export default function AddAddressScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
   header: {
     flexDirection: "row",
     alignItems: "center",

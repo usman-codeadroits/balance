@@ -10,7 +10,9 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -26,7 +28,9 @@ import { WebView } from "react-native-webview";
 type PaymentMethod = {
   id: string;
   label: string;
+  label_ar?: string | null;
   description: string;
+  description_ar?: string | null;
   type: "redirect" | "offline" | string;
 };
 
@@ -59,7 +63,8 @@ type CheckoutDraft = {
 };
 
 export default function PaymentScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethodId, setSelectedMethodId] = useState<string>("");
@@ -76,10 +81,13 @@ export default function PaymentScreen() {
   const [draftLoading, setDraftLoading] = useState(true);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successConfig, setSuccessConfig] = useState({ title: "", message: "" });
+  const [successConfig, setSuccessConfig] = useState({ title: "", message: "", amount: "" });
 
   const showSuccess = (title: string, message: string) => {
-    setSuccessConfig({ title, message });
+    const amount = checkoutDraft
+      ? `${checkoutDraft.payload.currency} ${checkoutDraft.summary.totalPrice.toFixed(3)}`
+      : "";
+    setSuccessConfig({ title, message, amount });
     setShowSuccessModal(true);
   };
 
@@ -127,9 +135,24 @@ export default function PaymentScreen() {
 
   const setFallbackMethods = () => {
     const fallback: PaymentMethod[] = [
-      { id: "knet", label: "KNET", description: "Kuwait electronic payment network", type: "redirect" },
-      { id: "credit_card", label: "Credit / Debit Card", description: "Visa, Mastercard accepted", type: "redirect" },
-      { id: "cash", label: "Cash on Delivery", description: "Pay when your order arrives", type: "offline" },
+      {
+        id: "knet",
+        label: t("payment.fallback_knet_label"),
+        description: t("payment.fallback_knet_desc"),
+        type: "redirect",
+      },
+      {
+        id: "credit_card",
+        label: t("payment.fallback_card_label"),
+        description: t("payment.fallback_card_desc"),
+        type: "redirect",
+      },
+      {
+        id: "cash",
+        label: t("payment.fallback_cash_label"),
+        description: t("payment.fallback_cash_desc"),
+        type: "offline",
+      },
     ];
     setPaymentMethods(fallback);
     setSelectedMethodId(fallback[0].id);
@@ -260,15 +283,15 @@ export default function PaymentScreen() {
   const handleCashCheckout = async () => {
     try {
       const base = buildBasePayload();
-      if (!base) throw new Error("Checkout data missing");
+      if (!base) throw new Error(t("payment.checkout_data_missing"));
 
       const response = await apiClient.post("/v1/payment/checkout", { ...base, payment_method: "cash" });
 
       if ((response as any)?.success === false) {
-        const msg = (response as any)?.message || "Order failed. Please try again.";
+        const msg = (response as any)?.message || t("payment.order_failed_default");
         const errors = (response as any)?.errors;
         const detail = errors ? Object.values(errors).flat().join("\n") : "";
-        Alert.alert("Order Failed", detail ? `${msg}\n\n${detail}` : msg);
+        Alert.alert(t("payment.order_failed_title"), detail ? `${msg}\n\n${detail}` : msg);
         setProcessing(false);
         return;
       }
@@ -278,9 +301,9 @@ export default function PaymentScreen() {
       const subData = subRaw?.user_subscription || subRaw || data?.user_subscription || data;
 
       await persistSubscriptionLocally(subData, "pending", checkoutDraft!.payload);
-      showSuccess("Order Placed!", "Order placed successfully. Cash will be collected on delivery.");
+      showSuccess(t("payment.order_placed_title"), t("payment.order_placed_msg"));
     } catch (error: any) {
-      Alert.alert("Order Error", error instanceof Error ? error.message : "An unexpected error occurred.");
+      Alert.alert(t("payment.order_error_title"), error instanceof Error ? error.message : t("payment.order_error_default"));
     } finally {
       setProcessing(false);
     }
@@ -290,13 +313,13 @@ export default function PaymentScreen() {
   const handleHesabeInitiate = async () => {
     try {
       const base = buildBasePayload();
-      if (!base) throw new Error("Checkout data missing");
+      if (!base) throw new Error(t("payment.checkout_data_missing"));
 
       let response: any;
       try {
         response = await apiClient.post("/v1/payment/initiate", { ...base, payment_method: selectedMethodId });
       } catch (apiError: any) {
-        Alert.alert("Payment Error", apiError instanceof Error ? apiError.message : "Failed to reach payment server.");
+        Alert.alert(t("payment.payment_error_title"), apiError instanceof Error ? apiError.message : t("payment.payment_error_reach"));
         setProcessing(false);
         return;
       }
@@ -305,7 +328,7 @@ export default function PaymentScreen() {
       const paymentUrl: string = response?.data?.payment_url;
 
       if (!orderToken || !paymentUrl) {
-        Alert.alert("Payment Error", "Invalid response from payment gateway.");
+        Alert.alert(t("payment.payment_error_title"), t("payment.payment_error_invalid_response"));
         setProcessing(false);
         return;
       }
@@ -316,7 +339,7 @@ export default function PaymentScreen() {
       setWebViewLoading(true);
       setShowWebView(true);
     } catch (error: any) {
-      Alert.alert("Payment Error", error instanceof Error ? error.message : "An unexpected error occurred.");
+      Alert.alert(t("payment.payment_error_title"), error instanceof Error ? error.message : t("payment.order_error_default"));
       setProcessing(false);
     }
   };
@@ -343,9 +366,9 @@ export default function PaymentScreen() {
         setPolling(false);
         setProcessing(false);
         Alert.alert(
-          "Payment Timeout",
-          "Payment timed out. Please check your subscriptions.",
-          [{ text: "Home", onPress: () => router.replace("/(tabs)/" as any) }],
+          t("payment.payment_timeout_title"),
+          t("payment.payment_timeout_msg"),
+          [{ text: t("payment.home_btn"), onPress: () => router.replace("/(tabs)/" as any) }],
         );
         return;
       }
@@ -369,7 +392,7 @@ export default function PaymentScreen() {
           pollingIntervalRef.current = null;
           setPolling(false);
           setProcessing(false);
-          Alert.alert("Payment Failed", "Your payment was not successful. Please try again.");
+          Alert.alert(t("payment.alerts.failed_title"), t("payment.alerts.failed_msg"));
         }
       } catch {
         // transient error — keep polling
@@ -384,10 +407,10 @@ export default function PaymentScreen() {
     const a = checkoutDraft.summary.address;
     return (
       <>
-        <Text style={styles.shippingName}>{a.first_name} {a.last_name}</Text>
-        <Text style={styles.shippingAddress}>{a.area}, Block {a.block_number}, {a.street}</Text>
-        <Text style={styles.shippingAddress}>{a.house_building}, {a.floor_apartment}</Text>
-        <Text style={styles.shippingPhone}>{a.phone_number}</Text>
+        <Text style={[styles.shippingName, isArabic && styles.rtlText]}>{a.first_name} {a.last_name}</Text>
+        <Text style={[styles.shippingAddress, isArabic && styles.rtlText]}>{a.area}, {t("address.block")} {a.block_number}, {a.street}</Text>
+        <Text style={[styles.shippingAddress, isArabic && styles.rtlText]}>{a.house_building}, {a.floor_apartment}</Text>
+        <Text style={[styles.shippingPhone, isArabic && styles.rtlText]}>{a.phone_number}</Text>
       </>
     );
   };
@@ -399,10 +422,11 @@ export default function PaymentScreen() {
   };
 
   const getPayButtonLabel = () => {
-    if (polling) return "Checking payment…";
+    if (polling) return t("payment.checking_payment");
     if (processing) return t("payment.processing");
-    if (selectedMethod?.type === "offline") return "Place Order";
-    return `Pay with ${selectedMethod?.label ?? ""}`;
+    if (selectedMethod?.type === "offline") return t("payment.place_order");
+    const methodLabel = (isArabic && selectedMethod?.label_ar) ? selectedMethod.label_ar : (selectedMethod?.label ?? "");
+    return t("payment.pay_with", { label: methodLabel });
   };
 
   // ---------- loading / empty ----------
@@ -433,34 +457,40 @@ export default function PaymentScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.title}>{t("payment.title")}</Text>
-            <Text style={styles.subtitle}>{t("payment.subtitle")}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("payment.title")}</Text>
+            <Text style={[styles.subtitle, isArabic && styles.rtlText]}>{t("payment.subtitle")}</Text>
           </View>
         </View>
 
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
           {/* Payment Method */}
-          <Text style={styles.sectionLabel}>Payment Method</Text>
+          <Text style={[styles.sectionLabel, isArabic && styles.rtlText]}>{t("payment.payment_method_label")}</Text>
           <View style={styles.paymentMethodGroup}>
             {paymentMethods.map((method) => (
               <TouchableOpacity
                 key={method.id}
-                style={[styles.paymentMethodItem, selectedMethodId === method.id && styles.paymentMethodItemSelected]}
+                style={[styles.paymentMethodItem, isArabic && styles.rtlRow, selectedMethodId === method.id && styles.paymentMethodItemSelected]}
                 onPress={() => setSelectedMethodId(method.id)}
               >
-                <View style={styles.paymentMethodLeft}>
+                <View style={[styles.paymentMethodLeft, isArabic && styles.rtlRow]}>
                   <View style={styles.paymentMethodRadioOuter}>
                     {selectedMethodId === method.id && <View style={styles.paymentMethodRadioInner} />}
                   </View>
                   <View>
-                    <Text style={styles.paymentMethodLabel}>{method.label}</Text>
-                    {method.description ? <Text style={styles.paymentMethodDesc}>{method.description}</Text> : null}
+                    <Text style={[styles.paymentMethodLabel, isArabic && styles.rtlText]}>
+                      {(isArabic && method.label_ar) ? method.label_ar : method.label}
+                    </Text>
+                    {method.description ? (
+                      <Text style={[styles.paymentMethodDesc, isArabic && styles.rtlText]}>
+                        {(isArabic && method.description_ar) ? method.description_ar : method.description}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
                 <Text style={styles.paymentMethodIcon}>{getMethodIcon(method.type, method.id)}</Text>
@@ -470,14 +500,14 @@ export default function PaymentScreen() {
 
           {/* Delivery Info */}
           <View style={styles.shippingSection}>
-            <View style={styles.shippingHeader}>
-              <Text style={styles.shippingTitle}>{t("payment.delivery_title")}</Text>
+            <View style={[styles.shippingHeader, isArabic && styles.rtlRow]}>
+              <Text style={[styles.shippingTitle, isArabic && styles.rtlText]}>{t("payment.delivery_title")}</Text>
               <TouchableOpacity onPress={() => router.back()}>
                 <Text style={styles.editText}>{t("payment.edit")}</Text>
               </TouchableOpacity>
             </View>
             {renderShippingInfo()}
-            <View style={styles.badge}>
+            <View style={[styles.badge, isArabic && styles.badgeRTL]}>
               <Text style={styles.badgeText}>
                 {checkoutDraft.summary.preferredDeliverySlotLabel
                   ?? checkoutDraft.summary.address.preferred_delivery_slot?.replace(/_/g, " ")}
@@ -487,18 +517,18 @@ export default function PaymentScreen() {
 
           {/* Order Summary */}
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>{t("payment.order_summary")}</Text>
+            <Text style={[styles.summaryTitle, isArabic && styles.rtlText]}>{t("payment.order_summary")}</Text>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t("payment.plan_total")}</Text>
+            <View style={[styles.summaryRow, isArabic && styles.rtlRow]}>
+              <Text style={[styles.summaryLabel, isArabic && styles.rtlText]}>{t("payment.plan_total")}</Text>
               <Text style={styles.summaryValue}>
                 {checkoutDraft.payload.currency} {checkoutDraft.summary.planPrice.toFixed(3)}
               </Text>
             </View>
 
             {checkoutDraft.payload.is_personalized && (checkoutDraft.summary.proteinExtra ?? 0) > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Protein Upgrade ({checkoutDraft.payload.protein}g)</Text>
+              <View style={[styles.summaryRow, isArabic && styles.rtlRow]}>
+                <Text style={[styles.summaryLabel, isArabic && styles.rtlText]}>{t("payment.protein_upgrade", { grams: checkoutDraft.payload.protein })}</Text>
                 <Text style={[styles.summaryValue, { color: "#FAD979" }]}>
                   + {checkoutDraft.payload.currency} {(checkoutDraft.summary.proteinExtra ?? 0).toFixed(3)}
                 </Text>
@@ -506,20 +536,20 @@ export default function PaymentScreen() {
             )}
 
             {(checkoutDraft.summary.discount ?? 0) > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Discount</Text>
+              <View style={[styles.summaryRow, isArabic && styles.rtlRow]}>
+                <Text style={[styles.summaryLabel, isArabic && styles.rtlText]}>{t("payment.discount")}</Text>
                 <Text style={[styles.summaryValue, { color: "#7ED321" }]}>
                   - {checkoutDraft.payload.currency} {(checkoutDraft.summary.discount ?? 0).toFixed(3)}
                 </Text>
               </View>
             )}
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t("checkout.delivery_fee")}</Text>
+            <View style={[styles.summaryRow, isArabic && styles.rtlRow]}>
+              <Text style={[styles.summaryLabel, isArabic && styles.rtlText]}>{t("checkout.delivery_fee")}</Text>
               <Text style={styles.summaryValue}>{t("checkout.free")}</Text>
             </View>
 
-            <View style={[styles.summaryRow, styles.summaryTotal]}>
+            <View style={[styles.summaryRow, styles.summaryTotal, isArabic && styles.rtlRow]}>
               <Text style={styles.summaryTotalLabel}>{t("payment.amount_due")}</Text>
               <Text style={styles.summaryTotalValue}>
                 {checkoutDraft.payload.currency} {checkoutDraft.summary.totalPrice.toFixed(3)}
@@ -551,8 +581,8 @@ export default function PaymentScreen() {
       >
         <SafeAreaView style={styles.webViewContainer}>
           {/* Header */}
-          <View style={styles.webViewHeader}>
-            <Text style={styles.webViewTitle}>Complete Payment</Text>
+          <View style={[styles.webViewHeader, isArabic && styles.rtlRow]}>
+            <Text style={styles.webViewTitle}>{t("payment.complete_payment")}</Text>
             <TouchableOpacity style={styles.webViewCloseBtn} onPress={closeWebViewAndPoll}>
               <Ionicons name="close" size={24} color="#344225" />
             </TouchableOpacity>
@@ -562,7 +592,7 @@ export default function PaymentScreen() {
           {webViewLoading && (
             <View style={styles.webViewLoadingOverlay}>
               <ActivityIndicator size="large" color="#344225" />
-              <Text style={styles.webViewLoadingText}>Loading payment page…</Text>
+              <Text style={styles.webViewLoadingText}>{t("payment.loading_payment_page")}</Text>
             </View>
           )}
 
@@ -589,8 +619,8 @@ export default function PaymentScreen() {
         <View style={styles.pollingOverlay}>
           <View style={styles.pollingCard}>
             <ActivityIndicator size="large" color="#344225" />
-            <Text style={styles.pollingText}>Checking payment status…</Text>
-            <Text style={styles.pollingSubText}>This may take a few seconds</Text>
+            <Text style={styles.pollingText}>{t("payment.checking_payment_status")}</Text>
+            <Text style={styles.pollingSubText}>{t("payment.may_take_seconds")}</Text>
           </View>
         </View>
       )}
@@ -599,11 +629,24 @@ export default function PaymentScreen() {
       <Modal visible={showSuccessModal} transparent animationType="fade">
         <View style={styles.successOverlay}>
           <View style={styles.successCard}>
+            <View pointerEvents="none" style={styles.successCardBgLogoWrap}>
+              <Image
+                source={require("@/assets/images/balance-text.png")}
+                style={styles.successCardBgLogo}
+                resizeMode="contain"
+              />
+            </View>
             <View style={styles.successIconCircle}>
               <Ionicons name="checkmark" size={52} color="#FFFFFF" />
             </View>
             <Text style={styles.successTitle}>{successConfig.title}</Text>
             <Text style={styles.successMessage}>{successConfig.message}</Text>
+            {!!successConfig.amount && (
+              <View style={styles.successAmountPill}>
+                <Text style={styles.successAmountLabel}>{t("payment.order_total_amount")}</Text>
+                <Text style={styles.successAmountValue}>{successConfig.amount}</Text>
+              </View>
+            )}
             <TouchableOpacity
               style={styles.successButton}
               onPress={() => {
@@ -611,7 +654,7 @@ export default function PaymentScreen() {
                 router.replace("/(tabs)/" as any);
               }}
             >
-              <Text style={styles.successButtonText}>OK</Text>
+              <Text style={styles.successButtonText}>{t("common.ok")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -623,12 +666,14 @@ export default function PaymentScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: "5%",
     paddingBottom: 20,
+    gap: 12,
   },
   backButton: {
     width: 40,
@@ -637,10 +682,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#344225",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  headerTitleContainer: { flex: 1, alignItems: "center" },
-  title: { fontSize: 24, fontWeight: "700", color: "#344225", textAlign: "center" },
-  subtitle: { fontSize: 14, color: "#6B7F75", marginTop: 4, textAlign: "center" },
+  headerTitleContainer: { flex: 1 },
+  title: { fontSize: 24, fontWeight: "700", color: "#344225" },
+  subtitle: { fontSize: 14, color: "#6B7F75", marginTop: 4 },
   scrollContainer: { flex: 1 },
   scrollContent: { paddingHorizontal: "5%", paddingBottom: 120 },
   sectionLabel: { fontSize: 14, fontWeight: "600", color: "#344225", marginBottom: 12 },
@@ -699,6 +745,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignSelf: "flex-start",
   },
+  badgeRTL: { alignSelf: "flex-end" },
   badgeText: { fontSize: 12, color: "#344225", fontWeight: "500" },
   summaryCard: {
     backgroundColor: "#344225",
@@ -791,11 +838,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     gap: 10,
+    position: "relative",
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 12,
+  },
+  successCardBgLogoWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successCardBgLogo: {
+    width: 260,
+    height: 260,
+    opacity: 0.06,
   },
   successIconCircle: {
     width: 96,
@@ -819,15 +878,36 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 4,
   },
+  successAmountPill: {
+    backgroundColor: "#D4E8E0",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    gap: 2,
+  },
+  successAmountLabel: {
+    fontSize: 12,
+    color: "#5A7C65",
+    fontWeight: "500",
+  },
+  successAmountValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#344225",
+  },
   successButton: {
     backgroundColor: "#344225",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 48,
+    borderRadius: 10,
+    width: 110,
+    height: 40,
+    alignSelf: "center",
     marginTop: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   successButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#FFFFFF",
   },

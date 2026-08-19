@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   BackHandler,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -36,7 +37,8 @@ const FREE_PROTEIN: ProteinOption = {
 
 
 export default function BuildPlanScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [selectedProtein, setSelectedProtein] = useState<string | null>(null);
   const [selectedCarbs, setSelectedCarbs] = useState<string | null>(null);
   const [showProteinDropdown, setShowProteinDropdown] = useState(false);
@@ -159,15 +161,15 @@ export default function BuildPlanScreen() {
 return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.headerSection}>
+        <View style={[styles.headerSection, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={clearPlanAndGoBack}
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>{t("build_plan.title")}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("build_plan.title")}</Text>
           </View>
         </View>
 
@@ -183,12 +185,12 @@ return (
           >
             {/* Select Protein Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("build_plan.select_protein")}</Text>
-              <Text style={styles.sectionDescription}>
+              <Text style={[styles.sectionTitle, isArabic && styles.rtlText]}>{t("build_plan.select_protein")}</Text>
+              <Text style={[styles.sectionDescription, isArabic && styles.rtlText]}>
                 {t("build_plan.protein_desc")}
               </Text>
               <TouchableOpacity
-                style={styles.dropdown}
+                style={[styles.dropdown, isArabic && styles.rtlRow]}
                 onPress={() => {
                   setShowProteinDropdown(!showProteinDropdown);
                   setShowCarbsDropdown(false);
@@ -215,6 +217,7 @@ return (
                       key={option.id}
                       style={[
                         styles.dropdownRow,
+                        isArabic && styles.rtlRow,
                         selectedProtein === String(option.protein_grams) &&
                           styles.dropdownRowSelected,
                         index === proteinApiOptions.length - 1 &&
@@ -252,12 +255,12 @@ return (
 
             {/* Select Carbs Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("build_plan.select_carbs")}</Text>
-              <Text style={styles.sectionDescription}>
+              <Text style={[styles.sectionTitle, isArabic && styles.rtlText]}>{t("build_plan.select_carbs")}</Text>
+              <Text style={[styles.sectionDescription, isArabic && styles.rtlText]}>
                 {t("build_plan.carbs_desc")}
               </Text>
               <TouchableOpacity
-                style={styles.dropdown}
+                style={[styles.dropdown, isArabic && styles.rtlRow]}
                 onPress={() => {
                   setShowCarbsDropdown(!showCarbsDropdown);
                   setShowProteinDropdown(false);
@@ -284,6 +287,7 @@ return (
                       key={option.grams}
                       style={[
                         styles.dropdownRow,
+                        isArabic && styles.rtlRow,
                         selectedCarbs === String(option.grams) &&
                           styles.dropdownRowSelected,
                         index === carbsOptions.length - 1 &&
@@ -328,9 +332,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+  },
   headerSection: {
     paddingHorizontal: "5%",
-    paddingTop: 40,
     paddingBottom: 20,
     flexDirection: "row",
     alignItems: "center",

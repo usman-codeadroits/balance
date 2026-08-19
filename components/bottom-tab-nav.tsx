@@ -21,7 +21,8 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
   activeTab,
   onHomePress,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const insets = useSafeAreaInsets();
 
   const NAV_ITEMS = [
@@ -57,7 +58,7 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
   };
 
   return (
-    <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
+    <View style={[styles.bottomNav, isArabic && styles.rtlRow, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
       {NAV_ITEMS.map((item) => {
         const isActive = item.key === activeTab;
 
@@ -99,6 +100,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
   },
   navItem: {
     alignItems: "center",

@@ -2,9 +2,11 @@ import { clearDislikes, getDislikes } from '@/api/services/dislikes';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -15,6 +17,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function DislikesPreferenceScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith('ar');
   const insets = useSafeAreaInsets();
   const [hasDislikes, setHasDislikes] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +55,7 @@ export default function DislikesPreferenceScreen() {
       await clearDislikes();
       router.replace('/(tabs)/profile' as any);
     } catch {
-      Alert.alert('Error', 'Could not save your preference. Please try again.');
+      Alert.alert(t('common.error'), t('dislikes_pref.save_error'));
     } finally {
       setSaving(false);
     }
@@ -59,11 +63,11 @@ export default function DislikesPreferenceScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === 'ios' ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/profile' as any)}>
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name={isArabic ? 'arrow-forward' : 'arrow-back'} size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dislikes</Text>
+        <Text style={styles.headerTitle}>{t('dislikes_pref.header_title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -81,19 +85,19 @@ export default function DislikesPreferenceScreen() {
               <View style={styles.heroIconCircle}>
                 <Ionicons name="restaurant-outline" size={40} color="#344225" />
               </View>
-              <Text style={styles.title}>Do you want to add food dislikes?</Text>
+              <Text style={styles.title}>{t('dislikes_pref.question')}</Text>
               <Text style={styles.subtitle}>
-                Let us know what foods or ingredients you prefer to avoid. We will do our best to exclude them from your meals.
+                {t('dislikes_pref.subtitle')}
               </Text>
             </View>
 
             <View style={styles.optionsContainer}>
               <TouchableOpacity
-                style={[styles.optionCard, hasDislikes === true && styles.optionCardSelected]}
+                style={[styles.optionCard, isArabic && styles.rtlRow, hasDislikes === true && styles.optionCardSelected]}
                 onPress={() => setHasDislikes(true)}
                 activeOpacity={0.8}
               >
-                <View style={styles.optionLeft}>
+                <View style={[styles.optionLeft, isArabic && styles.rtlRow]}>
                   <View style={[styles.optionIconWrap, hasDislikes === true && styles.optionIconWrapSelected]}>
                     <Ionicons
                       name="create-outline"
@@ -102,11 +106,11 @@ export default function DislikesPreferenceScreen() {
                     />
                   </View>
                   <View style={styles.optionTextWrap}>
-                    <Text style={[styles.optionTitle, hasDislikes === true && styles.optionTitleSelected]}>
-                      Yes, add my dislikes
+                    <Text style={[styles.optionTitle, isArabic && styles.rtlText, hasDislikes === true && styles.optionTitleSelected]}>
+                      {t('dislikes_pref.yes_title')}
                     </Text>
-                    <Text style={[styles.optionDesc, hasDislikes === true && styles.optionDescSelected]}>
-                      I want to specify foods I dislike
+                    <Text style={[styles.optionDesc, isArabic && styles.rtlText, hasDislikes === true && styles.optionDescSelected]}>
+                      {t('dislikes_pref.yes_desc')}
                     </Text>
                   </View>
                 </View>
@@ -116,11 +120,11 @@ export default function DislikesPreferenceScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.optionCard, hasDislikes === false && styles.optionCardSelected]}
+                style={[styles.optionCard, isArabic && styles.rtlRow, hasDislikes === false && styles.optionCardSelected]}
                 onPress={() => setHasDislikes(false)}
                 activeOpacity={0.8}
               >
-                <View style={styles.optionLeft}>
+                <View style={[styles.optionLeft, isArabic && styles.rtlRow]}>
                   <View style={[styles.optionIconWrap, hasDislikes === false && styles.optionIconWrapSelected]}>
                     <Ionicons
                       name="thumbs-up-outline"
@@ -129,11 +133,11 @@ export default function DislikesPreferenceScreen() {
                     />
                   </View>
                   <View style={styles.optionTextWrap}>
-                    <Text style={[styles.optionTitle, hasDislikes === false && styles.optionTitleSelected]}>
-                      No, I am fine with everything
+                    <Text style={[styles.optionTitle, isArabic && styles.rtlText, hasDislikes === false && styles.optionTitleSelected]}>
+                      {t('dislikes_pref.no_title')}
                     </Text>
-                    <Text style={[styles.optionDesc, hasDislikes === false && styles.optionDescSelected]}>
-                      I don't have any food dislikes
+                    <Text style={[styles.optionDesc, isArabic && styles.rtlText, hasDislikes === false && styles.optionDescSelected]}>
+                      {t('dislikes_pref.no_desc')}
                     </Text>
                   </View>
                 </View>
@@ -154,7 +158,7 @@ export default function DislikesPreferenceScreen() {
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.continueButtonText}>
-                  {hasDislikes ? 'Continue' : 'Save'}
+                  {hasDislikes ? t('dislikes_pref.continue') : t('dislikes_pref.save')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -174,6 +178,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
+  },
+  rtlText: {
+    textAlign: 'right',
   },
   header: {
     flexDirection: 'row',

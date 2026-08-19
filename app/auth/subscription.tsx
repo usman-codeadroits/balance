@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -29,7 +30,8 @@ interface ActiveSubscription {
 }
 
 export default function SubscriptionScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [selectedPlan, setSelectedPlan] = useState<string>("");
   const [activeSubscription, setActiveSubscription] =
     useState<ActiveSubscription | null>(null);
@@ -206,15 +208,15 @@ export default function SubscriptionScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Fixed Title Header */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerTextBlock}>
-            <Text style={styles.headerTitle}>{t("subscription_screen.title")}</Text>
+            <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("subscription_screen.title")}</Text>
           </View>
         </View>
 
@@ -225,12 +227,12 @@ export default function SubscriptionScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Disclaimer */}
-          <View style={styles.disclaimerCard}>
+          <View style={[styles.disclaimerCard, isArabic && styles.rtlRow]}>
             <Ionicons name="information-circle-outline" size={18} color="#5A7C65" style={{ marginTop: 1 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.disclaimerLabel}>Disclaimer</Text>
-              <Text style={styles.disclaimerText}>
-                2 Beef and 2 Salmon items available per week based on US dietary recommendations.
+              <Text style={[styles.disclaimerLabel, isArabic && styles.rtlText]}>{t("subscription_screen.disclaimer_label")}</Text>
+              <Text style={[styles.disclaimerText, isArabic && styles.rtlText]}>
+                {t("subscription_screen.disclaimer_text")}
               </Text>
             </View>
           </View>
@@ -238,16 +240,16 @@ export default function SubscriptionScreen() {
           {/* Active Subscription Warning */}
           {!checkingSubscription && activeSubscription && (
             <View style={styles.activeSubscriptionCard}>
-              <View style={styles.activeSubscriptionHeader}>
+              <View style={[styles.activeSubscriptionHeader, isArabic && styles.rtlRow]}>
                 <Ionicons name="information-circle" size={24} color="#344225" />
-                <Text style={styles.activeSubscriptionTitle}>
+                <Text style={[styles.activeSubscriptionTitle, isArabic && styles.rtlText]}>
                   {t("subscription_screen.active_sub_title")}
                 </Text>
               </View>
-              <Text style={styles.activeSubscriptionText}>
+              <Text style={[styles.activeSubscriptionText, isArabic && styles.rtlText]}>
                 {t("subscription_screen.active_sub_msg", { date: formatDate(activeSubscription.endDate) })}
               </Text>
-              <Text style={styles.activeSubscriptionSubtext}>
+              <Text style={[styles.activeSubscriptionSubtext, isArabic && styles.rtlText]}>
                 {t("subscription_screen.active_sub_overlap")}
               </Text>
               <TouchableOpacity
@@ -283,16 +285,17 @@ export default function SubscriptionScreen() {
               {/* API Plans */}
               {mealPlans.map((plan) => (
                 <View key={plan.id} style={styles.planCard}>
-                  <View style={styles.planContentColumn}>
-                    <Text style={styles.planTitle}>{plan.title}</Text>
-                    <Text style={styles.planPrice}>{formatPlanPrice(plan)}</Text>
+                  <View style={[styles.planContentColumn, isArabic && styles.rtlColumn]}>
+                    <Text style={[styles.planTitle, isArabic && styles.rtlText]}>{(isArabic && plan.title_ar) ? plan.title_ar : plan.title}</Text>
+                    <Text style={[styles.planPrice, isArabic && styles.rtlText]}>{formatPlanPrice(plan)}</Text>
                   </View>
-                  <Text style={styles.planDescription}>
+                  <Text style={[styles.planDescription, isArabic && styles.rtlText]}>
                     {t("subscription_screen.choose_prefix")} {plan.meal_count} {plan.meal_count > 1 ? t("subscription_screen.meals_label_plural") : t("subscription_screen.meals_label")} + {plan.snack_count} {plan.snack_count > 1 ? t("subscription_screen.snacks_label_plural") : t("subscription_screen.snacks_label")} {t("subscription_screen.per_day")}
                   </Text>
                   <TouchableOpacity
                     style={[
                       styles.chooseButton,
+                      isArabic && styles.chooseButtonRTL,
                       String(selectedPlan) === String(plan.id) &&
                       styles.chooseButtonSelected,
                     ]}
@@ -314,12 +317,12 @@ export default function SubscriptionScreen() {
               ))}
               {/* Personalized Plan Card — always visible */}
               <View style={styles.personalizedPlanCard}>
-                <View style={styles.personalizedPlanContentRow}>
+                <View style={[styles.personalizedPlanContentRow, isArabic && styles.rtlRow]}>
                   <View style={styles.personalizedPlanTextContainer}>
-                    <Text style={styles.personalizedPlanTitle}>
+                    <Text style={[styles.personalizedPlanTitle, isArabic && styles.rtlText]}>
                       {t("subscription_screen.personalized_plan")}
                     </Text>
-                    <Text style={styles.personalizedPlanDescription}>
+                    <Text style={[styles.personalizedPlanDescription, isArabic && styles.rtlText]}>
                       {hasPersonalizedPlan
                         ? t("subscription_screen.personalized_plan_active_desc")
                         : t("subscription_screen.personalized_plan_desc")}
@@ -331,7 +334,7 @@ export default function SubscriptionScreen() {
                     resizeMode="contain"
                   />
                 </View>
-                <View style={styles.personalizedPlanActions}>
+                <View style={[styles.personalizedPlanActions, isArabic && styles.rtlRow]}>
                   <TouchableOpacity
                     style={styles.chooseButton}
                     onPress={() => {
@@ -374,6 +377,15 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+  },
+  rtlColumn: {
+    alignItems: "flex-end",
   },
   header: {
     flexDirection: "row",
@@ -468,6 +480,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: "flex-start",
     marginTop: 4,
+  },
+  chooseButtonRTL: {
+    alignSelf: "flex-end",
   },
   chooseButtonSelected: {
     backgroundColor: "#FAD979",

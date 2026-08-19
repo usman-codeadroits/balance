@@ -1,4 +1,5 @@
 import { changeLanguage } from '@/constants/i18n';
+import { isArabicLanguage } from '@/constants/i18n';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
@@ -10,7 +11,7 @@ interface LanguageSwitcherProps {
 export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({ light = false }) => {
     const { i18n } = useTranslation();
     const currentLanguage = i18n.language;
-    const isArabic = currentLanguage === 'ar';
+    const isArabic = isArabicLanguage(currentLanguage);
 
     const toggleLanguage = async () => {
         const nextLang = isArabic ? 'en' : 'ar';

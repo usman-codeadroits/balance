@@ -6,20 +6,21 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Alert,
-  Image,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Gender = "male" | "female" | null;
 
 export default function GenderScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [selectedGender, setSelectedGender] = useState<Gender>(null);
   const [loading, setLoading] = useState(false);
   useStaticScreen();
@@ -65,12 +66,12 @@ export default function GenderScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header with back button and logo */}
-        <View style={styles.header}>
+        <View style={[styles.header, isArabic && styles.rtlRow]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Image
@@ -84,8 +85,8 @@ export default function GenderScreen() {
 
         {/* Title */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>{t("gender.title")}</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, isArabic && styles.rtlText]}>{t("gender.title")}</Text>
+          <Text style={[styles.subtitle, isArabic && styles.rtlText]}>
             {t("gender.subtitle")}
           </Text>
         </View>
@@ -95,25 +96,27 @@ export default function GenderScreen() {
           <TouchableOpacity
             style={[
               styles.optionCard,
+              isArabic && styles.rtlRow,
               selectedGender === "male" && styles.optionCardSelected,
             ]}
             onPress={() => setSelectedGender("male")}
             activeOpacity={0.7}
           >
-            <Text style={styles.optionEmoji}>👨</Text>
-            <Text style={styles.optionText}>{t("gender.male")}</Text>
+            <Text style={[styles.optionEmoji, isArabic && styles.optionEmojiRTL]}>👨</Text>
+            <Text style={[styles.optionText, isArabic && styles.rtlText]}>{t("gender.male")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.optionCard,
+              isArabic && styles.rtlRow,
               selectedGender === "female" && styles.optionCardSelected,
             ]}
             onPress={() => setSelectedGender("female")}
             activeOpacity={0.7}
           >
-            <Text style={styles.optionEmoji}>👩</Text>
-            <Text style={styles.optionText}>{t("gender.female")}</Text>
+            <Text style={[styles.optionEmoji, isArabic && styles.optionEmojiRTL]}>👩</Text>
+            <Text style={[styles.optionText, isArabic && styles.rtlText]}>{t("gender.female")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -149,6 +152,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 16,
   },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
   backButton: {
     width: 40,
     height: 40,
@@ -182,6 +188,12 @@ const styles = StyleSheet.create({
     color: "#6B7F75",
     lineHeight: 20,
   },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+  },
   optionsContainer: {
     gap: 16,
   },
@@ -201,6 +213,10 @@ const styles = StyleSheet.create({
   optionEmoji: {
     fontSize: 32,
     marginRight: 16,
+  },
+  optionEmojiRTL: {
+    marginRight: 0,
+    marginLeft: 16,
   },
   optionText: {
     fontSize: 18,

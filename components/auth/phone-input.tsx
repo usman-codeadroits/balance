@@ -9,6 +9,7 @@ interface PhoneInputProps {
   placeholder?: string;
   selectedCountry: Country;
   onSelectCountry: (country: Country) => void;
+  isArabic?: boolean;
 }
 
 export default function PhoneInput({
@@ -16,17 +17,19 @@ export default function PhoneInput({
   onChangeText,
   placeholder = 'Phone number',
   selectedCountry,
-  onSelectCountry
+  onSelectCountry,
+  isArabic = false,
 }: PhoneInputProps) {
   const { t } = useTranslation();
 
   return (
     <RN.View style={styles.container}>
-      <RN.Text style={styles.label}>{t('auth.mobile')}</RN.Text>
-      <RN.View style={styles.inputWrapper}>
+      <RN.Text style={[styles.label, isArabic && styles.labelRTL]}>{t('auth.mobile')}</RN.Text>
+      <RN.View style={[styles.inputWrapper, isArabic && styles.inputWrapperRTL]}>
         <CountryPicker
           selectedCountry={selectedCountry}
           onSelectCountry={onSelectCountry}
+          isArabic={isArabic}
         />
         <RN.View style={styles.separator} />
         <RN.TextInput
@@ -36,6 +39,7 @@ export default function PhoneInput({
           placeholder={placeholder}
           placeholderTextColor="#8B9D94"
           keyboardType="phone-pad"
+          textAlign={isArabic ? 'right' : 'left'}
         />
       </RN.View>
     </RN.View>
@@ -52,6 +56,9 @@ const styles = RN.StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 8,
   },
+  labelRTL: {
+    textAlign: 'right',
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -59,6 +66,9 @@ const styles = RN.StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 4,
+  },
+  inputWrapperRTL: {
+    flexDirection: 'row-reverse',
   },
   separator: {
     width: 1,

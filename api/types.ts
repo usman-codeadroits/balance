@@ -7,7 +7,9 @@
 export type SubscriptionPlan = {
   id: number;
   title: string;
+  title_ar?: string | null;
   description: string;
+  description_ar?: string | null;
   price: number;
   meal_count: number;
   snack_count: number;

@@ -6,20 +6,21 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function BirthdayScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const months = t("months", { returnObjects: true }) as string[];
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number>(0);
@@ -74,12 +75,12 @@ export default function BirthdayScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header with back button and logo */}
-        <View style={styles.header}>
+        <View style={[styles.header, isArabic && styles.rtlRow]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Image
@@ -93,13 +94,13 @@ export default function BirthdayScreen() {
 
         {/* Title */}
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>{t("birthday.title")}</Text>
+          <Text style={[styles.title, isArabic && styles.rtlText]}>{t("birthday.title")}</Text>
         </View>
 
         {/* Birthday Input */}
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, isArabic && styles.rtlText]}
             value={
               selectedDay
                 ? `${selectedDay}/${months[selectedMonth]}/${selectedYear}`
@@ -112,7 +113,7 @@ export default function BirthdayScreen() {
         </View>
 
         {/* Date Picker */}
-        <View style={styles.pickerSection}>
+        <View style={[styles.pickerSection, isArabic && styles.rtlRow]}>
           <ScrollView
             style={styles.pickerColumn}
             showsVerticalScrollIndicator={false}
@@ -126,12 +127,7 @@ export default function BirthdayScreen() {
                 ]}
                 onPress={() => setSelectedDay(day)}
               >
-                <Text
-                  style={[
-                    styles.pickerText,
-                    selectedDay === day && styles.pickerTextSelected,
-                  ]}
-                >
+                <Text style={[styles.pickerText, isArabic && styles.rtlText, selectedDay === day && styles.pickerTextSelected]}>
                   {day}
                 </Text>
               </TouchableOpacity>
@@ -151,12 +147,7 @@ export default function BirthdayScreen() {
                 ]}
                 onPress={() => setSelectedMonth(index)}
               >
-                <Text
-                  style={[
-                    styles.pickerText,
-                    selectedMonth === index && styles.pickerTextSelected,
-                  ]}
-                >
+                <Text style={[styles.pickerText, isArabic && styles.rtlText, selectedMonth === index && styles.pickerTextSelected]}>
                   {month}
                 </Text>
               </TouchableOpacity>
@@ -176,12 +167,7 @@ export default function BirthdayScreen() {
                 ]}
                 onPress={() => setSelectedYear(year)}
               >
-                <Text
-                  style={[
-                    styles.pickerText,
-                    selectedYear === year && styles.pickerTextSelected,
-                  ]}
-                >
+                <Text style={[styles.pickerText, isArabic && styles.rtlText, selectedYear === year && styles.pickerTextSelected]}>
                   {year}
                 </Text>
               </TouchableOpacity>
@@ -217,6 +203,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 16,
   },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
   backButton: {
     width: 40,
     height: 40,
@@ -243,6 +232,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     color: "#344225",
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   inputContainer: {
     marginBottom: 20,

@@ -3,18 +3,26 @@ import BottomTabNav from "@/components/bottom-tab-nav";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
+
 export default function SubscriptionDetailsScreen() {
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [subscription, setSubscription] = useState<UserSubscriptionSummary | null>(null);
   const [details, setDetails] = useState<UserSubscriptionDetails | null>(null);
   const [pauseLogs, setPauseLogs] = useState<PauseLog[]>([]);
@@ -22,6 +30,12 @@ export default function SubscriptionDetailsScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+
+  const weekdayNames = t("calendar.weekdays", { returnObjects: true }) as string[];
+  const getDayName = (day: string) => {
+    const idx = DAY_NAME_TO_INDEX[(day || "").toLowerCase()];
+    return idx !== undefined ? weekdayNames[idx] : (day.charAt(0).toUpperCase() + day.slice(1));
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -109,9 +123,12 @@ export default function SubscriptionDetailsScreen() {
   const isPausedByAdmin = !!(subscription?.is_paused) && activePauseLog?.performed_by_type === "admin";
 
   const statusLabel = subscription?.is_paused
-    ? isPausedByAdmin ? "Paused by Admin" : "Paused"
+    ? isPausedByAdmin ? t("subscription_details.paused_by_admin") : t("subscription_details.paused")
     : subscription
-      ? subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)
+      ? subscription.status === "active" ? t("subscription_details.status_active")
+        : subscription.status === "completed" ? t("subscription_details.status_completed")
+        : subscription.status === "cancelled" ? t("subscription_details.status_cancelled")
+        : subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)
       : "";
 
   const statusColor = subscription?.is_paused
@@ -119,6 +136,17 @@ export default function SubscriptionDetailsScreen() {
     : subscription?.status === "active" ? "#4CAF50"
     : subscription?.status === "completed" ? "#FF9800"
     : "#F44336";
+
+  const address = details?.address as any;
+
+  const formatAddressLine = () => {
+    if (!address) return "";
+    return [
+      address.area ? String(typeof address.area === "object" ? (address.area.name || address.area.title || "") : address.area) : null,
+      address.block_number ? `${t("address.block")} ${address.block_number}` : null,
+      address.street ? `${t("address.street")} ${address.street}` : null,
+    ].filter(Boolean).join(", ");
+  };
 
   // Macro calculations from detailed subscription data
   type MacroTotals = { cal: number; protein: number; carbs: number; fat: number };
@@ -157,34 +185,34 @@ export default function SubscriptionDetailsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Subscription</Text>
+          <Text style={styles.headerTitle}>{t("subscription_details.header_title")}</Text>
           <View style={{ width: 40 }} />
         </View>
 
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color="#344225" />
-            <Text style={styles.loadingText}>Loading subscription...</Text>
+            <Text style={styles.loadingText}>{t("subscription_details.loading")}</Text>
           </View>
         ) : error || !subscription ? (
           <View style={styles.center}>
             <View style={styles.emptyIconWrap}>
               <Ionicons name="calendar-outline" size={40} color="#344225" />
             </View>
-            <Text style={styles.emptyTitle}>No Active Subscription</Text>
+            <Text style={styles.emptyTitle}>{t("subscription_details.no_active_title")}</Text>
             <Text style={styles.emptyDesc}>
-              Start your healthy meal journey by creating a new plan
+              {t("subscription_details.no_active_desc")}
             </Text>
             <TouchableOpacity
               style={styles.startBtn}
               onPress={() => router.push("/auth/subscription")}
             >
               <Ionicons name="add" size={18} color="#344225" />
-              <Text style={styles.startBtnText}>Create Subscription</Text>
+              <Text style={styles.startBtnText}>{t("subscription_details.create_subscription")}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -196,22 +224,22 @@ export default function SubscriptionDetailsScreen() {
             {/* Pause banners */}
             {isPausedByAdmin ? (
               <View style={styles.adminPauseBanner}>
-                <View style={styles.pauseBannerRow}>
+                <View style={[styles.pauseBannerRow, isArabic && styles.rtlRow]}>
                   <Ionicons name="pause-circle" size={20} color="#FFFFFF" />
-                  <Text style={styles.adminPauseTitle}>Paused by Admin</Text>
+                  <Text style={styles.adminPauseTitle}>{t("subscription_details.paused_by_admin")}</Text>
                 </View>
-                <Text style={styles.adminPauseDesc}>
-                  Your subscription has been paused by an administrator.
+                <Text style={[styles.adminPauseDesc, isArabic && styles.rtlText]}>
+                  {t("subscription_details.admin_pause_desc")}
                 </Text>
                 {activePauseLog?.reason ? (
-                  <View style={styles.pauseDetailRow}>
-                    <Text style={styles.pauseDetailLabel}>Reason</Text>
+                  <View style={[styles.pauseDetailRow, isArabic && styles.rtlRow]}>
+                    <Text style={styles.pauseDetailLabel}>{t("subscription_details.reason")}</Text>
                     <Text style={styles.pauseDetailValue}>{activePauseLog.reason}</Text>
                   </View>
                 ) : null}
                 {subscription.paused_until ? (
-                  <View style={styles.pauseDetailRow}>
-                    <Text style={styles.pauseDetailLabel}>Paused Until</Text>
+                  <View style={[styles.pauseDetailRow, isArabic && styles.rtlRow]}>
+                    <Text style={styles.pauseDetailLabel}>{t("subscription_details.paused_until")}</Text>
                     <Text style={styles.pauseDetailValue}>{formatDate(subscription.paused_until)}</Text>
                   </View>
                 ) : null}
@@ -219,22 +247,22 @@ export default function SubscriptionDetailsScreen() {
             ) : null}
 
             {!!(subscription.is_paused) && !isPausedByAdmin ? (
-              <View style={styles.userPauseBanner}>
+              <View style={[styles.userPauseBanner, isArabic && styles.rtlRow]}>
                 <Ionicons name="pause-circle-outline" size={18} color="#344225" />
                 <Text style={styles.userPauseText}>
-                  {subscription.paused_until ? `Paused until ${formatDate(subscription.paused_until)}` : "Paused"}
+                  {subscription.paused_until ? t("subscription_details.paused_until_inline", { date: formatDate(subscription.paused_until) }) : t("subscription_details.paused")}
                 </Text>
               </View>
             ) : null}
 
             {/* Hero Card */}
             <View style={styles.heroCard}>
-              <View style={styles.heroTop}>
+              <View style={[styles.heroTop, isArabic && styles.rtlRow]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.heroPlanName}>
-                    {subscription.subcrption_plans?.title || "Subscription Plan"}
+                  <Text style={[styles.heroPlanName, isArabic && styles.rtlText]}>
+                    {(isArabic && subscription.subcrption_plans?.title_ar) ? subscription.subcrption_plans.title_ar : (subscription.subcrption_plans?.title || t("subscription_details.subscription_plan_fallback"))}
                   </Text>
-                  <Text style={styles.heroDuration}>
+                  <Text style={[styles.heroDuration, isArabic && styles.rtlText]}>
                     {subscription.duration?.title || ""}
                   </Text>
                 </View>
@@ -246,29 +274,29 @@ export default function SubscriptionDetailsScreen() {
 
               <View style={styles.heroDivider} />
 
-              <View style={styles.heroBottom}>
+              <View style={[styles.heroBottom, isArabic && styles.rtlRow]}>
                 <View style={styles.heroDateBlock}>
-                  <Text style={styles.heroDateLabel}>Start Date</Text>
+                  <Text style={styles.heroDateLabel}>{t("subscription_details.start_date")}</Text>
                   <Text style={styles.heroDateValue}>{formatDate(subscription.start_date)}</Text>
                 </View>
                 <View style={styles.heroArrow}>
-                  <Ionicons name="arrow-forward" size={16} color="#B8D5C5" />
+                  <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={16} color="#B8D5C5" />
                 </View>
                 <View style={styles.heroDateBlock}>
-                  <Text style={styles.heroDateLabel}>End Date</Text>
+                  <Text style={styles.heroDateLabel}>{t("subscription_details.end_date")}</Text>
                   <Text style={styles.heroDateValue}>{formatDate(subscription.end_date)}</Text>
                 </View>
-                <View style={styles.heroPriceBlock}>
-                  <Text style={styles.heroPriceLabel}>Total</Text>
+                <View style={[styles.heroPriceBlock, isArabic && { alignItems: "flex-start" }]}>
+                  <Text style={styles.heroPriceLabel}>{t("subscription_details.total")}</Text>
                   <Text style={styles.heroPriceValue}>{`${subscription.price} ${(subscription as any).currency || "KWD"}`}</Text>
                 </View>
               </View>
 
               {subscription.total_paused_days ? (
-                <View style={styles.pausedDaysBadge}>
+                <View style={[styles.pausedDaysBadge, isArabic && styles.rtlRow]}>
                   <Ionicons name="time-outline" size={13} color="#FAD979" />
                   <Text style={styles.pausedDaysText}>
-                    {subscription.total_paused_days} day{subscription.total_paused_days !== 1 ? "s" : ""} paused
+                    {t("subscription_details.days_paused", { count: subscription.total_paused_days, s: subscription.total_paused_days !== 1 ? "s" : "" })}
                   </Text>
                 </View>
               ) : null}
@@ -276,7 +304,7 @@ export default function SubscriptionDetailsScreen() {
 
             {/* Action Buttons */}
             <TouchableOpacity
-              style={styles.updateMealBtn}
+              style={[styles.updateMealBtn, isArabic && styles.rtlRow]}
               onPress={() =>
                 router.push({
                   pathname: "/update-subscription-meals",
@@ -288,35 +316,66 @@ export default function SubscriptionDetailsScreen() {
                 <Ionicons name="create-outline" size={20} color="#344225" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.updateMealBtnTitle}>Update Meals</Text>
-                <Text style={styles.updateMealBtnDesc}>Change your daily meal selections</Text>
+                <Text style={[styles.updateMealBtnTitle, isArabic && styles.rtlText]}>{t("subscription_details.update_meals_title")}</Text>
+                <Text style={[styles.updateMealBtnDesc, isArabic && styles.rtlText]}>{t("subscription_details.update_meals_desc")}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#6B7F75" />
+              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color="#6B7F75" />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.viewDetailsBtn}
-              onPress={() =>
-                router.push({
-                  pathname: "/subscription-full-details",
-                  params: { subscriptionId: subscription.id },
-                })
-              }
-            >
-              <View style={styles.viewDetailsBtnIcon}>
-                <Ionicons name="list-outline" size={20} color="#FFFFFF" />
+            {address ? (
+              <View style={[styles.addressCard, isArabic && styles.rtlText]}>
+                <View style={[styles.addressHeader, isArabic && styles.rtlRow]}>
+                  <View style={styles.addressIconWrap}>
+                    <Ionicons name="location-outline" size={18} color="#344225" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.addressTitle, isArabic && styles.rtlText]}>{t("subscription_details.delivery_address")}</Text>
+                    <Text style={[styles.addressSubtitle, isArabic && styles.rtlText]} numberOfLines={2}>
+                      {formatAddressLine() || t("subscription_details.no_address")}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.addressBody, isArabic && styles.rtlText]}>
+                  {address.first_name || address.last_name ? (
+                    <View style={[styles.addressRow, isArabic && styles.rtlRow]}>
+                      <Ionicons name="person-outline" size={14} color="#6B7F75" />
+                      <Text style={[styles.addressText, isArabic && styles.rtlText]}>
+                        {[address.first_name, address.last_name].filter(Boolean).join(" ")}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {address.phone_number ? (
+                    <View style={[styles.addressRow, isArabic && styles.rtlRow]}>
+                      <Ionicons name="call-outline" size={14} color="#6B7F75" />
+                      <Text style={[styles.addressText, isArabic && styles.rtlText]}>{String(address.phone_number)}</Text>
+                    </View>
+                  ) : null}
+                  {formatAddressLine() ? (
+                    <View style={[styles.addressRow, isArabic && styles.rtlRow]}>
+                      <Ionicons name="map-outline" size={14} color="#6B7F75" />
+                      <Text style={[styles.addressText, isArabic && styles.rtlText]}>{formatAddressLine()}</Text>
+                    </View>
+                  ) : null}
+                  {address.house_building || address.floor_apartment ? (
+                    <View style={[styles.addressRow, isArabic && styles.rtlRow]}>
+                      <Ionicons name="home-outline" size={14} color="#6B7F75" />
+                      <Text style={[styles.addressText, isArabic && styles.rtlText]}>
+                        {[
+                          address.house_building ? `${t("address.house")} ${address.house_building}` : null,
+                          address.floor_apartment ? `${t("address.apartment")} ${address.floor_apartment}` : null,
+                        ].filter(Boolean).join(", ")}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.viewDetailsBtnTitle}>View Full Details</Text>
-                <Text style={styles.viewDetailsBtnDesc}>See schedule, address & history</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#B8D5C5" />
-            </TouchableOpacity>
+            ) : null}
 
             {/* Renewal button — shown only when backend has a queued renewal for this subscription */}
             {renewalDetail && (
               <TouchableOpacity
-                style={styles.renewalBtn}
+                style={[styles.renewalBtn, isArabic && styles.rtlRow]}
                 onPress={() =>
                   router.push({
                     pathname: "/renewal-details",
@@ -328,13 +387,13 @@ export default function SubscriptionDetailsScreen() {
                   <Ionicons name="refresh-circle-outline" size={20} color="#344225" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.renewalBtnTitle}>Renewal Plan</Text>
-                  <Text style={styles.renewalBtnDesc}>
-                    {`${renewalDetail.plan?.title} · starts ${renewalDetail.start_date}`}
+                  <Text style={[styles.renewalBtnTitle, isArabic && styles.rtlText]}>{t("subscription_details.renewal_plan_title")}</Text>
+                  <Text style={[styles.renewalBtnDesc, isArabic && styles.rtlText]}>
+                    {t("subscription_details.renewal_plan_desc", { plan: (isArabic && (renewalDetail.plan as any)?.title_ar) ? (renewalDetail.plan as any).title_ar : renewalDetail.plan?.title, date: renewalDetail.start_date })}
                   </Text>
                 </View>
                 <View style={styles.renewalArrowWrap}>
-                  <Ionicons name="chevron-forward" size={18} color="#344225" />
+                  <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color="#344225" />
                 </View>
               </TouchableOpacity>
             )}
@@ -342,34 +401,34 @@ export default function SubscriptionDetailsScreen() {
             {/* Nutrition Summary */}
             {details && perDayMacros.length > 0 && (
               <View style={styles.macroCard}>
-                <View style={styles.macroCardHeader}>
+                <View style={[styles.macroCardHeader, isArabic && styles.rtlRow]}>
                   <Ionicons name="nutrition-outline" size={18} color="#344225" />
-                  <Text style={styles.macroCardTitle}>Nutrition Summary</Text>
+                  <Text style={styles.macroCardTitle}>{t("subscription_details.nutrition_summary")}</Text>
                 </View>
 
                 {/* Per-day breakdown */}
-                <Text style={styles.macroSectionLabel}>Per Day</Text>
+                <Text style={[styles.macroSectionLabel, isArabic && styles.rtlText]}>{t("subscription_details.per_day")}</Text>
                 {perDayMacros.map(({ day, macros }) => (
                   <View key={day} style={styles.macroDayRow}>
-                    <Text style={styles.macroDayName}>
-                      {day.charAt(0).toUpperCase() + day.slice(1)}
+                    <Text style={[styles.macroDayName, isArabic && styles.rtlText]}>
+                      {getDayName(day)}
                     </Text>
-                    <View style={styles.macroPillRow}>
+                    <View style={[styles.macroPillRow, isArabic && styles.rtlRow]}>
                       <View style={[styles.macroPill, { backgroundColor: "#FFF3CD" }]}>
                         <Text style={styles.macroPillVal}>{macros.cal}</Text>
                         <Text style={styles.macroPillLabel}>kcal</Text>
                       </View>
                       <View style={[styles.macroPill, { backgroundColor: "#D4E8E0" }]}>
                         <Text style={styles.macroPillVal}>{macros.protein}g</Text>
-                        <Text style={styles.macroPillLabel}>protein</Text>
+                        <Text style={styles.macroPillLabel}>{t("subscription_details.protein").toLowerCase()}</Text>
                       </View>
                       <View style={[styles.macroPill, { backgroundColor: "#EEF4F0" }]}>
                         <Text style={styles.macroPillVal}>{macros.carbs}g</Text>
-                        <Text style={styles.macroPillLabel}>carbs</Text>
+                        <Text style={styles.macroPillLabel}>{t("subscription_details.carbs").toLowerCase()}</Text>
                       </View>
                       <View style={[styles.macroPill, { backgroundColor: "#FDE8D8" }]}>
                         <Text style={styles.macroPillVal}>{macros.fat}g</Text>
-                        <Text style={styles.macroPillLabel}>fat</Text>
+                        <Text style={styles.macroPillLabel}>{t("subscription_details.fat").toLowerCase()}</Text>
                       </View>
                     </View>
                   </View>
@@ -379,13 +438,13 @@ export default function SubscriptionDetailsScreen() {
                   <>
                     <View style={styles.macroDivider} />
                     {/* Average per day */}
-                    <Text style={styles.macroSectionLabel}>Daily Average</Text>
-                    <View style={styles.macroTotalGrid}>
+                    <Text style={[styles.macroSectionLabel, isArabic && styles.rtlText]}>{t("subscription_details.daily_average")}</Text>
+                    <View style={[styles.macroTotalGrid, isArabic && styles.rtlRow]}>
                       {[
-                        { label: "Calories", val: `${avgDayMacros.cal}`, unit: "kcal", bg: "#FFF3CD" },
-                        { label: "Protein",  val: `${avgDayMacros.protein}g`, unit: "", bg: "#D4E8E0" },
-                        { label: "Carbs",    val: `${avgDayMacros.carbs}g`,   unit: "", bg: "#EEF4F0" },
-                        { label: "Fat",      val: `${avgDayMacros.fat}g`,     unit: "", bg: "#FDE8D8" },
+                        { label: t("subscription_details.calories"), val: `${avgDayMacros.cal}`, bg: "#FFF3CD" },
+                        { label: t("subscription_details.protein"),  val: `${avgDayMacros.protein}g`, bg: "#D4E8E0" },
+                        { label: t("subscription_details.carbs"),    val: `${avgDayMacros.carbs}g`,   bg: "#EEF4F0" },
+                        { label: t("subscription_details.fat"),      val: `${avgDayMacros.fat}g`,     bg: "#FDE8D8" },
                       ].map((item) => (
                         <View key={item.label} style={[styles.macroTotalBox, { backgroundColor: item.bg }]}>
                           <Text style={styles.macroTotalVal}>{item.val}</Text>
@@ -399,13 +458,15 @@ export default function SubscriptionDetailsScreen() {
                 <View style={styles.macroDivider} />
 
                 {/* Grand total */}
-                <Text style={styles.macroSectionLabel}>Total ({dayCount} day{dayCount !== 1 ? "s" : ""})</Text>
-                <View style={styles.macroTotalGrid}>
+                <Text style={[styles.macroSectionLabel, isArabic && styles.rtlText]}>
+                  {t("subscription_details.total_days", { count: dayCount, s: dayCount !== 1 ? "s" : "" })}
+                </Text>
+                <View style={[styles.macroTotalGrid, isArabic && styles.rtlRow]}>
                   {[
-                    { label: "Calories", val: `${totalMacros.cal}`, bg: "#FFF3CD" },
-                    { label: "Protein",  val: `${totalMacros.protein}g`, bg: "#D4E8E0" },
-                    { label: "Carbs",    val: `${totalMacros.carbs}g`,   bg: "#EEF4F0" },
-                    { label: "Fat",      val: `${totalMacros.fat}g`,     bg: "#FDE8D8" },
+                    { label: t("subscription_details.calories"), val: `${totalMacros.cal}`, bg: "#FFF3CD" },
+                    { label: t("subscription_details.protein"),  val: `${totalMacros.protein}g`, bg: "#D4E8E0" },
+                    { label: t("subscription_details.carbs"),    val: `${totalMacros.carbs}g`,   bg: "#EEF4F0" },
+                    { label: t("subscription_details.fat"),      val: `${totalMacros.fat}g`,     bg: "#FDE8D8" },
                   ].map((item) => (
                     <View key={item.label} style={[styles.macroTotalBox, { backgroundColor: item.bg }]}>
                       <Text style={styles.macroTotalVal}>{item.val}</Text>
@@ -427,6 +488,8 @@ export default function SubscriptionDetailsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
   content: { flex: 1 },
+  rtlRow: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -610,6 +673,38 @@ const styles = StyleSheet.create({
   },
   viewDetailsBtnTitle: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
   viewDetailsBtnDesc: { fontSize: 12, color: "#B8D5C5", marginTop: 2 },
+
+  addressCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#DDE9E4",
+  },
+  addressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  addressIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F3F7F5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addressTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
+  addressSubtitle: { fontSize: 12, color: "#6B7F75", marginTop: 2, textAlign: "left" },
+  addressBody: { gap: 10 },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  addressText: { flex: 1, fontSize: 13, color: "#344225", lineHeight: 18 },
 
   renewalBtn: {
     flexDirection: "row",

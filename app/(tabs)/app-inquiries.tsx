@@ -114,12 +114,12 @@ export default function AppInquiriesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/(tabs)/profile" as any)}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.headerTextBlock}>
-          <Text style={styles.headerTitle}>{t("inquiries.title")}</Text>
+          <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("inquiries.title")}</Text>
         </View>
         <TouchableOpacity style={styles.addButton} onPress={() => setShowForm(true)}>
           <Ionicons name="add" size={24} color="#FFFFFF" />
@@ -149,8 +149,8 @@ export default function AppInquiriesScreen() {
           {inquiries.length === 0 ? (
             <View style={styles.emptyView}>
               <Ionicons name="chatbubble-ellipses-outline" size={64} color="#5A7C65" />
-              <Text style={styles.emptyTitle}>{t("inquiries.no_inquiries")}</Text>
-              <Text style={styles.emptyDesc}>{t("inquiries.no_inquiries_desc")}</Text>
+              <Text style={[styles.emptyTitle, isArabic && styles.rtlText]}>{t("inquiries.no_inquiries")}</Text>
+              <Text style={[styles.emptyDesc, isArabic && styles.rtlText]}>{t("inquiries.no_inquiries_desc")}</Text>
               <TouchableOpacity style={styles.emptyButton} onPress={() => setShowForm(true)}>
                 <Text style={styles.emptyButtonText}>{t("inquiries.new_inquiry")}</Text>
               </TouchableOpacity>
@@ -166,9 +166,9 @@ export default function AppInquiriesScreen() {
                   onPress={() => setExpandedId(isExpanded ? null : item.id)}
                 >
                   {/* Card header row */}
-                  <View style={styles.cardHeader}>
-                    <View style={styles.cardTitleRow}>
-                      <Text style={styles.cardSubject} numberOfLines={isExpanded ? undefined : 1}>
+                  <View style={[styles.cardHeader, isArabic && styles.rtlRow]}>
+                    <View style={[styles.cardTitleRow, isArabic && styles.rtlRow]}>
+                      <Text style={[styles.cardSubject, isArabic && styles.rtlText]} numberOfLines={isExpanded ? undefined : 1}>
                         {item.subject}
                       </Text>
                       <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "22" }]}>
@@ -184,24 +184,24 @@ export default function AppInquiriesScreen() {
                     />
                   </View>
 
-                  <Text style={styles.cardDate}>
+                  <Text style={[styles.cardDate, isArabic && styles.rtlText]}>
                     {t("inquiries.submitted_at")}: {formatDate(item.created_at)}
                   </Text>
 
                   {isExpanded && (
                     <View style={styles.expandedContent}>
-                      <Text style={styles.descriptionLabel}>{t("inquiries.description")}</Text>
-                      <Text style={styles.descriptionText}>{item.description}</Text>
+                      <Text style={[styles.descriptionLabel, isArabic && styles.rtlText]}>{t("inquiries.description")}</Text>
+                      <Text style={[styles.descriptionText, isArabic && styles.rtlText]}>{item.description}</Text>
 
                       {item.admin_reply ? (
-                        <View style={styles.replyBox}>
-                          <View style={styles.replyHeader}>
-                            <Text style={styles.replyLabel}>{t("inquiries.admin_reply")}</Text>
+                        <View style={[styles.replyBox, isArabic && styles.replyBoxRTL]}>
+                          <View style={[styles.replyHeader, isArabic && styles.rtlRow]}>
+                            <Text style={[styles.replyLabel, isArabic && styles.rtlText]}>{t("inquiries.admin_reply")}</Text>
                             {item.replied_at && (
                               <Text style={styles.replyDate}>{formatDate(item.replied_at)}</Text>
                             )}
                           </View>
-                          <Text style={styles.replyText}>{item.admin_reply}</Text>
+                          <Text style={[styles.replyText, isArabic && styles.rtlText]}>{item.admin_reply}</Text>
                         </View>
                       ) : null}
                     </View>
@@ -220,14 +220,14 @@ export default function AppInquiriesScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, isArabic && styles.rtlRow]}>
               <Text style={styles.modalTitle}>{t("inquiries.new_inquiry")}</Text>
               <TouchableOpacity onPress={handleCloseForm}>
                 <Ionicons name="close" size={24} color="#344225" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>{t("inquiries.subject")}</Text>
+            <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("inquiries.subject")}</Text>
             <TextInput
               style={[styles.input, isArabic && styles.inputRtl]}
               placeholder={t("inquiries.subject_placeholder")}
@@ -238,7 +238,7 @@ export default function AppInquiriesScreen() {
               textAlign={isArabic ? "right" : "left"}
             />
 
-            <Text style={styles.fieldLabel}>{t("inquiries.description")}</Text>
+            <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("inquiries.description")}</Text>
             <TextInput
               style={[styles.textArea, isArabic && styles.inputRtl]}
               placeholder={t("inquiries.description_placeholder")}
@@ -252,7 +252,7 @@ export default function AppInquiriesScreen() {
               textAlign={isArabic ? "right" : "left"}
             />
 
-            <View style={styles.modalActions}>
+            <View style={[styles.modalActions, isArabic && styles.rtlRow]}>
               <TouchableOpacity style={styles.cancelBtn} onPress={handleCloseForm} disabled={submitting}>
                 <Text style={styles.cancelBtnText}>{t("inquiries.cancel")}</Text>
               </TouchableOpacity>
@@ -282,6 +282,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
     gap: 12,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   backButton: {
     width: 40,
@@ -417,6 +423,11 @@ const styles = StyleSheet.create({
     borderLeftColor: "#344225",
     marginTop: 4,
     gap: 8,
+  },
+  replyBoxRTL: {
+    borderLeftWidth: 0,
+    borderRightWidth: 3,
+    borderRightColor: "#344225",
   },
   replyHeader: {
     flexDirection: "row",

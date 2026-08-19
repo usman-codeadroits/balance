@@ -1,4 +1,5 @@
 import { changeLanguage } from '@/constants/i18n';
+import { isArabicLanguage } from '@/constants/i18n';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -6,7 +7,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 export const LanguageSwitcherSegmented = () => {
     const { i18n } = useTranslation();
     const currentLanguage = i18n.language;
-    const isArabic = currentLanguage === 'ar';
+    const isArabic = isArabicLanguage(currentLanguage);
 
     const setLanguage = async (lang: 'en' | 'ar') => {
         if (currentLanguage === lang) return;

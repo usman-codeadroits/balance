@@ -10,9 +10,11 @@ import type { SubscriptionPlan, SubscriptionPlansResponse } from '../types';
 export type MealPlan = {
   id: string;
   title: string;
+  title_ar?: string | null;
   price: string;
   pricePerDay: number;
   description: string;
+  description_ar?: string | null;
   meal_count: number;
   snack_count: number;
   min_days?: number;
@@ -59,12 +61,14 @@ export const getSubscriptionPlans = async (): Promise<MealPlan[]> => {
           return null;
         }
 
-        const mapped = {
+        const mapped: MealPlan = {
           id: plan.id.toString(),
           title: plan.title,
+          title_ar: plan.title_ar ?? null,
           price: `KWD ${plan.price.toFixed(3)}/day`,
           pricePerDay: plan.price,
           description: plan.description || `Meal count: ${plan.meal_count}`,
+          description_ar: plan.description_ar ?? null,
           meal_count: plan.meal_count ?? 0,
           snack_count: plan.snack_count ?? 0,
           min_days: plan.min_days,

@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -34,7 +35,8 @@ type DayMeals = {
 };
 
 export default function CheckoutScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language.startsWith("ar");
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<Duration | null>(null);
@@ -235,8 +237,9 @@ export default function CheckoutScreen() {
 
   const getPlanSummaryText = () => {
     if (!selectedPlan) return "";
+    const planName = (isArabic && selectedPlan.title_ar) ? selectedPlan.title_ar : (selectedPlan.title || "Plan");
     return t("checkout.summary_desc", {
-      plan: selectedPlan.title || "Plan",
+      plan: planName,
       meals: selectedPlan.meal_count || 0,
       snacks: selectedPlan.snack_count || 0,
       days: selectedDays.length,
@@ -254,13 +257,13 @@ export default function CheckoutScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={[styles.headerSection, { paddingTop: Math.max(insets.top, 16) }]}>
+        <View style={[styles.headerSection, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>{t("checkout.title")}</Text>
-            <Text style={styles.subtitle}>{getPlanSummaryText()}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("checkout.title")}</Text>
+            <Text style={[styles.subtitle, isArabic && styles.rtlText]}>{getPlanSummaryText()}</Text>
           </View>
         </View>
 
@@ -272,10 +275,10 @@ export default function CheckoutScreen() {
         >
           {/* Order Summary Card — styled like selected-meals summary card */}
           <View style={styles.summaryCard}>
-            <View style={styles.summaryCardHeader}>
-              <View style={styles.summaryCardTextContainer}>
-                <Text style={styles.summaryCardTitle}>{t("checkout.payment_summary")}</Text>
-                <Text style={styles.summaryCardSubtitle}>{getPlanSummaryText()}</Text>
+            <View style={[styles.summaryCardHeader, isArabic && styles.rtlRow]}>
+              <View style={[styles.summaryCardTextContainer, isArabic && styles.summaryCardTextContainerRTL]}>
+                <Text style={[styles.summaryCardTitle, isArabic && styles.rtlText]}>{t("checkout.payment_summary")}</Text>
+                <Text style={[styles.summaryCardSubtitle, isArabic && styles.rtlText]}>{getPlanSummaryText()}</Text>
               </View>
               <Image
                 source={require("@/assets/images/bag.png")}
@@ -287,16 +290,16 @@ export default function CheckoutScreen() {
             <View style={styles.summaryDivider} />
 
             {/* Plan base price */}
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>{t("checkout.plan_price")}</Text>
+            <View style={[styles.priceRow, isArabic && styles.rtlRow]}>
+              <Text style={[styles.priceLabel, isArabic && styles.priceLabelRTL]}>{t("checkout.plan_price")}</Text>
               <Text style={styles.priceValue}>KWD {basePlanPrice.toFixed(3)}</Text>
             </View>
 
             {/* Protein upgrade — only if personalized */}
             {isPersonalized && proteinExtra > 0 && (
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>
-                  Protein Upgrade ({proteinGrams}g)
+              <View style={[styles.priceRow, isArabic && styles.rtlRow]}>
+                <Text style={[styles.priceLabel, isArabic && styles.priceLabelRTL]}>
+                  {t("checkout.protein_upgrade", { grams: proteinGrams })}
                 </Text>
                 <Text style={[styles.priceValue, styles.extraPrice]}>
                   + KWD {proteinExtra.toFixed(3)}
@@ -306,8 +309,8 @@ export default function CheckoutScreen() {
 
             {/* Discount — only if coupon applied */}
             {appliedCoupon && discount > 0 && (
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>
+              <View style={[styles.priceRow, isArabic && styles.rtlRow]}>
+                <Text style={[styles.priceLabel, isArabic && styles.priceLabelRTL]}>
                   {t("checkout.discount_label", {
                     coupon: appliedCoupon.readable_discount || appliedCoupon.coupon_code,
                   })}
@@ -319,17 +322,17 @@ export default function CheckoutScreen() {
             )}
 
             {/* Delivery */}
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>{t("checkout.delivery_fee")}</Text>
+            <View style={[styles.priceRow, isArabic && styles.rtlRow]}>
+              <Text style={[styles.priceLabel, isArabic && styles.priceLabelRTL]}>{t("checkout.delivery_fee")}</Text>
               <Text style={styles.priceValue}>{t("checkout.free")}</Text>
             </View>
 
             <View style={styles.summaryDivider} />
 
             {/* Total */}
-            <View style={styles.totalRow}>
+            <View style={[styles.totalRow, isArabic && styles.rtlRow]}>
               <Text style={styles.totalLabel}>{t("checkout.total")}</Text>
-              <View style={{ alignItems: "flex-end" }}>
+              <View style={{ alignItems: isArabic ? "flex-start" : "flex-end" }}>
                 <Text style={styles.totalValue}>KWD {total.toFixed(3)}</Text>
                 {isPersonalized && proteinExtra > 0 && (
                   <Text style={styles.proteinNote}>
@@ -341,14 +344,15 @@ export default function CheckoutScreen() {
           </View>
 
           {/* Promo Code Section */}
-          <View style={styles.promoSection}>
+          <View style={[styles.promoSection, isArabic && styles.rtlRow]}>
             <TextInput
-              style={styles.promoInput}
+              style={[styles.promoInput, isArabic && styles.rtlText]}
               placeholder={t("checkout.coupon_placeholder")}
               placeholderTextColor="#6B7F75"
               value={promoCode}
               onChangeText={setPromoCode}
               autoCapitalize="characters"
+              textAlign={isArabic ? "right" : "left"}
             />
             <TouchableOpacity
               style={[
@@ -368,6 +372,7 @@ export default function CheckoutScreen() {
             <Text
               style={[
                 styles.couponMessage,
+                isArabic && styles.rtlText,
                 appliedCoupon ? styles.couponSuccess : styles.couponError,
               ]}
             >
@@ -379,7 +384,7 @@ export default function CheckoutScreen() {
           {weeksData.map((week, weekIndex) => (
             <View key={weekIndex}>
               {multiWeek && (
-                <Text style={styles.weekLabel}>Week {weekIndex + 1}</Text>
+                <Text style={[styles.weekLabel, isArabic && styles.rtlText]}>{t("checkout.week_n", { n: weekIndex + 1 })}</Text>
               )}
               {week.map((dayData, dayIdx) => {
                 const allMeals = [
@@ -421,21 +426,21 @@ export default function CheckoutScreen() {
 
                 return (
                   <View key={`${weekIndex}-${dayIdx}`} style={styles.dayCard}>
-                    <Text style={styles.dayTitle}>{dayData.dayName}</Text>
-                    <Text style={styles.dateText}>{dayData.date}</Text>
+                    <Text style={[styles.dayTitle, isArabic && styles.rtlText]}>{dayData.dayName}</Text>
+                    <Text style={[styles.dateText, isArabic && styles.rtlText]}>{dayData.date}</Text>
 
                     {uniqueMeals.map((meal, mealIdx) => {
                       if (!meal) return null;
                       const count = counts[`${meal.id}-${meal.type}`] ?? 1;
                       return (
                         <View key={`${meal.id}-${meal.type}-${mealIdx}`} style={styles.mealItem}>
-                          <View style={styles.mealRow}>
-                            <Text style={styles.mealName}>{meal.name}</Text>
+                          <View style={[styles.mealRow, isArabic && styles.rtlRow]}>
+                            <Text style={[styles.mealName, isArabic && styles.mealNameRTL]}>{meal.name}</Text>
                             {count > 1 && (
                               <Text style={styles.mealMultiplier}>{count}x</Text>
                             )}
                           </View>
-                          <View style={styles.macroRow}>
+                          <View style={[styles.macroRow, isArabic && styles.rtlRow]}>
                             <Text style={styles.macroText}>
                               {t("checkout.cal")}: {meal.calories ?? 0}
                             </Text>
@@ -457,8 +462,8 @@ export default function CheckoutScreen() {
                     })}
 
                     <View style={styles.totalMacroContainer}>
-                      <Text style={styles.totalMacroTitle}>{t("checkout.total_macros")}</Text>
-                      <View style={styles.macroRow}>
+                      <Text style={[styles.totalMacroTitle, isArabic && styles.rtlText]}>{t("checkout.total_macros")}</Text>
+                      <View style={[styles.macroRow, isArabic && styles.rtlRow]}>
                         <Text style={styles.totalMacroText}>{t("checkout.cal")}: {totalCal}</Text>
                         <Text style={styles.macroDotLight}>·</Text>
                         <Text style={styles.totalMacroText}>{t("checkout.protein")}: {totalProtein}g</Text>
@@ -495,6 +500,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  rtlRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
   },
   headerSection: {
     paddingHorizontal: 24,
@@ -550,6 +561,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: 10,
   },
+  summaryCardTextContainerRTL: {
+    paddingRight: 0,
+    paddingLeft: 10,
+  },
   summaryCardTitle: {
     fontSize: 16,
     fontWeight: "600",
@@ -581,6 +596,11 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     flex: 1,
     paddingRight: 8,
+  },
+  priceLabelRTL: {
+    textAlign: "right",
+    paddingRight: 0,
+    paddingLeft: 8,
   },
   priceValue: {
     fontSize: 14,
@@ -699,6 +719,11 @@ const styles = StyleSheet.create({
     color: "#344225",
     flex: 1,
     marginRight: 8,
+  },
+  mealNameRTL: {
+    textAlign: "right",
+    marginRight: 0,
+    marginLeft: 8,
   },
   mealMultiplier: {
     fontSize: 13,

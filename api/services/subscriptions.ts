@@ -42,6 +42,7 @@ export type CheckoutRequest = {
     day: string; // lowercase day name like "monday"
     meal_id: number;
     type: "is meal" | "is snack";
+    extra_ingredient_ids?: number[]; // meal_extra_ingredients ids the customer picked
   }[];
   address?: {
     first_name: string;
@@ -166,6 +167,9 @@ export type UpdateMealRequest = {
   meal_id: number;
   type: "is meal" | "is snack";
   subscription_meal_id?: number; // Optional: required for update, omitted for create
+  // meal_extra_ingredient ids the customer picked.
+  // undefined = leave existing choices untouched; [] = clear all choices.
+  extra_ingredient_ids?: number[];
 };
 
 export type SubscriptionMealItem = {
@@ -270,6 +274,11 @@ export const updateSubscriptionMeal = async (
       requestPayload.subscription_meal_id = updateData.subscription_meal_id;
     }
 
+    // Only include extra choices if explicitly provided (undefined = leave untouched)
+    if (updateData.extra_ingredient_ids !== undefined) {
+      requestPayload.extra_ingredient_ids = updateData.extra_ingredient_ids;
+    }
+
     const response = await apiClient.post<UpdateMealResponse>(
       API_ENDPOINTS.SUBSCRIPTION_MEALS_UPDATE,
       requestPayload,
@@ -333,6 +342,7 @@ export const getSubscriptionMeals = async (
 export type SubscriptionPlan = {
   id: number;
   title: string;
+  title_ar?: string | null;
 };
 
 export type Duration = {
