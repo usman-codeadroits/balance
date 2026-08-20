@@ -41,3 +41,5 @@ app-example
 # generated native folders
 /ios
 /android
+hs_err_pid12596.log
+replay_pid12596.log
