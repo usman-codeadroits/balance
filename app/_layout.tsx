@@ -8,6 +8,7 @@ import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import * as Notifications from "expo-notifications";
+import { I18nManager, View } from "react-native";
 
 import { initI18n } from "@/constants/i18n";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -58,8 +59,13 @@ export default function RootLayout() {
   }
 
   return (
+    <View style={{ flex: 1, direction: I18nManager.isRTL ? "rtl" : "ltr" }}>
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { direction: I18nManager.isRTL ? "rtl" : "ltr" },
+        }}>
         <Stack.Screen
           name="splash"
           options={{
@@ -113,5 +119,6 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="light" />
     </ThemeProvider>
+    </View>
   );
 }

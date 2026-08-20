@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Updates from 'expo-updates';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import RNRestart from 'react-native-restart';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { changeLanguage } from '@/constants/i18n';
@@ -43,15 +43,8 @@ export default function ChangeLanguageScreen() {
           [
             {
               text: t('common.ok'),
-              onPress: async () => {
-                try {
-                  await Updates.reloadAsync();
-                } catch {
-                  Alert.alert(
-                    t('change_language.restart_required_title'),
-                    t('change_language.restart_required_message'),
-                  );
-                }
+              onPress: () => {
+                RNRestart.restart();
               },
             },
           ],
