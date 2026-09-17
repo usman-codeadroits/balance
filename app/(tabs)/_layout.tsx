@@ -1,14 +1,17 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { I18nManager } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { isArabicLanguage } from '@/constants/i18n';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { i18n } = useTranslation();
+  const direction = isArabicLanguage(i18n.language) ? 'rtl' : 'ltr';
 
   return (
     <Tabs
@@ -18,7 +21,7 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarStyle: { display: 'none' },
         gestureEnabled: false,
-        sceneStyle: { direction: I18nManager.isRTL ? 'rtl' : 'ltr' },
+        sceneStyle: { direction },
       }}>
       <Tabs.Screen
         name="index"

@@ -1,5 +1,6 @@
 import {
   type Duration,
+  getMealCategories,
   getMeals,
   getSubscriptionMeals,
   type Meal,
@@ -7,6 +8,7 @@ import {
 } from "@/api";
 import { assignMealToSlot } from "@/app/auth/utils/assign-meal-to-slot";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
+import { sortByCategoryOrder } from "@/utils/sort-by-category-order";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
@@ -88,6 +90,7 @@ export default function SelectMealsScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [categoryOrder, setCategoryOrder] = useState<number[]>([]);
   // grid content is padded 16 on each side with a 12 gutter (matches main screen)
   const cardWidth = (windowWidth - 44) / 2;
 
@@ -95,6 +98,9 @@ export default function SelectMealsScreen() {
     loadPlanData();
     fetchMeals();
     checkPersonalizedPlan();
+    getMealCategories()
+      .then((cats) => setCategoryOrder(cats.map((c) => c.id)))
+      .catch(() => {});
   }, []);
 
   const checkPersonalizedPlan = async () => {
@@ -490,7 +496,8 @@ export default function SelectMealsScreen() {
       if (!map.has(catId)) map.set(catId, { id: catId, name: catName, name_ar: catNameAr, meals: [] });
       map.get(catId)!.meals.push(meal);
     });
-    return Array.from(map.values()).filter((g) => g.meals.length > 0);
+    const groups = Array.from(map.values()).filter((g) => g.meals.length > 0);
+    return sortByCategoryOrder(groups, categoryOrder);
   })();
 
   // Grid card — same visual language as the main screen, with an Add button

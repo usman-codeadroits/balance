@@ -31,7 +31,6 @@ export default function ProfileScreen() {
     { id: 1, title: t("profile.my_information"),   route: "/my-profile" },
     { id: 2, title: t("profile.allergies"),         route: "/(tabs)/allergies-preference" },
     { id: 3, title: t("profile.dislikes"),          route: "/(tabs)/dislikes-preference" },
-    { id: 5, title: t("profile.about_us"),          route: null },
     { id: 6, title: t("profile.terms_conditions"),  route: "/(tabs)/terms-and-conditions" },
     { id: 7, title: t("profile.privacy_policy"),    route: "/(tabs)/privacy-policy" },
     { id: 8, title: t("profile.contact_us"),        route: "/contact-us" },

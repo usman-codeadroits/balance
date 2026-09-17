@@ -1,13 +1,13 @@
-import { getMeals, type Meal, type MealExtra } from "@/api/services/meals";
+import { getMealCategories, getMeals, type Meal, type MealExtra } from "@/api/services/meals";
 import {
     getSubscriptionDetails,
     updateSubscriptionMeal,
     type UserSubscriptionDetails,
 } from "@/api/services/subscriptions";
-import BottomTabNav from "@/components/bottom-tab-nav";
+import { sortByCategoryOrder } from "@/utils/sort-by-category-order";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
@@ -55,7 +55,7 @@ interface SlotState {
 }
 
 export default function UpdateSubscriptionMealsScreen() {
-  const { subscriptionId } = useLocalSearchParams();
+  const { subscriptionId } = useLocalSearchParams<{ subscriptionId?: string }>();
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language.startsWith("ar");
   const [details, setDetails] = useState<UserSubscriptionDetails | null>(null);
@@ -76,9 +76,16 @@ export default function UpdateSubscriptionMealsScreen() {
   // Extras sub-step inside the picker modal
   const [extrasMeal, setExtrasMeal] = useState<Meal | null>(null);
   const [extrasSelected, setExtrasSelected] = useState<Record<number, number[]>>({});
+  const [categoryOrder, setCategoryOrder] = useState<number[]>([]);
   const insets = useSafeAreaInsets();
 
-  const weekdayNames = t("calendar.weekdays", { returnObjects: true }) as string[];
+  useEffect(() => {
+    getMealCategories()
+      .then((cats) => setCategoryOrder(cats.map((c) => c.id)))
+      .catch(() => {});
+  }, []);
+
+  const weekdayNames = t("calendar.weekdays_full", { returnObjects: true }) as string[];
   const getDayName = (day: string) => {
     const idx = DAY_NAME_TO_INDEX[(day || "").toLowerCase()];
     return idx !== undefined ? weekdayNames[idx] : (day.charAt(0).toUpperCase() + day.slice(1));
@@ -142,6 +149,7 @@ export default function UpdateSubscriptionMealsScreen() {
     try {
       setLoading(true);
       setError(null);
+
       const [subResponse, mealsData] = await Promise.all([
         getSubscriptionDetails(id),
         getMeals(),
@@ -289,14 +297,17 @@ export default function UpdateSubscriptionMealsScreen() {
       })
     : [];
 
-  const pickerCategories = Array.from(
-    new Map(
-      typeFilteredMeals.map((meal) => [
-        meal.category_id,
-        { id: meal.category_id, name: getMealCategoryName(meal), name_ar: getMealCategoryNameAr(meal) },
-      ]),
-    ).values(),
-  ).filter((c) => c.name.length > 0);
+  const pickerCategories = sortByCategoryOrder(
+    Array.from(
+      new Map(
+        typeFilteredMeals.map((meal) => [
+          meal.category_id,
+          { id: meal.category_id, name: getMealCategoryName(meal), name_ar: getMealCategoryNameAr(meal) },
+        ]),
+      ).values(),
+    ).filter((c) => c.name.length > 0),
+    categoryOrder,
+  );
 
   const filteredMeals = typeFilteredMeals.filter((meal) => {
     const matchesCategory = selectedCategory == null || meal.category_id === selectedCategory;
@@ -349,8 +360,10 @@ export default function UpdateSubscriptionMealsScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t("update_meals.header_title")}</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerTextBlock}>
+            <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("update_meals.header_title")}</Text>
+            <Text style={[styles.headerSubtitle, isArabic && styles.rtlText]}>{t("subscription_details.update_meals_desc")}</Text>
+          </View>
         </View>
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color="#D64545" />
@@ -374,28 +387,32 @@ export default function UpdateSubscriptionMealsScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t("update_meals.header_title")}</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerTextBlock}>
+            <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("update_meals.header_title")}</Text>
+            <Text style={[styles.headerSubtitle, isArabic && styles.rtlText]}>{t("subscription_details.update_meals_desc")}</Text>
+          </View>
         </View>
 
         {/* Plan capacity info */}
-        <View style={[styles.capacityBanner, isArabic && styles.rtlRow]}>
-          <View style={[styles.capacityItem, isArabic && styles.rtlRow]}>
-            <View style={[styles.capDot, { backgroundColor: "#344225" }]} />
-            <Text style={styles.capacityText}>{t("update_meals.meals_per_day", { count: planCounts.meals, s: planCounts.meals !== 1 ? "s" : "" })}</Text>
-          </View>
-          {planCounts.snacks > 0 ? (
-            <View style={[styles.capacityItem, isArabic && styles.rtlRow]}>
-              <View style={[styles.capDot, { backgroundColor: "#FAD979" }]} />
-              <Text style={styles.capacityText}>{t("update_meals.snacks_per_day", { count: planCounts.snacks, s: planCounts.snacks !== 1 ? "s" : "" })}</Text>
+        <View style={styles.capacityBanner}>
+          <View style={[styles.capacityPills, isArabic && styles.rtlRow]}>
+            <View style={[styles.capacityPill, isArabic && styles.rtlRow]}>
+              <Ionicons name="restaurant-outline" size={14} color="#344225" />
+              <Text style={styles.capacityPillText}>{t("update_meals.meals_per_day", { count: planCounts.meals, s: planCounts.meals !== 1 ? "s" : "" })}</Text>
             </View>
-          ) : null}
-          <Text style={[styles.capacityHint, isArabic && styles.capacityHintRTL]}>{t("update_meals.tap_to_change")}</Text>
+            {planCounts.snacks > 0 ? (
+              <View style={[styles.capacityPill, styles.capacityPillSnack, isArabic && styles.rtlRow]}>
+                <Ionicons name="cafe-outline" size={14} color="#8A5A00" />
+                <Text style={[styles.capacityPillText, styles.capacityPillTextSnack]}>{t("update_meals.snacks_per_day", { count: planCounts.snacks, s: planCounts.snacks !== 1 ? "s" : "" })}</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[styles.capacityHint, isArabic && styles.rtlText]}>{t("update_meals.tap_to_change")}</Text>
         </View>
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {days.map((day, dayIndex) => {
@@ -408,19 +425,9 @@ export default function UpdateSubscriptionMealsScreen() {
             return (
               <View key={dayIndex} style={styles.dayCard}>
                 <View style={[styles.dayHeader, isArabic && styles.rtlRow]}>
-                  <Text style={styles.dayHeaderText}>
+                  <Text style={[styles.dayHeaderText, isArabic && styles.rtlText]}>
                     {day.day ? getDayName(day.day) : ""}
                   </Text>
-                  <View style={[styles.dayProgressRow, isArabic && styles.rtlRow]}>
-                    <Text style={styles.dayProgressText}>
-                      {`${filledMeals}/${planCounts.meals}`}
-                    </Text>
-                    {planCounts.snacks > 0 ? (
-                      <Text style={styles.dayProgressTextSnack}>
-                        {` · ${filledSnacks}/${planCounts.snacks} ${t("update_meals.snacks_label").toLowerCase()}`}
-                      </Text>
-                    ) : null}
-                  </View>
                 </View>
 
                 <View style={styles.dayBody}>
@@ -672,8 +679,6 @@ export default function UpdateSubscriptionMealsScreen() {
           </View>
         </Modal>
       </View>
-
-      <BottomTabNav activeTab="home" onHomePress={() => router.replace("/main-screen")} />
     </SafeAreaView>
   );
 }
@@ -746,15 +751,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
   backBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: "#344225", alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#344225", flex: 1, textAlign: "center" },
+  headerTextBlock: { flex: 1 },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#344225" },
+  headerSubtitle: { fontSize: 13, fontWeight: "400", color: "#6B7F75", marginTop: 2 },
   loadingText: { fontSize: 14, color: "#6B7F75", marginTop: 12 },
   errorTitle: { fontSize: 18, fontWeight: "700", color: "#344225", marginTop: 16 },
   errorDesc: { fontSize: 13, color: "#6B7F75", textAlign: "center", marginTop: 6, marginBottom: 20 },
@@ -762,22 +770,27 @@ const styles = StyleSheet.create({
   retryBtnText: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
 
   capacityBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 10,
     marginHorizontal: 16,
     marginBottom: 12,
     backgroundColor: "#344225",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 14,
+    padding: 14,
+    gap: 8,
   },
-  capacityItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  capDot: { width: 8, height: 8, borderRadius: 4 },
-  capacityText: { fontSize: 12, fontWeight: "600", color: "#FFFFFF" },
-  capacityHint: { fontSize: 11, color: "#B8D5C5", marginLeft: "auto" },
-  capacityHintRTL: { marginLeft: 0, marginRight: "auto" },
+  capacityPills: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  capacityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  capacityPillSnack: { backgroundColor: "#FFFFFF" },
+  capacityPillText: { fontSize: 12, fontWeight: "700", color: "#344225" },
+  capacityPillTextSnack: { color: "#8A5A00" },
+  capacityHint: { fontSize: 12, color: "#B8D5C5" },
 
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16 },
@@ -792,9 +805,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   dayHeaderText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
-  dayProgressRow: { flexDirection: "row", alignItems: "center" },
-  dayProgressText: { fontSize: 12, fontWeight: "700", color: "#FAD979" },
-  dayProgressTextSnack: { fontSize: 11, color: "#B8D5C5" },
   dayBody: { padding: 14 },
 
   slotSection: { gap: 10 },

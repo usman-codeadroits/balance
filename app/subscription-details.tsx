@@ -1,5 +1,4 @@
-import { getMySubscriptions, getSubscriptionDetails, getSubscriptionPauseLogs, getSubscriptionRenewal, type PauseLog, type RenewalDetail, type UserSubscriptionDetails, type UserSubscriptionSummary } from "@/api/services/subscriptions";
-import BottomTabNav from "@/components/bottom-tab-nav";
+import { getMySubscriptions, getSubscriptionDetails, getSubscriptionPauseLogs, type PauseLog, type UserSubscriptionDetails, type UserSubscriptionSummary } from "@/api/services/subscriptions";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -26,7 +25,6 @@ export default function SubscriptionDetailsScreen() {
   const [subscription, setSubscription] = useState<UserSubscriptionSummary | null>(null);
   const [details, setDetails] = useState<UserSubscriptionDetails | null>(null);
   const [pauseLogs, setPauseLogs] = useState<PauseLog[]>([]);
-  const [renewalDetail, setRenewalDetail] = useState<RenewalDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
@@ -64,17 +62,10 @@ export default function SubscriptionDetailsScreen() {
       if (response.success && active) {
         setSubscription(active);
         if (active.is_paused) fetchPauseLogs(active.id);
-        // Load full details and renewal in parallel
         try {
-          const [det, renewalRes] = await Promise.allSettled([
-            getSubscriptionDetails(active.id),
-            getSubscriptionRenewal(active.id),
-          ]);
-          if (det.status === "fulfilled" && det.value.success && det.value.data) {
-            setDetails(det.value.data);
-          }
-          if (renewalRes.status === "fulfilled" && renewalRes.value.data?.renewal) {
-            setRenewalDetail(renewalRes.value.data.renewal);
+          const det = await getSubscriptionDetails(active.id);
+          if (det.success && det.data) {
+            setDetails(det.data);
           }
         } catch {}
       } else {
@@ -137,6 +128,16 @@ export default function SubscriptionDetailsScreen() {
     : subscription?.status === "completed" ? "#FF9800"
     : "#F44336";
 
+  const daysUntilEnd = (() => {
+    if (!subscription?.end_date) return null;
+    const end = new Date((subscription.end_date || "").split("T")[0]);
+    if (isNaN(end.getTime())) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    return Math.round((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  })();
+  const showReorder = daysUntilEnd !== null && daysUntilEnd >= 0 && daysUntilEnd <= 3 && subscription?.status === "active";
+
   const address = details?.address as any;
 
   const formatAddressLine = () => {
@@ -189,8 +190,10 @@ export default function SubscriptionDetailsScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t("subscription_details.header_title")}</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.headerTextBlock}>
+            <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("subscription_details.header_title")}</Text>
+            <Text style={[styles.headerSubtitle, isArabic && styles.rtlText]}>{t("subscription_details.header_subtitle")}</Text>
+          </View>
         </View>
 
         {loading ? (
@@ -218,7 +221,7 @@ export default function SubscriptionDetailsScreen() {
         ) : (
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
             {/* Pause banners */}
@@ -302,6 +305,23 @@ export default function SubscriptionDetailsScreen() {
               ) : null}
             </View>
 
+            {/* Reorder — shown once the plan is within 3 days of ending */}
+            {showReorder && (
+              <TouchableOpacity
+                style={[styles.reorderBtn, isArabic && styles.rtlRow]}
+                onPress={() => router.push("/reorder" as any)}
+              >
+                <View style={styles.reorderBtnIcon}>
+                  <Ionicons name="repeat-outline" size={20} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.reorderBtnTitle, isArabic && styles.rtlText]}>{t("reorder.button_title")}</Text>
+                  <Text style={[styles.reorderBtnDesc, isArabic && styles.rtlText]}>{t("reorder.button_desc")}</Text>
+                </View>
+                <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color="#FAD979" />
+              </TouchableOpacity>
+            )}
+
             {/* Action Buttons */}
             <TouchableOpacity
               style={[styles.updateMealBtn, isArabic && styles.rtlRow]}
@@ -322,6 +342,25 @@ export default function SubscriptionDetailsScreen() {
               <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color="#6B7F75" />
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={[styles.updateDaysBtn, isArabic && styles.rtlRow]}
+              onPress={() =>
+                router.push({
+                  pathname: "/update-subscription-days",
+                  params: { subscriptionId: subscription.id },
+                } as any)
+              }
+            >
+              <View style={styles.updateDaysBtnIcon}>
+                <Ionicons name="calendar-outline" size={20} color="#344225" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.updateDaysBtnTitle, isArabic && styles.rtlText]}>{t("subscription_details.update_days_title")}</Text>
+                <Text style={[styles.updateDaysBtnDesc, isArabic && styles.rtlText]}>{t("subscription_details.update_days_desc")}</Text>
+              </View>
+              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color="#6B7F75" />
+            </TouchableOpacity>
+
             {address ? (
               <View style={[styles.addressCard, isArabic && styles.rtlText]}>
                 <View style={[styles.addressHeader, isArabic && styles.rtlRow]}>
@@ -334,6 +373,15 @@ export default function SubscriptionDetailsScreen() {
                       {formatAddressLine() || t("subscription_details.no_address")}
                     </Text>
                   </View>
+                  {address?.id ? (
+                    <TouchableOpacity
+                      style={styles.addressEditBtn}
+                      onPress={() => router.push(`/my-profile?tab=addresses&addressId=${address.id}` as any)}
+                    >
+                      <Ionicons name="create-outline" size={16} color="#344225" />
+                      <Text style={styles.addressEditBtnText}>{t("subscription_details.edit_address")}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
 
                 <View style={[styles.addressBody, isArabic && styles.rtlText]}>
@@ -371,32 +419,6 @@ export default function SubscriptionDetailsScreen() {
                 </View>
               </View>
             ) : null}
-
-            {/* Renewal button — shown only when backend has a queued renewal for this subscription */}
-            {renewalDetail && (
-              <TouchableOpacity
-                style={[styles.renewalBtn, isArabic && styles.rtlRow]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/renewal-details",
-                    params: { subscriptionId: subscription.id },
-                  } as any)
-                }
-              >
-                <View style={styles.renewalBtnIcon}>
-                  <Ionicons name="refresh-circle-outline" size={20} color="#344225" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.renewalBtnTitle, isArabic && styles.rtlText]}>{t("subscription_details.renewal_plan_title")}</Text>
-                  <Text style={[styles.renewalBtnDesc, isArabic && styles.rtlText]}>
-                    {t("subscription_details.renewal_plan_desc", { plan: (isArabic && (renewalDetail.plan as any)?.title_ar) ? (renewalDetail.plan as any).title_ar : renewalDetail.plan?.title, date: renewalDetail.start_date })}
-                  </Text>
-                </View>
-                <View style={styles.renewalArrowWrap}>
-                  <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color="#344225" />
-                </View>
-              </TouchableOpacity>
-            )}
 
             {/* Nutrition Summary */}
             {details && perDayMacros.length > 0 && (
@@ -479,8 +501,6 @@ export default function SubscriptionDetailsScreen() {
           </ScrollView>
         )}
       </View>
-
-      <BottomTabNav activeTab="home" onHomePress={() => router.replace("/main-screen")} />
     </SafeAreaView>
   );
 }
@@ -493,7 +513,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
@@ -504,13 +524,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#344225",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
+  headerTextBlock: { flex: 1 },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#344225",
-    flex: 1,
-    textAlign: "center",
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: "400",
+    color: "#6B7F75",
+    marginTop: 2,
   },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
@@ -634,6 +660,26 @@ const styles = StyleSheet.create({
   pausedDaysText: { fontSize: 12, color: "#FAD979", fontWeight: "500" },
 
   // Action buttons
+  reorderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#344225",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  reorderBtnIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reorderBtnTitle: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
+  reorderBtnDesc: { fontSize: 12, color: "#B8D5C5", marginTop: 2 },
+
   updateMealBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -653,6 +699,28 @@ const styles = StyleSheet.create({
   },
   updateMealBtnTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
   updateMealBtnDesc: { fontSize: 12, color: "#5C6B45", marginTop: 2 },
+
+  updateDaysBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#DDE9E4",
+  },
+  updateDaysBtnIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#F3F7F5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  updateDaysBtnTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
+  updateDaysBtnDesc: { fontSize: 12, color: "#6B7F75", marginTop: 2 },
 
   viewDetailsBtn: {
     flexDirection: "row",
@@ -696,6 +764,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  addressEditBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F3F7F5",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexShrink: 0,
+  },
+  addressEditBtnText: { fontSize: 12, fontWeight: "600", color: "#344225" },
   addressTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
   addressSubtitle: { fontSize: 12, color: "#6B7F75", marginTop: 2, textAlign: "left" },
   addressBody: { gap: 10 },
@@ -705,27 +784,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addressText: { flex: 1, fontSize: 13, color: "#344225", lineHeight: 18 },
-
-  renewalBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    backgroundColor: "#FAD979",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  renewalBtnIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(52,66,37,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  renewalBtnTitle: { fontSize: 15, fontWeight: "700", color: "#344225" },
-  renewalBtnDesc: { fontSize: 12, color: "#5C6B45", marginTop: 2 },
-  renewalArrowWrap: { paddingLeft: 4 },
 
   // Macro card
   macroCard: {

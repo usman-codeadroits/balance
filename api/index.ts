@@ -49,8 +49,8 @@ export type {
     HesabePaymentRequest,
     HesabePaymentResponse
 } from "./services/hesabe";
-export { getMeals } from "./services/meals";
-export type { Meal, MealExtra, MealExtraIngredient } from "./services/meals";
+export { getMeals, getMealCategories } from "./services/meals";
+export type { Meal, MealCategory, MealExtra, MealExtraIngredient } from "./services/meals";
 export { sendOtp, verifyOtp } from "./services/otp";
 export type { VerifyOtpRequest, VerifyOtpResponse } from "./services/otp";
 export {
@@ -59,21 +59,18 @@ export {
 } from "./services/subscriptionPlans";
 export type { MealPlan } from "./services/subscriptionPlans";
 export {
-    cancelRenewal,
     checkoutSubscription,
     getActiveSubscription, getMySubscriptions,
     getSubscriptionCalendar,
     getSubscriptionDetails, getSubscriptionMeals,
     getSubscriptionPauseLogs,
-    getSubscriptionRenewal,
     getUserSubscriptions,
-    updateRenewalPlan,
+    updateSubscriptionDays,
     updateSubscriptionMeal
 } from "./services/subscriptions";
 export type {
     CalendarDay,
-    CancelRenewalResponse,
-    CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, PauseLog, PauseLogsResponse, RenewalDetail, Subscription, SubscriptionCalendarResponse, SubscriptionDetailsResponse, SubscriptionMealsResponse, SubscriptionRenewalResponse, UpdateMealRequest, UpdateMealResponse, UpdateRenewalPlanResponse, UserSubscriptionDetails, UserSubscriptionSummary
+    CheckoutRequest, CheckoutResponse, MySubscriptionsResponse, PauseLog, PauseLogsResponse, Subscription, SubscriptionCalendarResponse, SubscriptionDetailsResponse, SubscriptionMealsResponse, UpdateDaysRequest, UpdateDaysResponse, UpdateMealRequest, UpdateMealResponse, UserSubscriptionDetails, UserSubscriptionSummary
 } from "./services/subscriptions";
 export {
     createUser,
@@ -83,7 +80,7 @@ export {
     registerUser,
     updateUser
 } from "./services/users";
-export type { ActiveSubscription, LoginRequest, QueuedRenewal, QueuedSubscription, RegisterUserRequest, User } from "./services/users";
+export type { ActiveSubscription, LoginRequest, QueuedSubscription, RegisterUserRequest, User } from "./services/users";
 export { getInquiries, submitInquiry } from "./services/inquiries";
 export type { GetInquiriesResponse, Inquiry, SubmitInquiryRequest, SubmitInquiryResponse } from "./services/inquiries";
 

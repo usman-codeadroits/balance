@@ -396,48 +396,6 @@ export type MySubscriptionsResponse = {
   };
 };
 
-export type RenewalDetail = {
-  id: number;
-  plan: { id: number; title: string; price: number };
-  selected_days: string;
-  start_date: string;
-  end_date: string;
-  price: number;
-  currency: string;
-  payment: string;
-  status: string;
-};
-
-export type SubscriptionRenewalResponse = {
-  data: {
-    subscription_id: number;
-    auto_renew: boolean;
-    renewal_notified_at: string | null;
-    renewal: RenewalDetail | null;
-  };
-};
-
-export type UpdateRenewalPlanRequest = {
-  subcrption_plans_id: number;
-};
-
-export type UpdateRenewalPlanResponse = {
-  success: boolean;
-  message: string;
-  data: {
-    renewal_id: number;
-    plan: { id: number; title: string; price: number };
-    start_date: string;
-    end_date: string;
-    price: number;
-  };
-};
-
-export type CancelRenewalResponse = {
-  success: boolean;
-  message: string;
-};
-
 export type SubscriptionAddress = {
   id: number;
   first_name: string;
@@ -548,49 +506,6 @@ export const getSubscriptionPauseLogs = async (
   }
 };
 
-/**
- * Get renewal details for an active subscription
- * @param subscriptionId - The active subscription ID
- */
-export const getSubscriptionRenewal = async (
-  subscriptionId: number,
-): Promise<SubscriptionRenewalResponse> => {
-  try {
-    const response = await apiClient.get<SubscriptionRenewalResponse>(
-      `${API_ENDPOINTS.SUBSCRIPTION_RENEWAL}/${subscriptionId}/renewal`,
-    );
-    return response;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to fetch renewal details: ${error.message}`);
-    }
-    throw new Error("Failed to fetch renewal details: Unknown error");
-  }
-};
-
-/**
- * Update the plan for a queued renewal
- * @param subscriptionId - The active subscription ID
- * @param planId - The new plan ID
- */
-export const updateRenewalPlan = async (
-  subscriptionId: number,
-  planId: number,
-): Promise<UpdateRenewalPlanResponse> => {
-  try {
-    const response = await apiClient.put<UpdateRenewalPlanResponse>(
-      `${API_ENDPOINTS.SUBSCRIPTION_RENEWAL}/${subscriptionId}/renewal-plan`,
-      { subcrption_plans_id: planId },
-    );
-    return response;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to update renewal plan: ${error.message}`);
-    }
-    throw new Error("Failed to update renewal plan: Unknown error");
-  }
-};
-
 export type CalendarDay = {
   date: string;
   day: string;
@@ -632,23 +547,42 @@ export const getSubscriptionCalendar = async (
   }
 };
 
+export type UpdateDaysRequest = {
+  days: string[]; // lowercase day names, e.g. ["monday", "tuesday"]
+};
+
+export type UpdateDaysResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    subscription_id: number;
+    selected_days: string[];
+    days_added: string[];
+    days_removed: string[];
+    days_changed_at: string;
+  };
+};
+
 /**
- * Cancel auto-renewal for an active subscription
+ * Change a subscription's delivery days. One-time use per subscription cycle —
+ * the backend returns a 403 on a second attempt.
  * @param subscriptionId - The active subscription ID
+ * @param days - The full new set of delivery days (lowercase day names)
  */
-export const cancelRenewal = async (
+export const updateSubscriptionDays = async (
   subscriptionId: number,
-): Promise<CancelRenewalResponse> => {
+  days: string[],
+): Promise<UpdateDaysResponse> => {
   try {
-    const response = await apiClient.post<CancelRenewalResponse>(
-      `${API_ENDPOINTS.SUBSCRIPTION_RENEWAL}/${subscriptionId}/cancel-renewal`,
-      {},
+    const response = await apiClient.post<UpdateDaysResponse>(
+      `${API_ENDPOINTS.SUBSCRIPTION_UPDATE_DAYS}/${subscriptionId}/update-days`,
+      { days },
     );
     return response;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to cancel renewal: ${error.message}`);
+      throw error;
     }
-    throw new Error("Failed to cancel renewal: Unknown error");
+    throw new Error("Failed to update delivery days.");
   }
 };

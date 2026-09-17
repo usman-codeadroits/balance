@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
-  I18nManager,
   Image,
   Platform,
   SafeAreaView,
@@ -14,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import RNRestart from 'react-native-restart';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { changeLanguage } from '@/constants/i18n';
@@ -30,29 +28,10 @@ export default function ChangeLanguageScreen() {
   const handleLanguageSelect = async (language: 'en' | 'ar') => {
     if (currentLanguage === language || switching) return;
 
-    const rtlChanging = (language === 'ar') !== I18nManager.isRTL;
-
     setSwitching(true);
     try {
       await changeLanguage(language);
-
-      if (rtlChanging) {
-        Alert.alert(
-          t('change_language.changed_title'),
-          t('change_language.restart_message'),
-          [
-            {
-              text: t('common.ok'),
-              onPress: () => {
-                RNRestart.restart();
-              },
-            },
-          ],
-          { cancelable: false },
-        );
-      } else {
-        router.replace('/(tabs)/profile' as any);
-      }
+      router.replace('/(tabs)/profile' as any);
     } catch {
       Alert.alert(t('common.error'), t('change_language.error'));
     } finally {

@@ -102,7 +102,6 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 export interface SubscriptionNotificationOptions {
   selectedDays: unknown;   // string "monday,tuesday" | string[] | number[]
   endDate: string;         // "YYYY-MM-DD" or ISO — last valid day (inclusive)
-  autoRenew: boolean;
   planTitle?: string;
 }
 
@@ -115,7 +114,7 @@ export async function scheduleSubscriptionNotifications(
   // Always cancel previous batch before scheduling fresh ones
   await cancelTrackedNotifications();
 
-  const { selectedDays, endDate, autoRenew, planTitle } = options;
+  const { selectedDays, endDate } = options;
 
   // Parse end date as local end-of-day to avoid UTC midnight timezone issues
   const endStr = (endDate || "").split("T")[0]; // "YYYY-MM-DD"
@@ -124,29 +123,8 @@ export async function scheduleSubscriptionNotifications(
   const endOfDay = new Date(ey, em - 1, ed, 23, 59, 59);
 
   const now = new Date();
-  const plan = planTitle ? `"${planTitle}"` : "meal";
 
-  // ── 1. Auto-Renewal Reminder ──────────────────────────────────────────────
-  // Schedule at 10 AM, 3 days before subscription end (only when auto-renew is ON)
-  if (autoRenew) {
-    const remindAt = new Date(ey, em - 1, ed - 3, 10, 0, 0);
-    if (remindAt > now) {
-      try {
-        const id = await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Subscription Auto-Renewing Soon",
-            body: `Your ${plan} plan will automatically renew in 3 days. Make sure your payment details are up to date!`,
-            data: { type: "auto_renewal" },
-            sound: true,
-          },
-          trigger: { date: remindAt } as any,
-        });
-        await persistId(id);
-      } catch {}
-    }
-  }
-
-  // ── 2. Meal-Day Reminders ─────────────────────────────────────────────────
+  // ── Meal-Day Reminders ────────────────────────────────────────────────────
   // For each active delivery weekday in the next 60 days, remind at 9 AM.
   // We cap at 60 days so we don't flood the system notification scheduler.
   const dayIndices = parseSelectedDays(selectedDays);

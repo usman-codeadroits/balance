@@ -13,8 +13,8 @@ import { getAllAreas } from "@/api";
 import { apiClient } from "@/api/client";
 import type { Area } from "@/api/types";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -78,7 +78,8 @@ export default function MyProfileScreen() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language.startsWith("ar");
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+  const params = useLocalSearchParams<{ tab?: string; addressId?: string }>();
+  const [activeTab, setActiveTab] = useState<Tab>(params.tab === "addresses" ? "addresses" : "profile");
 
   // ── Profile state ──
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -251,6 +252,17 @@ export default function MyProfileScreen() {
     setAddressModal(true);
   };
 
+  // Auto-open a specific address for editing when navigated here with ?addressId=
+  const autoOpenedAddressId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!params.addressId || autoOpenedAddressId.current === params.addressId) return;
+    const addr = addresses.find((a) => String(a.id) === params.addressId);
+    if (addr) {
+      autoOpenedAddressId.current = params.addressId;
+      openEditAddress(addr);
+    }
+  }, [addresses, params.addressId]);
+
   const handleSaveAddress = async () => {
     try {
       setAddrSaving(true);
@@ -308,8 +320,10 @@ export default function MyProfileScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={20} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t("profile.title")}</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerTextBlock}>
+          <Text style={[styles.headerTitle, isArabic && styles.rtlText]}>{t("profile.title")}</Text>
+          <Text style={[styles.headerSubtitle, isArabic && styles.rtlText]}>{t("my_profile.header_subtitle")}</Text>
+        </View>
       </View>
 
       {/* Tabs */}
@@ -343,125 +357,139 @@ export default function MyProfileScreen() {
               contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]}
               showsVerticalScrollIndicator={false}
             >
-              <Field label={t("my_profile.full_name")} isArabic={isArabic}>
-                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={name} onChangeText={setName} placeholder={t("my_profile.full_name_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
-              </Field>
-
-              <Field label={t("my_profile.dob_label")} isArabic={isArabic}>
-                <TextInput style={[styles.input, isArabic && styles.rtlText]} value={dob} onChangeText={setDob} placeholder={t("my_profile.dob_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
-              </Field>
-
-              <Field label={t("my_profile.gender_label")} isArabic={isArabic}>
-                <TouchableOpacity
-                  style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
-                  onPress={() => { setShowGenderDropdown(!showGenderDropdown); setShowGoalDropdown(false); setShowActivityDropdown(false); }}
-                >
-                  <Text style={[styles.dropdownBtnText, !gender && styles.dropdownBtnPlaceholder]}>
-                    {gender ? t(`my_profile.${GENDERS.find((g) => g.value === gender)!.labelKey}`) : t("my_profile.select_gender")}
-                  </Text>
-                  <Ionicons name={showGenderDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
-                </TouchableOpacity>
-                {showGenderDropdown && (
-                  <View style={styles.dropdownList}>
-                    {GENDERS.map((g, i) => (
-                      <TouchableOpacity
-                        key={g.value}
-                        style={[styles.dropdownListItem, gender === g.value && styles.dropdownListItemActive, i === GENDERS.length - 1 && styles.dropdownListItemLast]}
-                        onPress={() => { setGender(g.value); setShowGenderDropdown(false); }}
-                      >
-                        <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, gender === g.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${g.labelKey}`)}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </Field>
-
-              <View style={[styles.row, isArabic && styles.rtlRow]}>
-                <View style={{ flex: 1 }}>
-                  <Field label={t("my_profile.height_label")} isArabic={isArabic}>
-                    <TextInput style={[styles.input, isArabic && styles.rtlText]} value={height} onChangeText={setHeight} placeholder="175" placeholderTextColor="#8AADA0" keyboardType="numeric" textAlign={isArabic ? "right" : "left"} />
-                  </Field>
-                </View>
-                <View style={{ width: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Field label={t("my_profile.weight_label")} isArabic={isArabic}>
-                    <TextInput style={[styles.input, isArabic && styles.rtlText]} value={weight} onChangeText={setWeight} placeholder="70" placeholderTextColor="#8AADA0" keyboardType="numeric" textAlign={isArabic ? "right" : "left"} />
-                  </Field>
-                </View>
-              </View>
-
-              <Field label={t("my_profile.goal_label")} isArabic={isArabic}>
-                <TouchableOpacity
-                  style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
-                  onPress={() => { setShowGoalDropdown(!showGoalDropdown); setShowGenderDropdown(false); setShowActivityDropdown(false); }}
-                >
-                  <Text style={[styles.dropdownBtnText, !goal && styles.dropdownBtnPlaceholder]}>
-                    {goal ? t(`my_profile.${GOALS.find((g) => g.value === goal)!.labelKey}`) : t("my_profile.select_goal")}
-                  </Text>
-                  <Ionicons name={showGoalDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
-                </TouchableOpacity>
-                {showGoalDropdown && (
-                  <View style={styles.dropdownList}>
-                    {GOALS.map((g, i) => (
-                      <TouchableOpacity
-                        key={g.value}
-                        style={[styles.dropdownListItem, goal === g.value && styles.dropdownListItemActive, i === GOALS.length - 1 && styles.dropdownListItemLast]}
-                        onPress={() => { setGoal(g.value); setShowGoalDropdown(false); }}
-                      >
-                        <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, goal === g.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${g.labelKey}`)}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </Field>
-
-              <Field label={t("my_profile.activity_label")} isArabic={isArabic}>
-                <TouchableOpacity
-                  style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
-                  onPress={() => { setShowActivityDropdown(!showActivityDropdown); setShowGenderDropdown(false); setShowGoalDropdown(false); }}
-                >
-                  <Text style={[styles.dropdownBtnText, !activityLevel && styles.dropdownBtnPlaceholder]}>
-                    {activityLevel ? t(`my_profile.${ACTIVITY_LEVELS.find((a) => a.value === activityLevel)!.labelKey}`) : t("my_profile.select_activity")}
-                  </Text>
-                  <Ionicons name={showActivityDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
-                </TouchableOpacity>
-                {showActivityDropdown && (
-                  <View style={styles.dropdownList}>
-                    {ACTIVITY_LEVELS.map((a, i) => (
-                      <TouchableOpacity
-                        key={a.value}
-                        style={[styles.dropdownListItem, activityLevel === a.value && styles.dropdownListItemActive, i === ACTIVITY_LEVELS.length - 1 && styles.dropdownListItemLast]}
-                        onPress={() => { setActivityLevel(a.value); setShowActivityDropdown(false); }}
-                      >
-                        <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, activityLevel === a.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${a.labelKey}`)}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </Field>
-
-              <View style={[styles.switchRow, isArabic && styles.rtlRow]}>
-                <Text style={styles.fieldLabel}>{t("my_profile.food_allergies")}</Text>
-                <Switch
-                  value={hasAllergies}
-                  onValueChange={setHasAllergies}
-                  trackColor={{ false: "#B8D5C5", true: "#344225" }}
-                  thumbColor="#FFFFFF"
-                />
-              </View>
-
-              {hasAllergies && (
-                <Field label={t("my_profile.allergies_label")} isArabic={isArabic}>
-                  <TextInput
-                    style={[styles.input, isArabic && styles.rtlText]}
-                    value={allergiesText}
-                    onChangeText={setAllergiesText}
-                    placeholder={t("my_profile.allergies_placeholder")}
-                    placeholderTextColor="#8AADA0"
-                    textAlign={isArabic ? "right" : "left"}
-                  />
+              <SectionCard icon="person-outline" title={t("my_profile.section_personal")} isArabic={isArabic}>
+                <Field label={t("my_profile.full_name")} isArabic={isArabic}>
+                  <TextInput style={[styles.input, isArabic && styles.rtlText]} value={name} onChangeText={setName} placeholder={t("my_profile.full_name_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
                 </Field>
-              )}
+
+                <Field label={t("my_profile.dob_label")} isArabic={isArabic}>
+                  <TextInput style={[styles.input, isArabic && styles.rtlText]} value={dob} onChangeText={setDob} placeholder={t("my_profile.dob_placeholder")} placeholderTextColor="#8AADA0" textAlign={isArabic ? "right" : "left"} />
+                </Field>
+
+                <View style={{ marginBottom: 0 }}>
+                  <Field label={t("my_profile.gender_label")} isArabic={isArabic}>
+                    <TouchableOpacity
+                      style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
+                      onPress={() => { setShowGenderDropdown(!showGenderDropdown); setShowGoalDropdown(false); setShowActivityDropdown(false); }}
+                    >
+                      <Text style={[styles.dropdownBtnText, !gender && styles.dropdownBtnPlaceholder]}>
+                        {gender ? t(`my_profile.${GENDERS.find((g) => g.value === gender)!.labelKey}`) : t("my_profile.select_gender")}
+                      </Text>
+                      <Ionicons name={showGenderDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
+                    </TouchableOpacity>
+                    {showGenderDropdown && (
+                      <View style={styles.dropdownList}>
+                        {GENDERS.map((g, i) => (
+                          <TouchableOpacity
+                            key={g.value}
+                            style={[styles.dropdownListItem, gender === g.value && styles.dropdownListItemActive, i === GENDERS.length - 1 && styles.dropdownListItemLast]}
+                            onPress={() => { setGender(g.value); setShowGenderDropdown(false); }}
+                          >
+                            <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, gender === g.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${g.labelKey}`)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </Field>
+                </View>
+              </SectionCard>
+
+              <SectionCard icon="body-outline" title={t("my_profile.section_body")} isArabic={isArabic}>
+                <View style={[styles.row, isArabic && styles.rtlRow, { marginBottom: 0 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Field label={t("my_profile.height_label")} isArabic={isArabic}>
+                      <TextInput style={[styles.input, isArabic && styles.rtlText]} value={height} onChangeText={setHeight} placeholder="175" placeholderTextColor="#8AADA0" keyboardType="numeric" textAlign={isArabic ? "right" : "left"} />
+                    </Field>
+                  </View>
+                  <View style={{ width: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Field label={t("my_profile.weight_label")} isArabic={isArabic}>
+                      <TextInput style={[styles.input, isArabic && styles.rtlText]} value={weight} onChangeText={setWeight} placeholder="70" placeholderTextColor="#8AADA0" keyboardType="numeric" textAlign={isArabic ? "right" : "left"} />
+                    </Field>
+                  </View>
+                </View>
+              </SectionCard>
+
+              <SectionCard icon="flag-outline" title={t("my_profile.section_goals")} isArabic={isArabic}>
+                <Field label={t("my_profile.goal_label")} isArabic={isArabic}>
+                  <TouchableOpacity
+                    style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
+                    onPress={() => { setShowGoalDropdown(!showGoalDropdown); setShowGenderDropdown(false); setShowActivityDropdown(false); }}
+                  >
+                    <Text style={[styles.dropdownBtnText, !goal && styles.dropdownBtnPlaceholder]}>
+                      {goal ? t(`my_profile.${GOALS.find((g) => g.value === goal)!.labelKey}`) : t("my_profile.select_goal")}
+                    </Text>
+                    <Ionicons name={showGoalDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
+                  </TouchableOpacity>
+                  {showGoalDropdown && (
+                    <View style={styles.dropdownList}>
+                      {GOALS.map((g, i) => (
+                        <TouchableOpacity
+                          key={g.value}
+                          style={[styles.dropdownListItem, goal === g.value && styles.dropdownListItemActive, i === GOALS.length - 1 && styles.dropdownListItemLast]}
+                          onPress={() => { setGoal(g.value); setShowGoalDropdown(false); }}
+                        >
+                          <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, goal === g.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${g.labelKey}`)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </Field>
+
+                <View style={{ marginBottom: 0 }}>
+                  <Field label={t("my_profile.activity_label")} isArabic={isArabic}>
+                    <TouchableOpacity
+                      style={[styles.dropdownBtn, isArabic && styles.rtlRow]}
+                      onPress={() => { setShowActivityDropdown(!showActivityDropdown); setShowGenderDropdown(false); setShowGoalDropdown(false); }}
+                    >
+                      <Text style={[styles.dropdownBtnText, !activityLevel && styles.dropdownBtnPlaceholder]}>
+                        {activityLevel ? t(`my_profile.${ACTIVITY_LEVELS.find((a) => a.value === activityLevel)!.labelKey}`) : t("my_profile.select_activity")}
+                      </Text>
+                      <Ionicons name={showActivityDropdown ? "chevron-up" : "chevron-down"} size={18} color="#344225" />
+                    </TouchableOpacity>
+                    {showActivityDropdown && (
+                      <View style={styles.dropdownList}>
+                        {ACTIVITY_LEVELS.map((a, i) => (
+                          <TouchableOpacity
+                            key={a.value}
+                            style={[styles.dropdownListItem, activityLevel === a.value && styles.dropdownListItemActive, i === ACTIVITY_LEVELS.length - 1 && styles.dropdownListItemLast]}
+                            onPress={() => { setActivityLevel(a.value); setShowActivityDropdown(false); }}
+                          >
+                            <Text style={[styles.dropdownListItemText, isArabic && styles.rtlText, activityLevel === a.value && styles.dropdownListItemTextActive]}>{t(`my_profile.${a.labelKey}`)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </Field>
+                </View>
+              </SectionCard>
+
+              <SectionCard icon="nutrition-outline" title={t("my_profile.section_dietary")} isArabic={isArabic}>
+                <View style={[styles.switchRow, isArabic && styles.rtlRow, hasAllergies && { marginBottom: 16 }, !hasAllergies && { marginBottom: 0 }]}>
+                  <Text style={styles.fieldLabel}>{t("my_profile.food_allergies")}</Text>
+                  <Switch
+                    value={hasAllergies}
+                    onValueChange={setHasAllergies}
+                    trackColor={{ false: "#B8D5C5", true: "#344225" }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                {hasAllergies && (
+                  <View style={{ marginBottom: 0 }}>
+                    <Field label={t("my_profile.allergies_label")} isArabic={isArabic}>
+                      <TextInput
+                        style={[styles.input, isArabic && styles.rtlText]}
+                        value={allergiesText}
+                        onChangeText={setAllergiesText}
+                        placeholder={t("my_profile.allergies_placeholder")}
+                        placeholderTextColor="#8AADA0"
+                        textAlign={isArabic ? "right" : "left"}
+                      />
+                    </Field>
+                  </View>
+                )}
+              </SectionCard>
 
               <TouchableOpacity
                 style={[styles.saveBtn, profileSaving && styles.saveBtnDisabled]}
@@ -705,6 +733,30 @@ function Field({ label, children, isArabic }: { label: string; children: React.R
   );
 }
 
+function SectionCard({
+  icon,
+  title,
+  isArabic,
+  children,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  title: string;
+  isArabic?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionCard}>
+      <View style={[styles.sectionCardHeader, isArabic && styles.rtlRow]}>
+        <View style={styles.sectionCardIconWrap}>
+          <Ionicons name={icon} size={16} color="#344225" />
+        </View>
+        <Text style={[styles.sectionCardTitle, isArabic && styles.rtlText]}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#D4E8E0" },
 
@@ -714,15 +766,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 16,
   },
   backBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: "#344225", alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#344225", flex: 1, textAlign: "center" },
+  headerTextBlock: { flex: 1 },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#344225" },
+  headerSubtitle: { fontSize: 13, fontWeight: "400", color: "#6B7F75", marginTop: 2 },
 
   tabRow: {
     flexDirection: "row",
@@ -743,6 +798,28 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16 },
+
+  sectionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+  },
+  sectionCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  sectionCardIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F7F5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionCardTitle: { fontSize: 14, fontWeight: "700", color: "#344225" },
 
   fieldWrap: { marginBottom: 12 },
   fieldLabel: { fontSize: 11, fontWeight: "600", color: "#6B8F7A", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },

@@ -1,5 +1,6 @@
 import type { Area } from "@/api";
 import { getAllAreas } from "@/api";
+import { getAddresses, type Address } from "@/api/services/profile";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -24,6 +25,8 @@ import {
 // ActivityIndicator kept for area loading spinner
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+type ScreenMode = "choose" | "form";
+
 export default function AddAddressScreen() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language.startsWith("ar");
@@ -38,26 +41,66 @@ export default function AddAddressScreen() {
 
   const [areas, setAreas] = useState<Area[]>([]);
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
-  const [areasLoading, setAreasLoading] = useState(false);
   const [showAreaModal, setShowAreaModal] = useState(false);
+
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+  const [screenMode, setScreenMode] = useState<ScreenMode>("form");
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<number | null>(null);
 
   useStaticScreen();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    fetchAllAreas();
+    loadInitialData();
   }, []);
 
-  const fetchAllAreas = async () => {
-    try {
-      setAreasLoading(true);
-      const data = await getAllAreas();
-      setAreas(data);
-    } catch {
-      // silently fail
-    } finally {
-      setAreasLoading(false);
-    }
+  const loadInitialData = async () => {
+    setInitialLoading(true);
+    const [areasResult, addressesResult] = await Promise.allSettled([
+      getAllAreas(),
+      getAddresses(),
+    ]);
+
+    const fetchedAreas = areasResult.status === "fulfilled" ? areasResult.value : [];
+    setAreas(fetchedAreas);
+
+    const fetchedAddresses =
+      addressesResult.status === "fulfilled" && addressesResult.value.success
+        ? addressesResult.value.data ?? []
+        : [];
+    setSavedAddresses(fetchedAddresses);
+    setScreenMode(fetchedAddresses.length > 0 ? "choose" : "form");
+
+    setInitialLoading(false);
+  };
+
+  const applySavedAddress = (addr: Address) => {
+    setBlockNumber(addr.block_number ?? "");
+    setStreet(addr.street ?? "");
+    setHouseBuliding(addr.house_building ?? "");
+    setFloorApartment(addr.floor_apartment ?? "");
+    setRemarks(addr.remarks ?? "");
+    setDeliveryNotes(addr.delivery_notes ?? "");
+    setAddressCategory(addr.category ?? "home");
+    setIsPrimary(addr.is_primary ?? false);
+    setSelectedArea(areas.find((a) => a.name === addr.area) ?? null);
+    setSelectedSavedAddressId(addr.id);
+    setScreenMode("form");
+  };
+
+  const startNewAddress = () => {
+    setBlockNumber("");
+    setStreet("");
+    setHouseBuliding("");
+    setFloorApartment("");
+    setRemarks("");
+    setDeliveryNotes("");
+    setAddressCategory("home");
+    setIsPrimary(true);
+    setSelectedArea(null);
+    setSelectedSavedAddressId(null);
+    setScreenMode("form");
   };
 
   const handleNext = async () => {
@@ -100,6 +143,149 @@ export default function AddAddressScreen() {
     }
   };
 
+  if (initialLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <View style={styles.headerTextBlock}>
+              <Text style={[styles.title, isArabic && styles.rtlText]}>{t("address.title")}</Text>
+            </View>
+          </View>
+
+          <View style={styles.loadingCenter}>
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color="#344225" />
+              <Text style={styles.loadingTitle}>{t("address.loading_addresses")}</Text>
+              <Text style={styles.loadingSubtitle}>{t("address.loading_addresses_sub")}</Text>
+            </View>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (screenMode === "choose") {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <View style={[styles.header, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <View style={styles.headerTextBlock}>
+              <Text style={[styles.title, isArabic && styles.rtlText]}>{t("address.saved_addresses_title")}</Text>
+              <Text style={[styles.subtitle, isArabic && styles.rtlText]}>{t("address.saved_addresses_desc")}</Text>
+            </View>
+          </View>
+
+          <ScrollView
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {savedAddresses.map((addr) => (
+              <TouchableOpacity
+                key={addr.id}
+                style={styles.savedAddrCard}
+                onPress={() => applySavedAddress(addr)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.addrCategoryRow, isArabic && styles.rtlRow]}>
+                  <Ionicons
+                    name={addr.category === "home" ? "home-outline" : "briefcase-outline"}
+                    size={14}
+                    color="#5A7C65"
+                  />
+                  <Text style={styles.addrCategory}>
+                    {addr.category === "home" ? t("address.home") : t("address.office")}
+                  </Text>
+                  {addr.is_primary && (
+                    <View style={styles.primaryBadge}>
+                      <Text style={styles.primaryBadgeText}>{t("address.primary_badge")}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.addrDetails}>
+                  {(addr.first_name || addr.last_name) ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.first_name")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>
+                        {[addr.first_name, addr.last_name].filter(Boolean).join(" ")}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {addr.area ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.select_area")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.area}</Text>
+                    </View>
+                  ) : null}
+                  {addr.block_number ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.block")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.block_number}</Text>
+                    </View>
+                  ) : null}
+                  {addr.street ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.street")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.street}</Text>
+                    </View>
+                  ) : null}
+                  {addr.house_building ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.house")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.house_building}</Text>
+                    </View>
+                  ) : null}
+                  {addr.floor_apartment ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.apartment")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.floor_apartment}</Text>
+                    </View>
+                  ) : null}
+                  {addr.phone_number ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.phone")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.phone_number}</Text>
+                    </View>
+                  ) : null}
+                  {addr.remarks ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.remarks")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.remarks}</Text>
+                    </View>
+                  ) : null}
+                  {addr.delivery_notes ? (
+                    <View style={[styles.addrDetailRow, isArabic && styles.rtlRow]}>
+                      <Text style={styles.addrDetailLabel}>{t("address.delivery_notes_label")}</Text>
+                      <Text style={[styles.addrDetailValue, isArabic && styles.rtlText]}>{addr.delivery_notes}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={[styles.useAddrRow, isArabic && styles.rtlRow]}>
+                  <Text style={styles.useAddrText}>{t("address.use_address")}</Text>
+                  <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color="#344225" />
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.addAddrBtn} onPress={startNewAddress}>
+              <Ionicons name="add-circle-outline" size={20} color="#344225" />
+              <Text style={styles.addAddrBtnText}>{t("address.add_new_address")}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -108,7 +294,9 @@ export default function AddAddressScreen() {
             <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerTextBlock}>
-            <Text style={[styles.title, isArabic && styles.rtlText]}>{t("address.title")}</Text>
+            <Text style={[styles.title, isArabic && styles.rtlText]}>
+              {selectedSavedAddressId ? t("address.title") : (savedAddresses.length > 0 ? t("address.new_address_title") : t("address.title"))}
+            </Text>
           </View>
         </View>
 
@@ -117,20 +305,22 @@ export default function AddAddressScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {savedAddresses.length > 0 && (
+            <TouchableOpacity style={styles.changeAddressLink} onPress={() => setScreenMode("choose")}>
+              <Ionicons name={isArabic ? "chevron-forward" : "chevron-back"} size={16} color="#344225" />
+              <Text style={styles.changeAddressLinkText}>{t("address.change_address")}</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Area Picker */}
           <Text style={[styles.fieldLabel, isArabic && styles.rtlText]}>{t("address.select_area")} <Text style={styles.required}>*</Text></Text>
           <TouchableOpacity
             style={[styles.pickerButton, isArabic && styles.rtlRow]}
-            onPress={() => !areasLoading && setShowAreaModal(true)}
-            disabled={areasLoading}
+            onPress={() => setShowAreaModal(true)}
           >
-            {areasLoading ? (
-              <ActivityIndicator size="small" color="#6B7F75" />
-            ) : (
-              <Text style={[styles.pickerText, isArabic && styles.rtlText, !selectedArea && styles.pickerPlaceholder]}>
-                {selectedArea ? (i18n.language === "ar" && selectedArea.name_ar ? selectedArea.name_ar : selectedArea.name) : t("address.select_area")}
-              </Text>
-            )}
+            <Text style={[styles.pickerText, isArabic && styles.rtlText, !selectedArea && styles.pickerPlaceholder]}>
+              {selectedArea ? (i18n.language === "ar" && selectedArea.name_ar ? selectedArea.name_ar : selectedArea.name) : t("address.select_area")}
+            </Text>
             <Text style={styles.pickerChevron}>▾</Text>
           </TouchableOpacity>
 
@@ -278,6 +468,92 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   rtlRow: { flexDirection: "row-reverse" },
   rtlText: { textAlign: "right" },
+
+  loadingCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  loadingCard: {
+    width: "100%",
+    maxWidth: 280,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  loadingTitle: { fontSize: 15, fontWeight: "700", color: "#344225", marginTop: 16, textAlign: "center" },
+  loadingSubtitle: { fontSize: 12, color: "#6B7F75", marginTop: 6, textAlign: "center" },
+
+  subtitle: { fontSize: 13, fontWeight: "400", color: "#5A7C65", marginTop: 4 },
+
+  savedAddrCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#DDE9E4",
+  },
+  addrCategoryRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  addrCategory: { fontSize: 12, fontWeight: "700", color: "#5A7C65", textTransform: "uppercase" },
+  primaryBadge: {
+    backgroundColor: "#FAD979",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  primaryBadgeText: { fontSize: 10, fontWeight: "700", color: "#344225" },
+  addrDetails: { gap: 6 },
+  addrDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  addrDetailLabel: { fontSize: 12, color: "#6B7F75", flexShrink: 0 },
+  addrDetailValue: { fontSize: 13, fontWeight: "600", color: "#344225", flex: 1, textAlign: "right" },
+  useAddrRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F7F3",
+  },
+  useAddrText: { fontSize: 13, fontWeight: "700", color: "#344225" },
+  addAddrBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 4,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: "#344225",
+    borderStyle: "dashed",
+  },
+  addAddrBtnText: { fontSize: 14, fontWeight: "700", color: "#344225" },
+  changeAddressLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 16,
+  },
+  changeAddressLinkText: { fontSize: 13, fontWeight: "600", color: "#344225" },
   header: {
     flexDirection: "row",
     alignItems: "center",

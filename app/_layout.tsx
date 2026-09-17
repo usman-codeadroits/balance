@@ -1,16 +1,13 @@
-import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
-} from "@react-navigation/native";
 import * as SplashScreen from "expo-splash-screen";
 import { Stack, router } from "expo-router";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import * as Notifications from "expo-notifications";
-import { I18nManager, View } from "react-native";
+import { View } from "react-native";
+import { useTranslation } from "react-i18next";
 
-import { initI18n } from "@/constants/i18n";
+import { initI18n, isArabicLanguage } from "@/constants/i18n";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useEffect, useRef, useState } from "react";
 
@@ -23,6 +20,8 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { i18n } = useTranslation();
+  const direction = isArabicLanguage(i18n.language) ? "rtl" : "ltr";
   const [initialized, setInitialized] = useState(false);
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
@@ -41,9 +40,7 @@ export default function RootLayout() {
     // Navigate to the right screen when the user taps a notification
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const type = response.notification.request.content.data?.type;
-      if (type === "auto_renewal") {
-        router.push("/renewal-details" as any);
-      } else if (type === "meal_reminder") {
+      if (type === "meal_reminder") {
         router.push("/subscription-details" as any);
       }
     });
@@ -59,12 +56,12 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={{ flex: 1, direction: I18nManager.isRTL ? "rtl" : "ltr" }}>
+    <View key={direction} style={{ flex: 1, direction }}>
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { direction: I18nManager.isRTL ? "rtl" : "ltr" },
+          contentStyle: { direction },
         }}>
         <Stack.Screen
           name="splash"

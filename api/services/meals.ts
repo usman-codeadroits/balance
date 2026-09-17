@@ -80,6 +80,28 @@ export type MealsResponse = {
   data: Meal[];
 };
 
+export type MealCategory = {
+  id: number;
+  name: string;
+  name_ar?: string | null;
+};
+
+export type MealCategoriesResponse = {
+  categories: MealCategory[];
+};
+
+/**
+ * Fetch meal categories in the admin-configured display order (sort_order ascending)
+ */
+export const getMealCategories = async (): Promise<MealCategory[]> => {
+  try {
+    const response = await apiClient.get<MealCategoriesResponse>(API_ENDPOINTS.MEAL_CATEGORIES);
+    return Array.isArray(response?.categories) ? response.categories : [];
+  } catch (error) {
+    return [];
+  }
+};
+
 /**
  * Fetch all meals and snacks
  */

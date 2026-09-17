@@ -1,4 +1,4 @@
-import { getMySubscriptions, getSubscriptionCalendar } from "@/api/services/subscriptions";
+import { getMySubscriptions, getSubscriptionCalendar, getSubscriptionDetails } from "@/api/services/subscriptions";
 import {
   cancelPauseRequest,
   getPauseRequests,
@@ -27,6 +27,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const WEEKDAYS_SHORT = ["S","M","T","W","T","F","S"];
 
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
 interface SubscriptionRange {
   id: number;
   startDate: string;
@@ -51,16 +61,12 @@ const parseDateSafe = (value?: string): Date | null => {
 const toYMD = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-const getDaysRemaining = (end: Date): number => {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-};
-
-const formatDisplayDate = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
 const formatApiDate = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const formatDisplayDate = (d: Date) =>
+  `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 
 export default function CalendarScreen() {
   const { t, i18n } = useTranslation();
@@ -74,6 +80,7 @@ export default function CalendarScreen() {
   const [pauseRequests, setPauseRequests] = useState<PauseRequest[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [calendarStatusMap, setCalendarStatusMap] = useState<Map<string, string>>(new Map());
+  const [activeWeekdays, setActiveWeekdays] = useState<Set<number>>(new Set());
 
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -115,8 +122,10 @@ export default function CalendarScreen() {
           setViewYear(start!.getFullYear());
           setViewMonth(start!.getMonth());
           loadPauseRequests(sub.id);
+          await loadActiveWeekdays(sub.id);
         } else {
           setRange(null);
+          setActiveWeekdays(new Set());
         }
       } else {
         setRange(null);
@@ -134,6 +143,25 @@ export default function CalendarScreen() {
       if (res.success) setPauseRequests(res.data || []);
     } catch {
       setPauseRequests([]);
+    }
+  };
+
+  // Source of truth for which weekdays are actually part of the plan — the
+  // calendar-status endpoint's own `active_days` field isn't reliably populated,
+  // so we derive it from the subscription's real day-by-day schedule instead.
+  const loadActiveWeekdays = async (subscriptionId: number) => {
+    try {
+      const res = await getSubscriptionDetails(subscriptionId);
+      if (res.success && res.data) {
+        const days = new Set(
+          (res.data.subscription_days || [])
+            .map((d) => DAY_NAME_TO_INDEX[(d.day || "").toLowerCase()])
+            .filter((i): i is number => i !== undefined),
+        );
+        setActiveWeekdays(days);
+      }
+    } catch {
+      setActiveWeekdays(new Set());
     }
   };
 
@@ -237,6 +265,10 @@ export default function CalendarScreen() {
                 setSubmitting(true);
                 await resumePauseRequest(range.id, approvedReq.id);
                 await loadSubscription();
+                // The day's paused/upcoming circle comes from the calendar-status
+                // endpoint, not from the pause request list — refresh it explicitly
+                // so a resumed day stops showing as "Paused".
+                await loadCalendarData(range.id, viewYear, viewMonth);
                 Alert.alert(t("calendar.done_title"), t("calendar.resumed_msg"));
               } catch (err: any) {
                 Alert.alert(t("common.error"), err?.message || t("calendar.generic_error"));
@@ -275,6 +307,20 @@ export default function CalendarScreen() {
         ],
       );
     } else {
+      // Active day → ask to pause. Requires at least a 1-day gap from today —
+      // e.g. if today is the 17th, the 18th is the mandatory gap day and the
+      // earliest pausable date is the 19th.
+      const dayDate = new Date(ymd); dayDate.setHours(0, 0, 0, 0);
+      const minPauseDate = new Date(today); minPauseDate.setDate(today.getDate() + 2);
+      if (dayDate < minPauseDate) {
+        Alert.alert(
+          t("calendar.pause_gap_title"),
+          t("calendar.pause_gap_message", { date: formatDisplayDate(minPauseDate) }),
+          [{ text: t("common.ok") }],
+        );
+        return;
+      }
+
       // Active day → ask to pause
       Alert.alert(
         t("calendar.pause_title"),
@@ -333,14 +379,16 @@ export default function CalendarScreen() {
         >
           {/* Summary card */}
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryEndDate, isArabic && styles.rtlText]}>
-              {t('calendar.end_date')} : {formatDisplayDate(endDate)}
-              {"  "}
-              <Text style={styles.summaryDaysLeft}>• {getDaysRemaining(endDate)} {t('calendar.days_left')}</Text>
-            </Text>
-            <Text style={[styles.summaryDetails, isArabic && styles.rtlText]}>
-              {range.meals ?? 2} {t('calendar.meals')}{"  "}•{"  "}{range.days ?? 0} {t('calendar.days')}{"  "}•{"  "}{range.weeks ?? 0} {t('calendar.weeks')}
-            </Text>
+            <View style={[styles.summaryDateRow, isArabic && styles.rtlRow]}>
+              <View style={styles.summaryDateBlock}>
+                <Text style={styles.summaryDateLabel}>{t('calendar.start_date')}</Text>
+                <Text style={styles.summaryDateValue}>{formatDisplayDate(startDate)}</Text>
+              </View>
+              <View style={styles.summaryDateBlock}>
+                <Text style={styles.summaryDateLabel}>{t('calendar.end_date')}</Text>
+                <Text style={styles.summaryDateValue}>{formatDisplayDate(endDate)}</Text>
+              </View>
+            </View>
           </View>
 
           {/* Calendar */}
@@ -371,7 +419,9 @@ export default function CalendarScreen() {
                 if (!cell.day) return <View key={`ph-${idx}`} style={styles.cellWrap} />;
 
                 const deliveryStatus = calendarStatusMap.get(cell.ymd);
-                const isPlanDay = !!deliveryStatus;
+                const cellWeekday = new Date(viewYear, viewMonth, cell.day).getDay();
+                const isActiveWeekday = activeWeekdays.has(cellWeekday);
+                const isPlanDay = !!deliveryStatus && isActiveWeekday;
                 const pending   = pendingDays.has(cell.ymd);
                 const todayDay  = cell.ymd === toYMD(today);
 
@@ -408,6 +458,11 @@ export default function CalendarScreen() {
                       label       = t('calendar.status_upcoming');
                     }
                   }
+                } else if (activeWeekdays.size > 0 && isInRange(cell.ymd) && !isActiveWeekday) {
+                  // Only label a day "Off Day" once we've actually loaded the plan's
+                  // real weekdays — an empty set means the fetch hasn't resolved yet
+                  // (or failed), and every day would otherwise look off.
+                  label = t('calendar.status_off_day');
                 }
 
                 return (
@@ -441,10 +496,6 @@ export default function CalendarScreen() {
             <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circleInRange]} />
               <Text style={styles.legendText}>{t('calendar.status_upcoming')}</Text>
-            </View>
-            <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
-              <View style={[styles.legendDot, styles.circleToday]} />
-              <Text style={styles.legendText}>{t('calendar.status_today')}</Text>
             </View>
             <View style={[styles.legendItem, isArabic && styles.rtlRow]}>
               <View style={[styles.legendDot, styles.circlePending]} />
@@ -487,12 +538,13 @@ const styles = StyleSheet.create({
   summaryCard: {
     borderRadius: 14,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
     backgroundColor: "#FAD979",
   },
-  summaryEndDate: { fontSize: 14, fontWeight: "700", color: "#344225", marginBottom: 8 },
-  summaryDaysLeft: { color: "#344225", fontWeight: "700" },
-  summaryDetails: { fontSize: 16, fontWeight: "500", color: "#344225" },
+  summaryDateRow: { flexDirection: "row", gap: 16, marginBottom: 10 },
+  summaryDateBlock: { flex: 1 },
+  summaryDateLabel: { fontSize: 11, fontWeight: "700", color: "#5C4A00", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+  summaryDateValue: { fontSize: 15, fontWeight: "700", color: "#344225" },
 
   calCard: { backgroundColor: "#FFFFFF", borderRadius: 14, padding: 12, marginBottom: 16 },
 

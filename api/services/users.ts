@@ -81,19 +81,6 @@ export type CheckUserRequest = {
   otp: number | string;
 };
 
-export type QueuedRenewal = {
-  id: number;
-  plan_id: number;
-  plan_title: string;
-  selected_days: string;
-  start_date: string;
-  end_date: string;
-  price: number;
-  currency: string;
-  payment: string;
-  status: string;
-};
-
 export type QueuedSubscription = {
   id: number;
   plan_id: number;
@@ -130,9 +117,6 @@ export type ActiveSubscription = {
   paused_at?: string | null;
   paused_until?: string | null;
   total_paused_days?: number;
-  auto_renew?: boolean;
-  renewal_notified_at?: string | null;
-  queued_renewal?: QueuedRenewal | null;
 };
 
 export type CheckUserData = {

@@ -1,4 +1,5 @@
-import { getMeals, type Meal } from "@/api";
+import { getMealCategories, getMeals, type Meal } from "@/api";
+import { sortByCategoryOrder } from "@/utils/sort-by-category-order";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -44,6 +45,8 @@ export default function LandingScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [mealTypeFilter, setMealTypeFilter] = useState<"meal" | "snack">("meal");
+  const [categoryOrder, setCategoryOrder] = useState<number[]>([]);
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
@@ -58,6 +61,9 @@ export default function LandingScreen() {
       .then(setMeals)
       .catch(() => {})
       .finally(() => setLoading(false));
+    getMealCategories()
+      .then((cats) => setCategoryOrder(cats.map((c) => c.id)))
+      .catch(() => {});
   }, []);
 
   const groupedCategories = useMemo((): CategoryGroup[] => {
@@ -65,6 +71,9 @@ export default function LandingScreen() {
     const map = new Map<number, CategoryGroup>();
 
     meals.forEach((m) => {
+      const isSnack = (m.type || "").toLowerCase().includes("snack");
+      if (mealTypeFilter === "snack" ? !isSnack : isSnack) return;
+
       const catName = normalizeCategoryName(m.category) || m.category_name || "";
       const catNameAr =
         (m.category && typeof m.category === "object" ? (m.category as any).name_ar : null) ||
@@ -87,8 +96,9 @@ export default function LandingScreen() {
       map.get(catId)!.meals.push(m);
     });
 
-    return Array.from(map.values()).filter((g) => g.meals.length > 0);
-  }, [meals, searchQuery]);
+    const groups = Array.from(map.values()).filter((g) => g.meals.length > 0);
+    return sortByCategoryOrder(groups, categoryOrder);
+  }, [meals, searchQuery, mealTypeFilter, categoryOrder]);
 
   const cardWidth = (width - 32 - 12) / 2;
   const topPad = Platform.OS === "android" ? insets.top + 4 : insets.top;
@@ -304,31 +314,61 @@ export default function LandingScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+
+            <View style={[styles.mealTypeToggle, isArabic && styles.mealTypeToggleRTL]}>
+              <TouchableOpacity
+                style={[styles.mealTypeBtn, mealTypeFilter === "meal" && styles.mealTypeBtnActive]}
+                onPress={() => setMealTypeFilter("meal")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="restaurant-outline" size={16} color={mealTypeFilter === "meal" ? "#344225" : "#B8D5C5"} />
+                <Text style={[styles.mealTypeBtnText, mealTypeFilter === "meal" && styles.mealTypeBtnTextActive]}>
+                  {t("landing.meals_tab")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.mealTypeBtn, mealTypeFilter === "snack" && styles.mealTypeBtnActive]}
+                onPress={() => setMealTypeFilter("snack")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="fast-food-outline" size={16} color={mealTypeFilter === "snack" ? "#344225" : "#B8D5C5"} />
+                <Text style={[styles.mealTypeBtnText, mealTypeFilter === "snack" && styles.mealTypeBtnTextActive]}>
+                  {t("landing.snacks_tab")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
           {groupedCategories.map(renderCategorySection)}
         </ScrollView>
       )}
 
       {/* Bottom nav — all tabs redirect to login on landing screen */}
-      <View style={[styles.bottomNav, isArabic && styles.rtlRow, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View style={[styles.bottomNav, isArabic && styles.rtlRow, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         {([
-          { icon: "home", label: t("nav.home") },
-          { icon: "time", label: t("nav.history") },
-          { icon: "calendar", label: t("nav.calendar") },
-          { icon: "person", label: t("nav.profile") },
-        ] as const).map((item) => (
-          <TouchableOpacity
-            key={item.icon}
-            style={styles.navItem}
-            onPress={() => router.replace("/auth")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name={item.icon} size={26} color={item.icon === "home" ? "#FAD979" : "#FFFFFF"} />
-            <Text style={[styles.navLabel, item.icon === "home" && styles.navLabelActive]}>
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+          { key: "home", label: t("nav.home"), iconActive: "home", iconInactive: "home-outline" },
+          { key: "history", label: t("nav.history"), iconActive: "time", iconInactive: "time-outline" },
+          { key: "calendar", label: t("nav.calendar"), iconActive: "calendar", iconInactive: "calendar-outline" },
+          { key: "profile", label: t("nav.profile"), iconActive: "person", iconInactive: "person-outline" },
+        ] as const).map((item) => {
+          const isActive = item.key === "home";
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={styles.navItem}
+              onPress={() => router.replace("/auth")}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={isActive ? item.iconActive : item.iconInactive}
+                size={22}
+                color={isActive ? "#FAD979" : "#B8D5C5"}
+              />
+              <Text style={[styles.navLabel, isActive && styles.navLabelActive]} numberOfLines={1}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -440,6 +480,37 @@ const styles = StyleSheet.create({
   viewToggleBtnActive: {
     backgroundColor: "#344225",
     borderColor: "#344225",
+  },
+  mealTypeToggle: {
+    flexDirection: "row",
+    backgroundColor: "#344225",
+    borderRadius: 8,
+    padding: 4,
+    marginTop: 14,
+  },
+  mealTypeToggleRTL: {
+    flexDirection: "row-reverse",
+  },
+  mealTypeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 6,
+    backgroundColor: "transparent",
+  },
+  mealTypeBtnActive: {
+    backgroundColor: "#FAD979",
+  },
+  mealTypeBtnText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#B8D5C5",
+  },
+  mealTypeBtnTextActive: {
+    color: "#344225",
   },
   listWrap: {
     paddingHorizontal: 16,
@@ -607,34 +678,34 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     position: "absolute",
-    left: 16,
-    right: 16,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "#344225",
-    borderRadius: 24,
     flexDirection: "row",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingHorizontal: 8,
     justifyContent: "space-around",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 10,
   },
   navItem: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 4,
   },
   navLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "500",
-    color: "#FFFFFF",
-    marginTop: 4,
+    color: "#B8D5C5",
   },
   navLabelActive: {
     color: "#FAD979",
+    fontWeight: "700",
   },
 });

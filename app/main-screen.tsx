@@ -1,17 +1,18 @@
-import { getMeals, getMySubscriptions, logoutUser, type Meal } from "@/api";
-import { getSubscriptionRenewal } from "@/api/services/subscriptions";
-import type { QueuedRenewal, QueuedSubscription } from "@/api/services/users";
+import { getMealCategories, getMeals, getMySubscriptions, logoutUser, type Meal } from "@/api";
+import type { QueuedSubscription } from "@/api/services/users";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import { resetAppCache } from "@/utils/reset-app-cache";
+import { sortByCategoryOrder } from "@/utils/sort-by-category-order";
 import { scheduleSubscriptionNotifications, clearSubscriptionNotifications } from "@/services/notifications";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   BackHandler,
   Image,
   Platform,
@@ -25,6 +26,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { ComponentProps } from "react";
 
 import { isArabicLanguage } from "@/constants/i18n";
 
@@ -54,16 +56,18 @@ export default function MainScreen() {
   const [userName, setUserName] = useState("");
   const [meals, setMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDrawer, setShowDrawer] = useState(false);
+  const drawerAnim = useRef(new Animated.Value(-300)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [greetingPrefix, setGreetingPrefix] = useState(t("main.good_morning"));
   const [hasSubscription, setHasSubscription] = useState(false);
   const [subscriptionTitle, setSubscriptionTitle] = useState("");
   const [activeSubscriptionId, setActiveSubscriptionId] = useState<number | null>(null);
-  const [queuedRenewal, setQueuedRenewal] = useState<QueuedRenewal | null>(null);
-  const [queuedSubscriptions, setQueuedSubscriptions] = useState<QueuedSubscription[]>([]);
-  const [autoRenew, setAutoRenew] = useState<boolean | null>(null);
   const [subscriptionEndDate, setSubscriptionEndDate] = useState<string>("");
+  const [queuedSubscriptions, setQueuedSubscriptions] = useState<QueuedSubscription[]>([]);
+  const [categoryOrder, setCategoryOrder] = useState<number[]>([]);
 
   useEffect(() => {
     // Disable back button
@@ -107,15 +111,15 @@ export default function MainScreen() {
         setSubscriptionTitle(getLocalizedPlanTitle(subscription?.plan, isArabic));
         if (isSubActive && subscription?.id) setActiveSubscriptionId(Number(subscription.id));
 
-        const storedRenewal = await AsyncStorage.getItem("queuedRenewal");
-        setQueuedRenewal(storedRenewal ? JSON.parse(storedRenewal) : null);
-
         const storedQueued = await AsyncStorage.getItem("queuedSubscriptions");
         setQueuedSubscriptions(storedQueued ? JSON.parse(storedQueued) : []);
 
         setLoading(true);
         const data = await getMeals();
         setMeals(data);
+        getMealCategories()
+          .then((cats) => setCategoryOrder(cats.map((c) => c.id)))
+          .catch(() => {});
       } catch (error) {
         const msg =
           error instanceof Error
@@ -155,10 +159,39 @@ export default function MainScreen() {
     );
   };
 
-  // Refresh renewal + queued data from API every time the screen is focused
+  const openDrawer = () => {
+    setShowDrawer(true);
+    Animated.parallel([
+      Animated.timing(drawerAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(backdropAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeDrawer = () => {
+    Animated.parallel([
+      Animated.timing(drawerAnim, { toValue: -300, duration: 200, useNativeDriver: true }),
+      Animated.timing(backdropAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setShowDrawer(false));
+  };
+
+  const goTo = (route: string) => {
+    closeDrawer();
+    router.push(route as any);
+  };
+
+  const DRAWER_ITEMS: { icon: ComponentProps<typeof Ionicons>["name"]; title: string; route: string }[] = [
+    { icon: "person-outline", title: t("profile.my_information"), route: "/my-profile" },
+    { icon: "receipt-outline", title: t("subscription_details.header_title"), route: "/subscription-details" },
+    { icon: "nutrition-outline", title: t("profile.allergies"), route: "/(tabs)/allergies-preference" },
+    { icon: "close-circle-outline", title: t("profile.dislikes"), route: "/(tabs)/dislikes-preference" },
+    { icon: "language-outline", title: t("profile.change_language"), route: "/change-language" },
+    { icon: "help-circle-outline", title: t("profile.ask_a_question"), route: "/(tabs)/app-inquiries" },
+  ];
+
+  // Refresh subscription + queued data from API every time the screen is focused
   useFocusEffect(
     useCallback(() => {
-      const refreshRenewalData = async () => {
+      const refreshSubscriptionData = async () => {
         try {
           const subsResponse = await getMySubscriptions();
           if (!subsResponse.success) return;
@@ -178,23 +211,13 @@ export default function MainScreen() {
               if (cachedSub.status === "Active" && endDateStr === todayStr) {
                 // Subscription is still valid today — keep showing it
                 setSubscriptionEndDate(endDateStr);
-                setQueuedRenewal(null);
-                await AsyncStorage.setItem("queuedRenewal", JSON.stringify(null));
-                // Still fetch auto-renew so the Auto Renewal row shows correctly
-                if (cachedSub.id) {
-                  try {
-                    const renewalRes = await getSubscriptionRenewal(Number(cachedSub.id));
-                    setAutoRenew(renewalRes.data?.auto_renew ?? null);
-                  } catch {}
-                }
                 return;
               }
               // Truly expired — clear stale cache
               await AsyncStorage.removeItem("activeSubscription");
             }
             setHasSubscription(false);
-            setQueuedRenewal(null);
-            await AsyncStorage.setItem("queuedRenewal", JSON.stringify(null));
+            setSubscriptionEndDate("");
             clearSubscriptionNotifications().catch(() => {});
             return;
           }
@@ -204,49 +227,18 @@ export default function MainScreen() {
           setActiveSubscriptionId(active.id);
           setSubscriptionEndDate((active.end_date || "").split("T")[0]);
 
-          try {
-            const renewalRes = await getSubscriptionRenewal(active.id);
-            const autoRenewFlag = renewalRes.data?.auto_renew ?? false;
-            setAutoRenew(autoRenewFlag);
-            const detail = renewalRes.data?.renewal ?? null;
-
-            if (detail) {
-              // Map RenewalDetail → QueuedRenewal shape used by banner
-              const mapped: QueuedRenewal = {
-                id: detail.id,
-                plan_id: detail.plan.id,
-                plan_title: detail.plan.title,
-                selected_days: detail.selected_days,
-                start_date: detail.start_date,
-                end_date: detail.end_date,
-                price: detail.price,
-                currency: detail.currency,
-                payment: detail.payment,
-                status: detail.status,
-              };
-              setQueuedRenewal(mapped);
-              await AsyncStorage.setItem("queuedRenewal", JSON.stringify(mapped));
-            } else {
-              setQueuedRenewal(null);
-              await AsyncStorage.setItem("queuedRenewal", JSON.stringify(null));
-            }
-
-            // Schedule/refresh notifications now that we have all subscription data
-            scheduleSubscriptionNotifications({
-              selectedDays: active.selected_days,
-              endDate: active.end_date,
-              autoRenew: autoRenewFlag,
-              planTitle: getLocalizedPlanTitle(active.subcrption_plans, isArabic),
-            }).catch(() => {});
-          } catch {
-            // Renewal API failed — keep cached value, don't crash
-          }
+          // Schedule/refresh meal-day notifications now that we have subscription data
+          scheduleSubscriptionNotifications({
+            selectedDays: active.selected_days,
+            endDate: active.end_date,
+            planTitle: getLocalizedPlanTitle(active.subcrption_plans, isArabic),
+          }).catch(() => {});
         } catch {
           // Subscriptions API failed — keep cached values, don't crash
         }
       };
 
-      refreshRenewalData();
+      refreshSubscriptionData();
     }, []),
   );
 
@@ -275,15 +267,18 @@ export default function MainScreen() {
       map.get(catId)!.meals.push(m);
     });
 
-    return Array.from(map.values()).filter((g) => g.meals.length > 0);
-  }, [meals, searchQuery]);
+    const groups = Array.from(map.values()).filter((g) => g.meals.length > 0);
+    return sortByCategoryOrder(groups, categoryOrder);
+  }, [meals, searchQuery, categoryOrder]);
 
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.titleContainer, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
-          <View style={styles.headerSpacer} />
+        <View style={[styles.titleContainer, isArabic && styles.rtlRow, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
+          <TouchableOpacity style={styles.menuButton} onPress={openDrawer} activeOpacity={0.7}>
+            <Ionicons name="menu" size={26} color="#344225" />
+          </TouchableOpacity>
           <View style={styles.headerLogoWrap}>
             <Image
               source={require("@/assets/images/balance-text.png")}
@@ -291,8 +286,8 @@ export default function MainScreen() {
               resizeMode="contain"
             />
           </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
+          <TouchableOpacity style={styles.profileButton} onPress={handleLogout} activeOpacity={0.7}>
+            <Ionicons name="log-out-outline" size={26} color="#344225" />
           </TouchableOpacity>
         </View>
 
@@ -401,65 +396,28 @@ export default function MainScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Auto-Renewal Row — only visible the day before subscription ends */}
         {(() => {
-          if (!hasSubscription || !activeSubscriptionId || autoRenew === null || !subscriptionEndDate) return null;
-          const todayStr = new Date().toLocaleDateString("en-CA");
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          const tomorrowStr = tomorrow.toLocaleDateString("en-CA");
-          const isLastDay = subscriptionEndDate === todayStr || subscriptionEndDate === tomorrowStr;
-          if (!isLastDay) return null;
+          if (!hasSubscription || !subscriptionEndDate) return null;
+          const end = new Date(subscriptionEndDate);
+          if (isNaN(end.getTime())) return null;
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
+          const daysUntilEnd = Math.round((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntilEnd < 0 || daysUntilEnd > 3) return null;
           return (
             <TouchableOpacity
-              style={[styles.autoRenewRow, isArabic && styles.rtlRow]}
-              onPress={() =>
-                router.push({
-                  pathname: "/renewal-details",
-                  params: { subscriptionId: activeSubscriptionId },
-                } as any)
-              }
+              style={[styles.reorderBanner, isArabic && styles.rtlRow]}
+              onPress={() => router.push("/reorder" as any)}
               activeOpacity={0.85}
             >
-              <Ionicons name="notifications-outline" size={18} color="#E67E22" />
-              <Text style={[styles.autoRenewLabel, isArabic && styles.rtlText]}>Auto Renewal</Text>
-              <View style={[styles.autoRenewBadge, autoRenew ? styles.autoRenewOn : styles.autoRenewOff]}>
-                <Text style={styles.autoRenewBadgeText}>{autoRenew ? "ON" : "OFF"}</Text>
+              <View style={[styles.reorderBannerLeft, isArabic && styles.rtlRow]}>
+                <Ionicons name="repeat-outline" size={20} color="#FAD979" />
+                <Text style={[styles.reorderBannerTitle, isArabic && styles.rtlText]}>{t("reorder.button_title")}</Text>
               </View>
-              <Ionicons
-                name={isArabic ? "chevron-back" : "chevron-forward"}
-                size={14}
-                color="#6B7F75"
-                style={isArabic ? { marginRight: "auto" } : { marginLeft: "auto" }}
-              />
+              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color="#FAD979" />
             </TouchableOpacity>
           );
         })()}
-
-        {/* Renewal Banner — shown only when backend has created a queued renewal (≤3 days before plan ends) */}
-        {queuedRenewal && activeSubscriptionId && (
-          <TouchableOpacity
-            style={[styles.renewalBanner, isArabic && styles.rtlRow]}
-            onPress={() =>
-              router.push({
-                pathname: "/renewal-details",
-                params: { subscriptionId: activeSubscriptionId },
-              } as any)
-            }
-            activeOpacity={0.85}
-          >
-            <View style={[styles.renewalBannerLeft, isArabic && styles.rtlRow]}>
-              <Ionicons name="refresh-circle-outline" size={22} color="#FAD979" />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.renewalBannerTitle, isArabic && styles.rtlText]}>{t("main.renewal_banner_title")}</Text>
-                <Text style={[styles.renewalBannerDesc, isArabic && styles.rtlText]} numberOfLines={1}>
-                  {`${queuedRenewal.plan_title} · ${queuedRenewal.currency} ${Number(queuedRenewal.price).toFixed(3)} · ${queuedRenewal.start_date}`}
-                </Text>
-              </View>
-            </View>
-            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color="#FAD979" />
-          </TouchableOpacity>
-        )}
 
         <ScrollView
           style={styles.scroll}
@@ -597,6 +555,51 @@ export default function MainScreen() {
         activeTab="home"
         onHomePress={() => router.replace("/main-screen")}
       />
+
+      {showDrawer ? (
+        <View style={StyleSheet.absoluteFill}>
+          <Animated.View style={[styles.drawerBackdrop, { opacity: backdropAnim }]}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeDrawer} />
+          </Animated.View>
+
+          <Animated.View style={[styles.drawerPanel, { paddingTop: Math.max(insets.top, 16), transform: [{ translateX: drawerAnim }] }]}>
+            <View style={styles.drawerProfileRow}>
+              <View style={styles.drawerAvatar}>
+                <Ionicons name="person" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.drawerUserName} numberOfLines={1}>{userName || t("profile.title")}</Text>
+              <TouchableOpacity style={styles.drawerCloseBtn} onPress={closeDrawer} activeOpacity={0.7}>
+                <Ionicons name="close" size={22} color="#344225" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.drawerList}>
+              {DRAWER_ITEMS.map((item) => (
+                <TouchableOpacity
+                  key={item.route}
+                  style={[styles.drawerItem, isArabic && styles.rtlRow]}
+                  onPress={() => goTo(item.route)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={item.icon} size={20} color="#344225" />
+                  <Text style={[styles.drawerItemText, isArabic && styles.rtlText]}>{item.title}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <View style={styles.drawerDivider} />
+
+              <TouchableOpacity
+                style={[styles.drawerItem, isArabic && styles.rtlRow]}
+                onPress={() => { closeDrawer(); handleLogout(); }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="log-out-outline" size={20} color="#D64545" />
+                <Text style={[styles.drawerItemText, styles.drawerLogoutText, isArabic && styles.rtlText]}>{t("profile.logout")}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -613,25 +616,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 8,
     backgroundColor: "#DCE6E0",
   },
-  headerSpacer: {
-    width: 36,
+  menuButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerLogoWrap: {
     flex: 1,
     alignItems: "center",
   },
   headerLogo: {
-    width: "60%",
-    height: 32,
+    width: "55%",
+    height: 30,
   },
-  logoutButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#344225",
+  profileButton: {
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -749,36 +753,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
-  // Renewal banner
-  renewalBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#4A6040",
-    marginHorizontal: 16,
-    marginBottom: 14,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#FAD979",
-  },
-  renewalBannerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-  },
-  renewalBannerTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#FAD979",
-    marginBottom: 2,
-  },
-  renewalBannerDesc: {
-    fontSize: 11,
-    color: "#B8D5C5",
-  },
   subCardEmptyIcon: {
     width: 36,
     height: 36,
@@ -802,40 +776,28 @@ const styles = StyleSheet.create({
     color: "#FAD979",
     fontWeight: "300",
   },
-  autoRenewRow: {
+  reorderBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    backgroundColor: "#FFFFFF",
+    justifyContent: "space-between",
+    backgroundColor: "#344225",
     marginHorizontal: 16,
     marginBottom: 14,
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: "#D7E3DC",
+    borderColor: "#FAD979",
   },
-  autoRenewLabel: {
+  reorderBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  reorderBannerTitle: {
     fontSize: 13,
-    fontWeight: "500",
-    color: "#344225",
-    flex: 1,
-  },
-  autoRenewBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  autoRenewOn: {
-    backgroundColor: "#E8F5E9",
-  },
-  autoRenewOff: {
-    backgroundColor: "#F5F5F5",
-  },
-  autoRenewBadgeText: {
-    fontSize: 11,
     fontWeight: "700",
-    color: "#344225",
+    color: "#FFFFFF",
   },
   viewToggleRow: {
     flexDirection: "row",
@@ -1032,5 +994,81 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: "#6B7F75",
+  },
+
+  // Side drawer
+  drawerBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  drawerPanel: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 280,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 16,
+  },
+  drawerProfileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingBottom: 16,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF4F0",
+  },
+  drawerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#344225",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  drawerCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  drawerUserName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#344225",
+  },
+  drawerList: {
+    flex: 1,
+  },
+  drawerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 13,
+  },
+  drawerItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#344225",
+  },
+  drawerDivider: {
+    height: 1,
+    backgroundColor: "#EEF4F0",
+    marginVertical: 8,
+  },
+  drawerLogoutText: {
+    color: "#D64545",
   },
 });

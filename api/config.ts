@@ -5,7 +5,7 @@
 
 export const API_CONFIG = {
   // BASE_URL: 'http://157.175.188.152/api',
-   // BASE_URL: "https://avelina-unstaunch-nonreflectively.ngrok-free.dev/api",
+  // BASE_URL: "https://avelina-unstaunch-nonreflectively.ngrok-free.dev/api",
    BASE_URL: "https://backend.balancekw.app/api",
   TIMEOUT: 30000, // 30 seconds
   HEADERS: {
@@ -19,6 +19,7 @@ export const API_ENDPOINTS = {
   SUBSCRIPTION_PLANS: "/v1/subcrption-plans",
   DURATIONS: "/v1/durations",
   MEALS: "/v1/meals",
+  MEAL_CATEGORIES: "/v1/meals/categories",
   USERS: "/v1/users",
   LOGIN: "/login",
   REGISTER: "/register",
@@ -40,7 +41,6 @@ export const API_ENDPOINTS = {
   SUBSCRIPTION_PAUSE_LOGS: "/v1/subscription",
   SUBSCRIPTION_PAUSE_REQUEST: "/v1/subscription",
   PROTEIN_OPTIONS: "/v1/protein-options",
-  SUBSCRIPTION_RENEWAL: "/v1/my-subscriptions",
   ALLERGIES: "/v1/allergies",
   DISLIKES: "/v1/dislikes",
   SETTINGS: "/v1/settings",
@@ -48,4 +48,5 @@ export const API_ENDPOINTS = {
   PAYMENT_STATUS: "/v1/payment/status",
   INQUIRIES: "/v1/inquiries",
   SUBSCRIPTION_CALENDAR: "/v1/my-subscriptions",
+  SUBSCRIPTION_UPDATE_DAYS: "/v1/my-subscriptions",
 } as const;

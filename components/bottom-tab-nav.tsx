@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import type { ComponentProps } from "react";
 
@@ -15,8 +16,6 @@ interface BottomTabNavProps {
   onHomePress?: () => void;
 }
 
-import { useTranslation } from "react-i18next";
-
 const BottomTabNav: React.FC<BottomTabNavProps> = ({
   activeTab,
   onHomePress,
@@ -26,25 +25,10 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
   const insets = useSafeAreaInsets();
 
   const NAV_ITEMS = [
-    { key: "home", label: t("nav.home"), icon: "home", route: "/main-screen" },
-    {
-      key: "history",
-      label: t("nav.history"),
-      icon: "time",
-      route: "/(tabs)/order-history",
-    },
-    {
-      key: "calendar",
-      label: t("nav.calendar"),
-      icon: "calendar",
-      route: "/(tabs)/calendar",
-    },
-    {
-      key: "profile",
-      label: t("nav.profile"),
-      icon: "person",
-      route: "/(tabs)/profile",
-    },
+    { key: "home", label: t("nav.home"), iconActive: "home", iconInactive: "home-outline", route: "/main-screen" },
+    { key: "history", label: t("nav.history"), iconActive: "time", iconInactive: "time-outline", route: "/(tabs)/order-history" },
+    { key: "calendar", label: t("nav.calendar"), iconActive: "calendar", iconInactive: "calendar-outline", route: "/(tabs)/calendar" },
+    { key: "profile", label: t("nav.profile"), iconActive: "person", iconInactive: "person-outline", route: "/(tabs)/profile" },
   ] as const;
 
   const handlePress = (item: (typeof NAV_ITEMS)[number]) => {
@@ -58,7 +42,7 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
   };
 
   return (
-    <View style={[styles.bottomNav, isArabic && styles.rtlRow, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
+    <View style={[styles.bottomNav, isArabic && styles.rtlRow, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {NAV_ITEMS.map((item) => {
         const isActive = item.key === activeTab;
 
@@ -67,13 +51,14 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
             key={item.key}
             style={styles.navItem}
             onPress={() => handlePress(item)}
+            activeOpacity={0.7}
           >
             <Ionicons
-              name={item.icon}
-              size={26}
-              color={isActive ? "#FAD979" : "#FFFFFF"}
+              name={(isActive ? item.iconActive : item.iconInactive) as IoniconName}
+              size={22}
+              color={isActive ? "#FAD979" : "#B8D5C5"}
             />
-            <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
+            <Text style={[styles.navLabel, isActive && styles.navLabelActive]} numberOfLines={1}>
               {item.label}
             </Text>
           </TouchableOpacity>
@@ -86,38 +71,38 @@ const BottomTabNav: React.FC<BottomTabNavProps> = ({
 const styles = StyleSheet.create({
   bottomNav: {
     position: "absolute",
-    left: 16,
-    right: 16,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "#344225",
-    borderRadius: 24,
     flexDirection: "row",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingHorizontal: 8,
     justifyContent: "space-around",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 10,
   },
   rtlRow: {
     flexDirection: "row-reverse",
   },
   navItem: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 4,
   },
   navLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "500",
-    color: "#FFFFFF",
-    marginTop: 4,
+    color: "#B8D5C5",
   },
   navLabelActive: {
     color: "#FAD979",
+    fontWeight: "700",
   },
 });
 
