@@ -38,6 +38,8 @@ const APP_CACHE_KEYS = [
   'appliedCoupon',
   'userAddress',
   'pendingCheckoutData',
+  'pendingPaymentOrderToken',
+  'pendingPaymentStartedAt',
   'hasPersonalizedPlan',
   'personalizedProtein',
   'personalizedCarbs',

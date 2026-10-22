@@ -29,6 +29,37 @@ const DAY_NAME_TO_INDEX: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
 };
 
+// Meals for a delivery date can only be changed this many days in advance
+// (e.g. delivery on the 23rd → last change on the 21st)
+const MIN_DAYS_BEFORE_DELIVERY = 2;
+
+const parseLocalDate = (value?: string | null): Date | null => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+};
+
+const startOfToday = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
+
+// Next date (from today, within the subscription range) that falls on this weekday
+const getNextDeliveryDate = (day: string, startDate?: string, endDate?: string): Date | null => {
+  const weekday = DAY_NAME_TO_INDEX[(day || "").toLowerCase()];
+  if (weekday === undefined) return null;
+  const today = startOfToday();
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  const from = start && start > today ? start : today;
+  const next = new Date(from);
+  next.setDate(from.getDate() + ((weekday - from.getDay() + 7) % 7));
+  if (end && next > end) return null;
+  return next;
+};
+
+const daysBetween = (from: Date, to: Date): number =>
+  Math.round((to.getTime() - from.getTime()) / 86400000);
+
 const normalizeCategoryName = (category: unknown): string => {
   if (typeof category === "string") return category;
   if (category && typeof category === "object") {
@@ -89,6 +120,17 @@ export default function UpdateSubscriptionMealsScreen() {
   const getDayName = (day: string) => {
     const idx = DAY_NAME_TO_INDEX[(day || "").toLowerCase()];
     return idx !== undefined ? weekdayNames[idx] : (day.charAt(0).toUpperCase() + day.slice(1));
+  };
+
+  const formatDeliveryDate = (date: Date) =>
+    date.toLocaleDateString(isArabic ? "ar" : "en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  // A day is locked when its next delivery is less than MIN_DAYS_BEFORE_DELIVERY away,
+  // or when it has no remaining deliveries in this subscription
+  const getDayLock = (day: string) => {
+    const nextDate = getNextDeliveryDate(day, details?.start_date, details?.end_date);
+    const locked = !nextDate || daysBetween(startOfToday(), nextDate) < MIN_DAYS_BEFORE_DELIVERY;
+    return { nextDate, locked };
   };
 
   useFocusEffect(
@@ -174,6 +216,17 @@ export default function UpdateSubscriptionMealsScreen() {
     subscriptionMealId: number | undefined,
     slotIndex: number,
   ) => {
+    const { nextDate, locked } = getDayLock(day);
+    if (locked) {
+      Alert.alert(
+        t("update_meals.locked_title"),
+        t("update_meals.locked_msg", {
+          date: nextDate ? formatDeliveryDate(nextDate) : getDayName(day),
+          days: MIN_DAYS_BEFORE_DELIVERY,
+        }),
+      );
+      return;
+    }
     setPickerContext({ day, type, subscriptionMealId, slotIndex });
     setSearchQuery("");
     setSelectedCategory(null);
@@ -249,6 +302,20 @@ export default function UpdateSubscriptionMealsScreen() {
       return;
     }
 
+    // Re-check the cutoff at save time (the picker may have been open across midnight)
+    const { nextDate, locked } = getDayLock(pickerContext.day);
+    if (locked) {
+      closePicker();
+      Alert.alert(
+        t("update_meals.locked_title"),
+        t("update_meals.locked_msg", {
+          date: nextDate ? formatDeliveryDate(nextDate) : getDayName(pickerContext.day),
+          days: MIN_DAYS_BEFORE_DELIVERY,
+        }),
+      );
+      return;
+    }
+
     try {
       setSavingSlot(true);
       const subscriptionDayId = details.subscription_days?.find(
@@ -288,12 +355,16 @@ export default function UpdateSubscriptionMealsScreen() {
 
   const typeFilteredMeals = pickerContext
     ? allMeals.filter((meal) => {
-        if (meal.type !== pickerContext.type) return false;
-        if (!details?.is_personalized) return true;
         const catName = getMealCategoryName(meal).toLowerCase();
-        return pickerContext.type === "is meal"
-          ? catName.includes("main course")
-          : catName.includes("snack");
+        if (details?.is_personalized && pickerContext.type === "is snack") {
+          // Personalized snack slots load only the "Snack"/"Snacks" categories, whatever
+          // the item's type (items in those categories may be saved as "is meal")
+          return /\bsnacks?\b/.test(catName);
+        }
+        if (meal.type !== pickerContext.type) return false;
+        // Personalized plans restrict main meals to "main course"
+        if (!details?.is_personalized) return true;
+        return catName.includes("main course");
       })
     : [];
 
@@ -408,6 +479,9 @@ export default function UpdateSubscriptionMealsScreen() {
             ) : null}
           </View>
           <Text style={[styles.capacityHint, isArabic && styles.rtlText]}>{t("update_meals.tap_to_change")}</Text>
+          <Text style={[styles.capacityHint, isArabic && styles.rtlText]}>
+            {t("update_meals.cutoff_hint", { days: MIN_DAYS_BEFORE_DELIVERY })}
+          </Text>
         </View>
 
         <ScrollView
@@ -421,16 +495,30 @@ export default function UpdateSubscriptionMealsScreen() {
             const snackSlots = daySlots.filter((s) => s.type === "is snack");
             const filledMeals = mealSlots.filter((s) => s.mealId != null).length;
             const filledSnacks = snackSlots.filter((s) => s.mealId != null).length;
+            const { nextDate, locked } = getDayLock(day.day);
 
             return (
               <View key={dayIndex} style={styles.dayCard}>
                 <View style={[styles.dayHeader, isArabic && styles.rtlRow]}>
-                  <Text style={[styles.dayHeaderText, isArabic && styles.rtlText]}>
-                    {day.day ? getDayName(day.day) : ""}
-                  </Text>
+                  <View>
+                    <Text style={[styles.dayHeaderText, isArabic && styles.rtlText]}>
+                      {day.day ? getDayName(day.day) : ""}
+                    </Text>
+                    {nextDate ? (
+                      <Text style={[styles.dayHeaderSubText, isArabic && styles.rtlText]}>
+                        {t("update_meals.next_delivery", { date: formatDeliveryDate(nextDate) })}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {locked ? (
+                    <View style={[styles.lockedBadge, isArabic && styles.rtlRow]}>
+                      <Ionicons name="lock-closed" size={12} color="#344225" />
+                      <Text style={styles.lockedBadgeText}>{t("update_meals.locked_badge")}</Text>
+                    </View>
+                  ) : null}
                 </View>
 
-                <View style={styles.dayBody}>
+                <View style={[styles.dayBody, locked && styles.dayBodyLocked]}>
                   {/* Meal slots */}
                   <View style={styles.slotSection}>
                     <View style={[styles.slotSectionLabel, isArabic && styles.rtlRow]}>
@@ -805,7 +893,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   dayHeaderText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
+  dayHeaderSubText: { fontSize: 12, color: "#B8D5C5", marginTop: 2 },
+  lockedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FAD979",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  lockedBadgeText: { fontSize: 11, fontWeight: "700", color: "#344225" },
   dayBody: { padding: 14 },
+  dayBodyLocked: { opacity: 0.5 },
 
   slotSection: { gap: 10 },
   slotSectionLabel: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },

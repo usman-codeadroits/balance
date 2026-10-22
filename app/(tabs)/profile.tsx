@@ -70,6 +70,7 @@ export default function ProfileScreen() {
         {/* Title */}
         <View style={[styles.titleContainer, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
           <Text style={styles.title}>{t("profile.title")}</Text>
+          <Text style={styles.subtitle}>{t("profile.subtitle")}</Text>
         </View>
 
         <ScrollView
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     paddingHorizontal: "5%",
-    paddingBottom: 20,
+    paddingBottom: 16,
     backgroundColor: "#D4E8E0",
   },
   title: {
@@ -147,6 +148,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#344225",
     textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 13,
+    color: "#6B7F75",
+    textAlign: "center",
+    marginTop: 4,
   },
   scrollContainer: {
     flex: 1,

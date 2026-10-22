@@ -356,6 +356,7 @@ export default function CalendarScreen() {
     <SafeAreaView style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === "ios" ? 6 : Math.max(insets.top, 8) }]}>
         <Text style={styles.headerTitle}>{t('calendar.my_subscriptions')}</Text>
+        <Text style={styles.headerSubtitle}>{t('calendar.subtitle')}</Text>
       </View>
 
       {loading ? (
@@ -519,9 +520,10 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: "5%",
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
   headerTitle: { fontSize: 24, fontWeight: "700", color: "#344225", textAlign: "center" },
+  headerSubtitle: { fontSize: 13, color: "#6B7F75", textAlign: "center", marginTop: 4 },
 
   rtlRow: { flexDirection: "row-reverse" },
   rtlText: { textAlign: "right" },

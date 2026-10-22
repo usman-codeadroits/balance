@@ -396,6 +396,49 @@ export type MySubscriptionsResponse = {
   };
 };
 
+export type SubscriptionHistoryItem = {
+  id: number;
+  user_id: number;
+  subcrption_plans_id: number;
+  selected_days: string | string[] | null;
+  start_date: string;
+  end_date: string;
+  price: number | string;
+  currency: string | null;
+  payment: string | null;
+  payment_gateway: string | null;
+  status: string;
+  is_personalized: boolean;
+  coupon_code: string | null;
+  discount_amount: number | string | null;
+  subcrption_plans: (SubscriptionPlan & {
+    price?: string | number;
+    no_of_weeks?: number;
+    meal_count?: number;
+    snack_count?: number;
+  }) | null;
+  address: {
+    id: number;
+    area?: string | null;
+    block_number?: string | null;
+    street?: string | null;
+    house_building?: string | null;
+    [key: string]: unknown;
+  } | null;
+  area: { id: number; name: string; name_ar?: string | null } | null;
+};
+
+export type SubscriptionHistoryResponse = {
+  success: boolean;
+  data: SubscriptionHistoryItem[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+};
+
 export type SubscriptionAddress = {
   id: number;
   first_name: string;
@@ -463,6 +506,28 @@ export const getMySubscriptions =
       throw new Error("Failed to fetch subscriptions: Unknown error");
     }
   };
+
+/**
+ * Get the logged-in customer's ended subscriptions, newest first (paginated)
+ * @param page - Page number (1-based)
+ * @param perPage - Items per page (1–50)
+ */
+export const getSubscriptionHistory = async (
+  page = 1,
+  perPage = 10,
+): Promise<SubscriptionHistoryResponse> => {
+  try {
+    const response = await apiClient.get<SubscriptionHistoryResponse>(
+      `${API_ENDPOINTS.MY_SUBSCRIPTIONS_HISTORY}?page=${page}&per_page=${perPage}`,
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch subscription history: ${error.message}`);
+    }
+    throw new Error("Failed to fetch subscription history: Unknown error");
+  }
+};
 
 /**
  * Get subscription full details by ID

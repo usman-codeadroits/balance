@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   Modal,
   Platform,
@@ -33,6 +34,29 @@ type PaymentMethod = {
   description_ar?: string | null;
   type: "redirect" | "offline" | string;
 };
+
+// Persisted Hesabe order token so the user can recheck payment status after
+// leaving the app (KNET / bank app) or after polling times out
+const PENDING_PAYMENT_TOKEN_KEY = "pendingPaymentOrderToken";
+const PENDING_PAYMENT_STARTED_AT_KEY = "pendingPaymentStartedAt";
+// The recheck option is only offered for this long after the payment was started
+const RECHECK_WINDOW_MS = 60 * 60 * 1000;
+
+// paid_unfulfilled = money taken but the backend failed to create the subscription;
+// an admin fulfils it (payments:fulfill), after which status becomes "paid"
+type PaymentStatusResult = "paid" | "failed" | "pending" | "paid_unfulfilled";
+
+// How long we wait for the gateway to confirm after returning from KNET / card page
+const POLL_TIMEOUT_SECONDS = 60;
+// How long the "Payment confirmed" state stays on screen before the success modal
+const CONFIRMED_HOLD_MS = 1500;
+
+const formatCountdown = (totalSeconds: number) =>
+  `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
+const POLL_INTERVAL_MS = 3000;
+
+// StyleSheet.absoluteFillObject is not available in this RN version
+const ABSOLUTE_FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 } as const;
 
 type DurationSummary = {
   id?: number | string;
@@ -78,6 +102,12 @@ export default function PaymentScreen() {
 
   const [polling, setPolling] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [pendingStartedAt, setPendingStartedAt] = useState<number | null>(null);
+  const [rechecking, setRechecking] = useState(false);
+  const statusCheckInFlightRef = useRef(false);
+  const [paymentReceived, setPaymentReceived] = useState(false);
+  const paymentReceivedRef = useRef(false);
   const [draftLoading, setDraftLoading] = useState(true);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -93,6 +123,9 @@ export default function PaymentScreen() {
 
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollingCountRef = useRef(0);
+  const pollStartedAtRef = useRef(0);
+  const [secondsLeft, setSecondsLeft] = useState(POLL_TIMEOUT_SECONDS);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const webViewDoneRef = useRef(false);
 
   useStaticScreen();
@@ -106,10 +139,50 @@ export default function PaymentScreen() {
     };
   }, []);
 
+  // When the user comes back from KNET / bank app, silently check the pending payment
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active" && pendingToken && !polling && !showWebView && !rechecking) {
+        checkPaymentStatus(pendingToken, { silent: true });
+      }
+    });
+    return () => sub.remove();
+  }, [pendingToken, polling, showWebView, rechecking, checkoutDraft]);
+
+  // Restore the state of a payment left from a previous visit (e.g. paid_unfulfilled)
+  useEffect(() => {
+    if (!draftLoading && pendingToken) checkPaymentStatus(pendingToken, { silent: true });
+  }, [draftLoading]);
+
+  // Hide the recheck option once the 1-hour window passes while the screen is open
+  useEffect(() => {
+    if (!pendingStartedAt || polling) return;
+    const remaining = pendingStartedAt + RECHECK_WINDOW_MS - Date.now();
+    if (remaining <= 0) {
+      clearPendingToken();
+      return;
+    }
+    const timer = setTimeout(() => clearPendingToken(), remaining);
+    return () => clearTimeout(timer);
+  }, [pendingStartedAt, polling]);
+
   const loadDraft = async () => {
     try {
-      const stored = await AsyncStorage.getItem("pendingCheckoutData");
+      const [stored, token, startedAtRaw] = await Promise.all([
+        AsyncStorage.getItem("pendingCheckoutData"),
+        AsyncStorage.getItem(PENDING_PAYMENT_TOKEN_KEY),
+        AsyncStorage.getItem(PENDING_PAYMENT_STARTED_AT_KEY),
+      ]);
       if (stored) setCheckoutDraft(JSON.parse(stored));
+      const startedAt = Number(startedAtRaw);
+      if (token && startedAt && Date.now() - startedAt < RECHECK_WINDOW_MS) {
+        orderTokenRef.current = token;
+        setPendingToken(token);
+        setPendingStartedAt(startedAt);
+      } else if (token) {
+        // Older than 1 hour (or saved before the window existed) — drop it
+        await AsyncStorage.multiRemove([PENDING_PAYMENT_TOKEN_KEY, PENDING_PAYMENT_STARTED_AT_KEY]);
+      }
     } catch {
     } finally {
       setDraftLoading(false);
@@ -269,7 +342,8 @@ export default function PaymentScreen() {
   // ---------- payment handlers ----------
 
   const handlePayNow = async () => {
-    if (!checkoutDraft || !selectedMethod) return;
+    // Money already taken for this order — never let the customer pay twice
+    if (!checkoutDraft || !selectedMethod || paymentReceived) return;
     setProcessing(true);
 
     if (selectedMethod.type === "offline") {
@@ -301,6 +375,7 @@ export default function PaymentScreen() {
       const subData = subRaw?.user_subscription || subRaw || data?.user_subscription || data;
 
       await persistSubscriptionLocally(subData, "pending", checkoutDraft!.payload);
+      await clearPendingToken();
       showSuccess(t("payment.order_placed_title"), t("payment.order_placed_msg"));
     } catch (error: any) {
       Alert.alert(t("payment.order_error_title"), error instanceof Error ? error.message : t("payment.order_error_default"));
@@ -334,6 +409,13 @@ export default function PaymentScreen() {
       }
 
       orderTokenRef.current = orderToken;
+      const startedAt = Date.now();
+      setPendingToken(orderToken);
+      setPendingStartedAt(startedAt);
+      await AsyncStorage.multiSet([
+        [PENDING_PAYMENT_TOKEN_KEY, orderToken],
+        [PENDING_PAYMENT_STARTED_AT_KEY, String(startedAt)],
+      ]);
       webViewDoneRef.current = false;
       setWebViewUrl(paymentUrl);
       setWebViewLoading(true);
@@ -352,53 +434,134 @@ export default function PaymentScreen() {
     startPolling(orderTokenRef.current);
   };
 
+  const clearPendingToken = async () => {
+    setPendingToken(null);
+    setPendingStartedAt(null);
+    await AsyncStorage.multiRemove([PENDING_PAYMENT_TOKEN_KEY, PENDING_PAYMENT_STARTED_AT_KEY]);
+  };
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    pollingIntervalRef.current = null;
+    setPolling(false);
+  };
+
+  // Single status check, shared by polling, manual recheck and app-resume.
+  // Handles the paid/failed outcomes; throws on network errors.
+  const checkPaymentStatus = async (
+    token: string,
+    opts: { silent?: boolean } = {},
+  ): Promise<PaymentStatusResult | null> => {
+    if (statusCheckInFlightRef.current) return null;
+    statusCheckInFlightRef.current = true;
+    try {
+      const resp = await apiClient.get(`/v1/payment/status/${token}`);
+      const statusData = (resp as any)?.data;
+      const status: string = statusData?.status;
+
+      if (status === "paid") {
+        const wasPolling = !!pollingIntervalRef.current;
+        if (wasPolling) {
+          // Stop polling + countdown but keep the overlay up to show "Payment confirmed"
+          clearInterval(pollingIntervalRef.current!);
+          pollingIntervalRef.current = null;
+          setPaymentConfirmed(true);
+        }
+        await clearPendingToken();
+        const subData = statusData?.subscription?.user_subscription || statusData?.subscription || statusData;
+        if (checkoutDraft) await persistSubscriptionLocally(subData, "paid", checkoutDraft.payload);
+        setProcessing(false);
+        const finish = () => {
+          setPolling(false);
+          setPaymentConfirmed(false);
+          showSuccess(t("payment.alerts.success_title"), t("payment.alerts.success_msg"));
+        };
+        if (wasPolling) setTimeout(finish, CONFIRMED_HOLD_MS);
+        else finish();
+        return "paid";
+      }
+      if (status === "failed") {
+        stopPolling();
+        await clearPendingToken();
+        setProcessing(false);
+        Alert.alert(t("payment.alerts.failed_title"), t("payment.alerts.failed_msg"));
+        return "failed";
+      }
+      if (status === "paid_unfulfilled") {
+        // Keep the token so the customer can recheck once an admin has fulfilled the order
+        stopPolling();
+        setProcessing(false);
+        if (!opts.silent || !paymentReceivedRef.current) {
+          Alert.alert(t("payment.payment_received_title"), t("payment.payment_received_msg"));
+        }
+        paymentReceivedRef.current = true;
+        setPaymentReceived(true);
+        return "paid_unfulfilled";
+      }
+      return "pending";
+    } catch (e) {
+      if (!opts.silent) throw e;
+      return null;
+    } finally {
+      statusCheckInFlightRef.current = false;
+    }
+  };
+
+  const handleRecheckStatus = async () => {
+    // Refs, not state: this is also invoked from the polling interval's closure
+    const token = orderTokenRef.current || pendingToken;
+    if (!token || pollingIntervalRef.current) return;
+    setRechecking(true);
+    try {
+      const result = await checkPaymentStatus(token);
+      if (result === "pending") {
+        Alert.alert(t("payment.payment_pending_title"), t("payment.payment_pending_msg"));
+      }
+    } catch {
+      Alert.alert(t("payment.payment_error_title"), t("payment.recheck_error_msg"));
+    } finally {
+      setRechecking(false);
+    }
+  };
+
   const startPolling = (token: string) => {
     setPolling(true);
     pollingCountRef.current = 0;
+    pollStartedAtRef.current = Date.now();
+    setSecondsLeft(POLL_TIMEOUT_SECONDS);
 
     pollingIntervalRef.current = setInterval(async () => {
       pollingCountRef.current += 1;
 
-      // 2-minute timeout: 40 × 3s = 120s
-      if (pollingCountRef.current > 40) {
-        clearInterval(pollingIntervalRef.current!);
-        pollingIntervalRef.current = null;
-        setPolling(false);
+      if (Date.now() - pollStartedAtRef.current >= POLL_TIMEOUT_SECONDS * 1000) {
+        stopPolling();
         setProcessing(false);
         Alert.alert(
           t("payment.payment_timeout_title"),
           t("payment.payment_timeout_msg"),
-          [{ text: t("payment.home_btn"), onPress: () => router.replace("/(tabs)/" as any) }],
+          [
+            { text: t("payment.home_btn"), style: "cancel", onPress: () => router.replace("/(tabs)/" as any) },
+            { text: t("payment.check_again_btn"), onPress: handleRecheckStatus },
+          ],
         );
         return;
       }
 
-      try {
-        const resp = await apiClient.get(`/v1/payment/status/${token}`);
-        const statusData = (resp as any)?.data;
-        const status: string = statusData?.status;
-
-        if (status === "paid") {
-          clearInterval(pollingIntervalRef.current!);
-          pollingIntervalRef.current = null;
-          setPolling(false);
-
-          const subData = statusData?.subscription?.user_subscription || statusData?.subscription || statusData;
-          await persistSubscriptionLocally(subData, "paid", checkoutDraft!.payload);
-          setProcessing(false);
-          showSuccess(t("payment.alerts.success_title"), t("payment.alerts.success_msg"));
-        } else if (status === "failed") {
-          clearInterval(pollingIntervalRef.current!);
-          pollingIntervalRef.current = null;
-          setPolling(false);
-          setProcessing(false);
-          Alert.alert(t("payment.alerts.failed_title"), t("payment.alerts.failed_msg"));
-        }
-      } catch {
-        // transient error — keep polling
-      }
-    }, 3000);
+      // transient errors are swallowed (silent) — keep polling
+      await checkPaymentStatus(token, { silent: true });
+    }, POLL_INTERVAL_MS);
   };
+
+  // 1s countdown shown in the confirmation overlay while polling
+  // (frozen as soon as the payment is confirmed)
+  useEffect(() => {
+    if (!polling || paymentConfirmed) return;
+    const tick = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - pollStartedAtRef.current) / 1000);
+      setSecondsLeft(Math.max(POLL_TIMEOUT_SECONDS - elapsed, 0));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [polling, paymentConfirmed]);
 
   // ---------- render helpers ----------
 
@@ -559,10 +722,38 @@ export default function PaymentScreen() {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          {pendingToken && !polling && (
+            <>
+              {paymentReceived ? (
+                <View style={[styles.receivedBanner, isArabic && styles.rtlRow]}>
+                  <Ionicons name="checkmark-circle" size={18} color="#2E7D32" />
+                  <Text style={[styles.receivedBannerText, isArabic && styles.rtlText]}>
+                    {t("payment.payment_received_banner")}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.recheckHint, isArabic && styles.rtlText]}>{t("payment.recheck_hint")}</Text>
+              )}
+              <TouchableOpacity
+                style={[styles.recheckButton, isArabic && styles.rtlRow, rechecking && styles.payButtonDisabled]}
+                onPress={handleRecheckStatus}
+                disabled={rechecking}
+              >
+                {rechecking ? (
+                  <ActivityIndicator color="#344225" />
+                ) : (
+                  <>
+                    <Ionicons name="refresh" size={18} color="#344225" />
+                    <Text style={styles.recheckButtonText}>{t("payment.recheck_status")}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
           <TouchableOpacity
-            style={[styles.payButton, (processing || !checkoutDraft) && styles.payButtonDisabled]}
+            style={[styles.payButton, (processing || !checkoutDraft || paymentReceived) && styles.payButtonDisabled]}
             onPress={handlePayNow}
-            disabled={processing || !checkoutDraft}
+            disabled={processing || !checkoutDraft || paymentReceived}
           >
             {processing && !showWebView && !polling ? (
               <ActivityIndicator color="#344225" />
@@ -617,11 +808,44 @@ export default function PaymentScreen() {
       {/* Polling overlay — shown while waiting for payment confirmation */}
       {polling && (
         <View style={styles.pollingOverlay}>
-          <View style={styles.pollingCard}>
-            <ActivityIndicator size="large" color="#344225" />
-            <Text style={styles.pollingText}>{t("payment.checking_payment_status")}</Text>
-            <Text style={styles.pollingSubText}>{t("payment.may_take_seconds")}</Text>
-          </View>
+          {paymentConfirmed ? (
+            <View style={styles.pollingCard}>
+              <View style={[styles.pollingIconCircle, styles.confirmedIconCircle]}>
+                <Ionicons name="checkmark" size={44} color="#FFFFFF" />
+              </View>
+              <Text style={styles.pollingTitle}>{t("payment.payment_confirmed_title")}</Text>
+              <Text style={[styles.pollingMessage, { marginBottom: 16 }]}>{t("payment.payment_confirmed_msg")}</Text>
+              <ActivityIndicator color="#344225" />
+            </View>
+          ) : (
+            <View style={styles.pollingCard}>
+              <View style={styles.pollingIconCircle}>
+                <ActivityIndicator size="large" color="#344225" />
+              </View>
+
+              <Text style={styles.pollingTitle}>{t("payment.confirming_payment_title")}</Text>
+              <Text style={styles.pollingMessage}>{t("payment.confirming_payment_msg")}</Text>
+
+              <View style={styles.countdownBox}>
+                <Text style={styles.countdownValue}>{formatCountdown(secondsLeft)}</Text>
+                <Text style={styles.countdownLabel}>{t("payment.time_remaining")}</Text>
+              </View>
+
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${((POLL_TIMEOUT_SECONDS - secondsLeft) / POLL_TIMEOUT_SECONDS) * 100}%` },
+                  ]}
+                />
+              </View>
+
+              <View style={[styles.pollingNote, isArabic && styles.rtlRow]}>
+                <Ionicons name="shield-checkmark-outline" size={14} color="#5A7C65" />
+                <Text style={styles.pollingNoteText}>{t("payment.dont_close_app")}</Text>
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -773,6 +997,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   payButtonDisabled: { opacity: 0.6 },
+  receivedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#E8F5E9",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  receivedBannerText: { flex: 1, fontSize: 12, color: "#2E7D32", fontWeight: "500", lineHeight: 17 },
+  recheckHint: { fontSize: 12, color: "#6B7F75", marginBottom: 8, textAlign: "center" },
+  recheckButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: "#344225",
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  recheckButtonText: { fontSize: 15, fontWeight: "700", color: "#344225" },
   payButtonText: { fontSize: 16, fontWeight: "700", color: "#344225" },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#D4E8E0" },
   loadingText: { marginTop: 16, fontSize: 16, color: "#344225", fontWeight: "500" },
@@ -797,7 +1045,7 @@ const styles = StyleSheet.create({
   webViewCloseBtn: { padding: 4 },
   webView: { flex: 1 },
   webViewLoadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...ABSOLUTE_FILL,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -807,21 +1055,62 @@ const styles = StyleSheet.create({
   webViewLoadingText: { fontSize: 14, color: "#6B7F75" },
   // Polling overlay
   pollingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    ...ABSOLUTE_FILL,
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 28,
+    zIndex: 100,
+    elevation: 100,
   },
   pollingCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 32,
+    borderRadius: 24,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
     alignItems: "center",
-    gap: 12,
-    width: "70%",
+    width: "100%",
+    maxWidth: 360,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 12,
   },
-  pollingText: { fontSize: 16, fontWeight: "700", color: "#344225", textAlign: "center" },
-  pollingSubText: { fontSize: 13, color: "#6B7F75", textAlign: "center" },
+  pollingIconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "#D4E8E0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  pollingTitle: { fontSize: 20, fontWeight: "700", color: "#344225", textAlign: "center", marginBottom: 8 },
+  pollingMessage: { fontSize: 14, color: "#6B7F75", textAlign: "center", lineHeight: 21, marginBottom: 20 },
+  countdownBox: { alignItems: "center", marginBottom: 14 },
+  countdownValue: { fontSize: 36, fontWeight: "800", color: "#344225", fontVariant: ["tabular-nums"] },
+  countdownLabel: { fontSize: 12, color: "#6B7F75", marginTop: 2 },
+  progressTrack: {
+    width: "100%",
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#E8F1EC",
+    overflow: "hidden",
+    marginBottom: 18,
+  },
+  progressFill: { height: "100%", borderRadius: 3, backgroundColor: "#344225" },
+  confirmedIconCircle: { backgroundColor: "#4CAF50" },
+  pollingNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F4FAF6",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  pollingNoteText: { fontSize: 12, color: "#5A7C65", fontWeight: "500" },
   // Success modal
   successOverlay: {
     flex: 1,
@@ -847,7 +1136,7 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   successCardBgLogoWrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...ABSOLUTE_FILL,
     alignItems: "center",
     justifyContent: "center",
   },
