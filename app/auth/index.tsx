@@ -1,15 +1,14 @@
 import { sendOtp } from '@/api/services/otp';
 import AuthButton from '@/components/auth/auth-button';
 import AuthTabs from '@/components/auth/auth-tabs';
-import { COUNTRIES, Country } from '@/components/auth/country-picker';
-import PhoneInput from '@/components/auth/phone-input';
+import PhoneInput, { KUWAIT_DIAL_CODE, KUWAIT_PHONE_LENGTH } from '@/components/auth/phone-input';
 import { changeLanguage } from '@/constants/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Alert, I18nManager, Image, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, I18nManager, Image, Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isArabicLanguage } from '@/constants/i18n';
@@ -20,7 +19,6 @@ export default function AuthScreen() {
   const isArabic = isArabicLanguage(currentLanguage);
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Kuwait by default
   const [loading, setLoading] = useState(false);
   const [langSwitching, setLangSwitching] = useState(false);
   const insets = useSafeAreaInsets();
@@ -58,20 +56,20 @@ export default function AuthScreen() {
     }
 
     const sanitizedMobile = phoneNumber.replace(/\D/g, '');
-    if (!sanitizedMobile) {
-      alert(t('auth.invalid_phone'));
+    // Only Kuwait mobile numbers (8 digits) are accepted
+    if (sanitizedMobile.length !== KUWAIT_PHONE_LENGTH) {
+      alert(t('auth.invalid_kuwait_phone'));
       return;
     }
 
     setLoading(true);
 
     try {
-      const formattedPhone = `${selectedCountry.dialCode}${sanitizedMobile}`.replace('++', '+');
-      const countryCodeDigits = selectedCountry.dialCode.replace(/\D/g, '');
+      const countryCodeDigits = KUWAIT_DIAL_CODE.replace(/\D/g, '');
 
       // Store phone number and country code for later use
       await AsyncStorage.setItem('tempPhoneNumber', sanitizedMobile);
-      await AsyncStorage.setItem('tempCountryCode', selectedCountry.dialCode);
+      await AsyncStorage.setItem('tempCountryCode', KUWAIT_DIAL_CODE);
       await AsyncStorage.setItem('tempAuthType', activeTab);
 
       // Call OTP/send API
@@ -104,6 +102,8 @@ export default function AuthScreen() {
         keyboardVerticalOffset={Platform.OS === "android" ? 0 : 0}
         style={styles.keyboardView}
       >
+        {/* Tapping anywhere outside the phone field closes the number pad */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.content}>
           {/* Logo + language toggle */}
           <View style={styles.header}>
@@ -135,8 +135,6 @@ export default function AuthScreen() {
               value={phoneNumber}
               onChangeText={setPhoneNumber}
               placeholder={t('auth.phone_placeholder')}
-              selectedCountry={selectedCountry}
-              onSelectCountry={setSelectedCountry}
               isArabic={isArabic}
             />
           </View>
@@ -169,6 +167,7 @@ export default function AuthScreen() {
             </View>
           </View>
         </View>
+        </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

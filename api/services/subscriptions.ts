@@ -3,6 +3,7 @@
  * Handles all subscription-related API calls
  */
 
+import { CACHE_TTL, cached, invalidateSubscriptionCache } from "../cache";
 import { apiClient } from "../client";
 import { API_ENDPOINTS } from "../config";
 import type { ApiResponse } from "../types";
@@ -88,6 +89,7 @@ export const checkoutSubscription = async (
       API_ENDPOINTS.SUBSCRIPTION_CHECKOUT,
       checkoutData,
     );
+    invalidateSubscriptionCache();
 
     // API returns the subscription data directly or wrapped
     return response;
@@ -283,6 +285,7 @@ export const updateSubscriptionMeal = async (
       API_ENDPOINTS.SUBSCRIPTION_MEALS_UPDATE,
       requestPayload,
     );
+    invalidateSubscriptionCache();
 
     return response;
   } catch (error) {
@@ -493,12 +496,13 @@ export type SubscriptionDetailsResponse = {
  * @returns Promise with active and recent subscriptions
  */
 export const getMySubscriptions =
-  async (): Promise<MySubscriptionsResponse> => {
+  async (options: { force?: boolean } = {}): Promise<MySubscriptionsResponse> => {
     try {
-      const response = await apiClient.get<MySubscriptionsResponse>(
-        API_ENDPOINTS.MY_SUBSCRIPTIONS,
+      return await cached(
+        "subs:mine",
+        () => apiClient.get<MySubscriptionsResponse>(API_ENDPOINTS.MY_SUBSCRIPTIONS),
+        { ttlMs: CACHE_TTL.MY_SUBSCRIPTIONS, force: options.force, shouldCache: (r) => !!r?.success },
       );
-      return response;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Failed to fetch subscriptions: ${error.message}`);
@@ -515,12 +519,17 @@ export const getMySubscriptions =
 export const getSubscriptionHistory = async (
   page = 1,
   perPage = 10,
+  options: { force?: boolean } = {},
 ): Promise<SubscriptionHistoryResponse> => {
   try {
-    const response = await apiClient.get<SubscriptionHistoryResponse>(
-      `${API_ENDPOINTS.MY_SUBSCRIPTIONS_HISTORY}?page=${page}&per_page=${perPage}`,
+    return await cached(
+      `subs:history:${page}:${perPage}`,
+      () =>
+        apiClient.get<SubscriptionHistoryResponse>(
+          `${API_ENDPOINTS.MY_SUBSCRIPTIONS_HISTORY}?page=${page}&per_page=${perPage}`,
+        ),
+      { ttlMs: CACHE_TTL.SUBSCRIPTION_HISTORY, force: options.force, shouldCache: (r) => !!r?.success },
     );
-    return response;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to fetch subscription history: ${error.message}`);
@@ -536,12 +545,17 @@ export const getSubscriptionHistory = async (
  */
 export const getSubscriptionDetails = async (
   subscriptionId: number,
+  options: { force?: boolean } = {},
 ): Promise<SubscriptionDetailsResponse> => {
   try {
-    const response = await apiClient.get<SubscriptionDetailsResponse>(
-      `${API_ENDPOINTS.MY_SUBSCRIPTION_DETAILS}/${subscriptionId}`,
+    return await cached(
+      `subs:details:${subscriptionId}`,
+      () =>
+        apiClient.get<SubscriptionDetailsResponse>(
+          `${API_ENDPOINTS.MY_SUBSCRIPTION_DETAILS}/${subscriptionId}`,
+        ),
+      { ttlMs: CACHE_TTL.SUBSCRIPTION_DETAILS, force: options.force, shouldCache: (r) => !!r?.success },
     );
-    return response;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to fetch subscription details: ${error.message}`);
@@ -643,6 +657,7 @@ export const updateSubscriptionDays = async (
       `${API_ENDPOINTS.SUBSCRIPTION_UPDATE_DAYS}/${subscriptionId}/update-days`,
       { days },
     );
+    invalidateSubscriptionCache();
     return response;
   } catch (error) {
     if (error instanceof Error) {

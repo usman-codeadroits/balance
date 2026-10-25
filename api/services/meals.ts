@@ -3,6 +3,8 @@
  * Handles all meals and snacks related API calls
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CACHE_TTL, cached } from '../cache';
 import { apiClient } from '../client';
 import { API_ENDPOINTS } from '../config';
 
@@ -71,9 +73,10 @@ export type Meal = {
   };
   image_url: string;
   image_thumb_url: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
+  // No longer sent by GET /meals (list); still present on GET /meals/{id}
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
 };
 
 export type MealsResponse = {
@@ -93,30 +96,56 @@ export type MealCategoriesResponse = {
 /**
  * Fetch meal categories in the admin-configured display order (sort_order ascending)
  */
-export const getMealCategories = async (): Promise<MealCategory[]> => {
+export const getMealCategories = async (
+  options: { force?: boolean } = {},
+): Promise<MealCategory[]> => {
   try {
-    const response = await apiClient.get<MealCategoriesResponse>(API_ENDPOINTS.MEAL_CATEGORIES);
-    return Array.isArray(response?.categories) ? response.categories : [];
+    return await cached(
+      'meal-categories',
+      async () => {
+        const response = await apiClient.get<MealCategoriesResponse>(API_ENDPOINTS.MEAL_CATEGORIES);
+        return Array.isArray(response?.categories) ? response.categories : [];
+      },
+      { ttlMs: CACHE_TTL.MEAL_CATEGORIES, persist: true, force: options.force, shouldCache: (c) => c.length > 0 },
+    );
   } catch (error) {
     return [];
   }
 };
 
+type CachedMenu = { meals: Meal[]; etag: string | null };
+
+// The server now omits deleted_at/timestamps and only sends active meals; keep a tolerant
+// filter so older responses (with inactive or deleted meals) are still handled
+const isAvailableMeal = (meal: Meal) =>
+  Number(meal.is_active ?? 1) === 1 && !meal.deleted_at;
+
+// Menu cache from before ETag support stored a different shape — drop it
+AsyncStorage.removeItem('apiCache:meals').catch(() => {});
+
 /**
- * Fetch all meals and snacks
+ * Fetch all meals and snacks (cached and shared across screens — see api/cache.ts).
+ * When the cached copy expires it is revalidated with its ETag: an unchanged menu
+ * returns 304 with no body and the saved copy is reused.
  */
-export const getMeals = async (): Promise<Meal[]> => {
+export const getMeals = async (options: { force?: boolean } = {}): Promise<Meal[]> => {
   try {
-    const response = await apiClient.get<MealsResponse>(API_ENDPOINTS.MEALS);
+    const menu = await cached<CachedMenu>(
+      'menu',
+      async (previous) => {
+        const result = await apiClient.getWithETag<MealsResponse>(
+          API_ENDPOINTS.MEALS,
+          previous?.etag,
+        );
+        if (result.notModified && previous) return previous;
+        if (result.notModified) throw new Error('Menu not modified but no saved copy');
 
-    if (response && response.data && Array.isArray(response.data)) {
-      // Filter only active meals
-      return response.data.filter((meal: Meal) =>
-        meal.is_active === 1 && meal.deleted_at === null
-      );
-    }
-
-    return [];
+        const list = Array.isArray(result.data?.data) ? result.data.data : [];
+        return { meals: list.filter(isAvailableMeal), etag: result.etag };
+      },
+      { ttlMs: CACHE_TTL.MEALS, persist: true, force: options.force, shouldCache: (m) => m.meals.length > 0 },
+    );
+    return menu.meals;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to fetch meals: ${error.message}`);

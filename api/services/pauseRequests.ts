@@ -1,3 +1,4 @@
+import { invalidateSubscriptionCache } from "../cache";
 import { apiClient } from "../client";
 import { API_ENDPOINTS } from "../config";
 
@@ -37,10 +38,12 @@ export const submitPauseRequest = async (
   subscriptionId: number,
   body: SubmitPauseRequestBody,
 ): Promise<SubmitPauseRequestResponse> => {
-  return apiClient.post<SubmitPauseRequestResponse>(
+  const response = await apiClient.post<SubmitPauseRequestResponse>(
     `${API_ENDPOINTS.SUBSCRIPTION_PAUSE_REQUEST}/${subscriptionId}/pause-request`,
     body,
   );
+  invalidateSubscriptionCache();
+  return response;
 };
 
 export const getPauseRequests = async (
@@ -55,17 +58,21 @@ export const cancelPauseRequest = async (
   subscriptionId: number,
   pauseRequestId: number,
 ): Promise<{ success: boolean; message: string }> => {
-  return apiClient.delete(
+  const response = await apiClient.delete<{ success: boolean; message: string }>(
     `${API_ENDPOINTS.SUBSCRIPTION_PAUSE_REQUEST}/${subscriptionId}/pause-request/${pauseRequestId}`,
   );
+  invalidateSubscriptionCache();
+  return response;
 };
 
 export const resumePauseRequest = async (
   subscriptionId: number,
   pauseRequestId: number,
 ): Promise<{ success: boolean; message: string }> => {
-  return apiClient.post(
+  const response = await apiClient.post<{ success: boolean; message: string }>(
     `${API_ENDPOINTS.SUBSCRIPTION_PAUSE_REQUEST}/${subscriptionId}/pause-request/${pauseRequestId}/resume`,
     {},
   );
+  invalidateSubscriptionCache();
+  return response;
 };

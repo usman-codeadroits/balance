@@ -1,14 +1,15 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import * as RN from 'react-native';
-import CountryPicker, { Country } from './country-picker';
+
+// Only Kuwait numbers are supported for OTP
+export const KUWAIT_DIAL_CODE = '+965';
+export const KUWAIT_PHONE_LENGTH = 8;
 
 interface PhoneInputProps {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
-  selectedCountry: Country;
-  onSelectCountry: (country: Country) => void;
   isArabic?: boolean;
 }
 
@@ -16,8 +17,6 @@ export default function PhoneInput({
   value,
   onChangeText,
   placeholder = 'Phone number',
-  selectedCountry,
-  onSelectCountry,
   isArabic = false,
 }: PhoneInputProps) {
   const { t } = useTranslation();
@@ -26,19 +25,19 @@ export default function PhoneInput({
     <RN.View style={styles.container}>
       <RN.Text style={[styles.label, isArabic && styles.labelRTL]}>{t('auth.mobile')}</RN.Text>
       <RN.View style={[styles.inputWrapper, isArabic && styles.inputWrapperRTL]}>
-        <CountryPicker
-          selectedCountry={selectedCountry}
-          onSelectCountry={onSelectCountry}
-          isArabic={isArabic}
-        />
+        <RN.View style={[styles.countryBox, isArabic && styles.countryBoxRTL]}>
+          <RN.Text style={styles.flag} allowFontScaling={false}>🇰🇼</RN.Text>
+          <RN.Text style={styles.dialCode}>{KUWAIT_DIAL_CODE}</RN.Text>
+        </RN.View>
         <RN.View style={styles.separator} />
         <RN.TextInput
           style={styles.input}
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={(text) => onChangeText(text.replace(/\D/g, '').slice(0, KUWAIT_PHONE_LENGTH))}
           placeholder={placeholder}
           placeholderTextColor="#8B9D94"
           keyboardType="phone-pad"
+          maxLength={KUWAIT_PHONE_LENGTH}
           textAlign={isArabic ? 'right' : 'left'}
         />
       </RN.View>
@@ -69,6 +68,24 @@ const styles = RN.StyleSheet.create({
   },
   inputWrapperRTL: {
     flexDirection: 'row-reverse',
+  },
+  countryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  countryBoxRTL: {
+    flexDirection: 'row-reverse',
+  },
+  flag: {
+    fontSize: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  dialCode: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3A35',
   },
   separator: {
     width: 1,

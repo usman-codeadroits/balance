@@ -420,6 +420,7 @@
     "phone_placeholder": "Phone number",
     "enter_phone": "Please enter your phone number",
     "invalid_phone": "Please enter a valid phone number",
+    "invalid_kuwait_phone": "Please enter a valid 8-digit Kuwait mobile number",
     "sending_otp": "Sending OTP...",
     "sign_in": "Sign in",
     "no_account": "Don't an account? ",
@@ -804,6 +805,10 @@
   },
   "update_days": {
     "header_title": "Update Delivery Days",
+    "locked_title": "Your plan has started",
+    "locked_msg": "Your first delivery day ({{date}}) has passed, so delivery days can no longer be changed for this plan. You can still change your meals.",
+    "editable_until": "You can change delivery days until your start date: {{date}}",
+    "current_days_label": "Your delivery days",
     "loading": "Loading...",
     "load_error_generic": "Failed to load data. Please try again.",
     "try_again": "Try Again",
@@ -823,8 +828,7 @@
     "success_title": "Days Updated",
     "success_msg": "Your delivery days have been updated.",
     "success_new_days_msg": "Don't forget to choose meals for your new days.",
-    "go_to_meals": "Choose Meals",
-    "done": "Done"
+    "go_to_meals": "Choose Meals"
   },
   "selected_meals": {
     "title_select": "Select Meals",

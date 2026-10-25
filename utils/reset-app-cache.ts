@@ -1,3 +1,4 @@
+import { clearApiCache } from '@/api/cache';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const APP_CACHE_KEYS = [
@@ -52,6 +53,8 @@ const APP_CACHE_KEYS = [
 
 export const resetAppCache = async () => {
   try {
+    // Cached API responses (subscriptions are per user)
+    clearApiCache();
     const uniqueKeys = Array.from(new Set(APP_CACHE_KEYS));
     await AsyncStorage.multiRemove(uniqueKeys);
   } catch (error) {

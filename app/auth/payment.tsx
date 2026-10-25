@@ -1,3 +1,4 @@
+import { invalidateSubscriptionCache } from "@/api/cache";
 import { apiClient } from "@/api/client";
 import type { CheckoutRequest } from "@/api/services/subscriptions";
 import { useStaticScreen } from "@/app/auth/utils/use-static-screen";
@@ -284,6 +285,8 @@ export default function PaymentScreen() {
     paymentStatus: "paid" | "pending",
     payload: CheckoutRequest,
   ) => {
+    // A new subscription exists now — make Home / History refetch instead of using cached data
+    invalidateSubscriptionCache();
     if (!checkoutDraft) return;
     const { summary } = checkoutDraft;
 

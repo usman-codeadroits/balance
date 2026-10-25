@@ -120,6 +120,48 @@ export class ApiClient {
   }
 
   /**
+   * Conditional GET using an ETag. Sends If-None-Match when an ETag is given;
+   * a 304 means the saved copy is still current and no body is downloaded.
+   */
+  async getWithETag<T>(
+    endpoint: string,
+    etag?: string | null,
+  ): Promise<{ notModified: true } | { notModified: false; data: T; etag: string | null }> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const headers = await this.getHeaders(etag ? { "If-None-Match": etag } : undefined);
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.status === 304) return { notModified: true };
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `HTTP error! status: ${response.status}`,
+        );
+      }
+
+      const data = (await response.json()) as T;
+      return { notModified: false, data, etag: response.headers.get("ETag") };
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(
+          "The request timed out. Please check your connection and try again.",
+        );
+      }
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Make a POST request
    */
   async post<T>(

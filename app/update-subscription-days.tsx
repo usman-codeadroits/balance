@@ -25,6 +25,22 @@ const DAY_ORDER = ["sunday", "monday", "tuesday", "wednesday", "thursday", "frid
 const sameDays = (a: Set<string>, b: Set<string>) =>
   a.size === b.size && [...a].every((d) => b.has(d));
 
+// Parse "YYYY-MM-DD..." as a local date (avoids UTC day shifts)
+const parseLocalDate = (value?: string | null): Date | null => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+};
+
+// Delivery days can be changed up to and including the plan's start date;
+// from the next day on, the first delivery has happened and the days are locked
+const isPastStartDate = (startDate?: string | null): boolean => {
+  const start = parseLocalDate(startDate);
+  if (!start) return false;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return today > start;
+};
+
 export default function UpdateSubscriptionDaysScreen() {
   const { subscriptionId } = useLocalSearchParams<{ subscriptionId?: string }>();
   const { t, i18n } = useTranslation();
@@ -56,6 +72,12 @@ export default function UpdateSubscriptionDaysScreen() {
     }
     return null;
   };
+
+  const startDate = parseLocalDate(details?.start_date);
+  const startDateLabel = startDate
+    ? startDate.toLocaleDateString(isArabic ? "ar" : "en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : "";
+  const daysLocked = isPastStartDate(details?.start_date);
 
   const selectedCount = selectedDays.size;
   const isOutOfRange =
@@ -95,7 +117,7 @@ export default function UpdateSubscriptionDaysScreen() {
   );
 
   const toggleDay = (day: string) => {
-    if (saving) return;
+    if (saving || daysLocked) return;
     setSelectedDays((prev) => {
       const next = new Set(prev);
       if (next.has(day)) next.delete(day);
@@ -106,6 +128,11 @@ export default function UpdateSubscriptionDaysScreen() {
 
   const handleSave = async () => {
     if (!subscriptionId) return;
+    // Re-check at save time (screen may have been open across midnight)
+    if (isPastStartDate(details?.start_date)) {
+      Alert.alert(t("update_days.locked_title"), t("update_days.locked_msg", { date: startDateLabel }));
+      return;
+    }
     if (selectedDays.size === 0) {
       Alert.alert(t("common.error"), t("update_days.no_days_selected"));
       return;
@@ -192,14 +219,36 @@ export default function UpdateSubscriptionDaysScreen() {
             contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.warningCard}>
-              <Ionicons name="information-circle-outline" size={18} color="#B94A00" />
-              <Text style={[styles.warningText, isArabic && styles.rtlText]}>
-                {t("update_days.warning")}
-              </Text>
-            </View>
+            {daysLocked ? (
+              <View style={[styles.lockedCard, isArabic && styles.rtlRow]}>
+                <Ionicons name="lock-closed" size={18} color="#344225" />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.lockedTitle, isArabic && styles.rtlText]}>{t("update_days.locked_title")}</Text>
+                  <Text style={[styles.lockedText, isArabic && styles.rtlText]}>
+                    {t("update_days.locked_msg", { date: startDateLabel })}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <>
+                <View style={styles.warningCard}>
+                  <Ionicons name="information-circle-outline" size={18} color="#B94A00" />
+                  <Text style={[styles.warningText, isArabic && styles.rtlText]}>
+                    {t("update_days.warning")}
+                  </Text>
+                </View>
+                {startDateLabel ? (
+                  <View style={[styles.rangeNoteCard, isArabic && styles.rtlRow]}>
+                    <Ionicons name="time-outline" size={16} color="#2A6041" />
+                    <Text style={[styles.rangeNoteText, isArabic && styles.rtlText]}>
+                      {t("update_days.editable_until", { date: startDateLabel })}
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            )}
 
-            {daysRangeNote() ? (
+            {!daysLocked && daysRangeNote() ? (
               <View style={styles.rangeNoteCard}>
                 <Ionicons name="calendar-outline" size={16} color="#2A6041" />
                 <Text style={[styles.rangeNoteText, isArabic && styles.rtlText]}>{daysRangeNote()}</Text>
@@ -207,9 +256,9 @@ export default function UpdateSubscriptionDaysScreen() {
             ) : null}
 
             <Text style={[styles.sectionLabel, isArabic && styles.rtlText]}>
-              {t("update_days.select_days_label")}
+              {daysLocked ? t("update_days.current_days_label") : t("update_days.select_days_label")}
             </Text>
-            <View style={styles.daysGrid}>
+            <View style={[styles.daysGrid, daysLocked && styles.daysGridLocked]}>
               {DAY_ORDER.map((day, idx) => {
                 const active = selectedDays.has(day);
                 return (
@@ -217,7 +266,7 @@ export default function UpdateSubscriptionDaysScreen() {
                     key={day}
                     style={[styles.dayChip, active && styles.dayChipActive]}
                     onPress={() => toggleDay(day)}
-                    disabled={saving}
+                    disabled={saving || daysLocked}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.dayChipText, active && styles.dayChipTextActive]}>
@@ -234,7 +283,7 @@ export default function UpdateSubscriptionDaysScreen() {
           </ScrollView>
         )}
 
-        {!loading && !error && details ? (
+        {!loading && !error && details && !daysLocked ? (
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
             <TouchableOpacity
               style={[styles.saveBtn, (saving || isOutOfRange) && styles.btnDisabled]}
@@ -325,6 +374,18 @@ const styles = StyleSheet.create({
     borderColor: "#C7E3D3",
   },
   rangeNoteText: { flex: 1, fontSize: 12, fontWeight: "600", color: "#2A6041", lineHeight: 17 },
+
+  lockedCard: {
+    flexDirection: "row",
+    gap: 10,
+    backgroundColor: "#FAD979",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+  },
+  lockedTitle: { fontSize: 14, fontWeight: "700", color: "#344225", marginBottom: 3 },
+  lockedText: { fontSize: 12, color: "#4A5A40", lineHeight: 17 },
+  daysGridLocked: { opacity: 0.55 },
 
   sectionLabel: {
     fontSize: 12,

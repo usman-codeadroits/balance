@@ -52,6 +52,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
+      {/* Every screen in this folder must be registered here: an unregistered route falls back to
+          "index", which redirects to /main-screen (looked like a crash back to Home) */}
+      <Tabs.Screen name="order-history" options={{ title: 'Order History' }} />
+      <Tabs.Screen name="app-inquiries" options={{ title: 'Ask a Question' }} />
+      <Tabs.Screen name="contact-us" options={{ title: 'Contact Us' }} />
+      <Tabs.Screen name="change-language" options={{ title: 'Change Language' }} />
+      <Tabs.Screen name="my-information" options={{ title: 'My Information' }} />
       <Tabs.Screen name="allergies-preference" options={{ title: 'Allergies' }} />
       <Tabs.Screen name="allergies-list" options={{ title: 'Allergies' }} />
       <Tabs.Screen name="dislikes-preference" options={{ title: 'Dislikes' }} />

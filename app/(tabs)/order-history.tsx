@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { invalidateSubscriptionCache } from "@/api/cache";
 import BottomTabNav from "@/components/bottom-tab-nav";
 import {
   getMySubscriptions,
@@ -44,6 +45,25 @@ const toNumber = (v: unknown): number | null => {
   return isNaN(n) ? null : n;
 };
 
+// expo-router route error boundary: if this screen throws while rendering, show the error
+// with a retry instead of crashing the app back to Home
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.center}>
+        <Ionicons name="alert-circle-outline" size={48} color="#D64545" />
+        <Text style={styles.errorText}>{error?.message || "Something went wrong"}</Text>
+        <TouchableOpacity onPress={retry} style={styles.retryBtn}>
+          <Text style={styles.retryBtnText}>Try again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.replace("/main-screen")} style={{ marginTop: 14 }}>
+          <Text style={{ color: "#344225", fontWeight: "600" }}>Home</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 export default function OrderHistoryScreen() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language.startsWith("ar");
@@ -60,6 +80,9 @@ export default function OrderHistoryScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadingMoreRef = useRef(false);
+  // Page-1 response currently shown. The API layer caches responses (api/cache.ts), so getting the
+  // same object back means nothing changed and any extra pages already loaded can be kept.
+  const shownHistoryPage1Ref = useRef<unknown>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -69,11 +92,17 @@ export default function OrderHistoryScreen() {
 
   const loadAll = async (isRefresh = false) => {
     try {
-      isRefresh ? setRefreshing(true) : setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+        // Pull-to-refresh: drop cached history pages too, not just page 1
+        invalidateSubscriptionCache();
+      }
+      // Spinner only on the very first load; revisits render the existing list immediately
+      else if (!shownHistoryPage1Ref.current) setLoading(true);
       setError(null);
       const [mine, hist] = await Promise.all([
-        getMySubscriptions(),
-        getSubscriptionHistory(1, HISTORY_PAGE_SIZE),
+        getMySubscriptions({ force: isRefresh }),
+        getSubscriptionHistory(1, HISTORY_PAGE_SIZE, { force: isRefresh }),
       ]);
 
       if (mine.success) {
@@ -82,7 +111,8 @@ export default function OrderHistoryScreen() {
           ...(mine.data.queued || []).map((sub) => ({ sub, kind: "queued" as CardKind })),
         ]);
       }
-      if (hist.success) {
+      if (hist.success && hist !== shownHistoryPage1Ref.current) {
+        shownHistoryPage1Ref.current = hist;
         setHistory(hist.data || []);
         setHistoryTotal(hist.meta?.total ?? (hist.data || []).length);
         setPage(hist.meta?.current_page ?? 1);
@@ -90,7 +120,8 @@ export default function OrderHistoryScreen() {
       }
       if (!mine.success && !hist.success) setError(t("history.error"));
     } catch {
-      setError(t("history.error"));
+      // Keep showing what we already have; only show the error screen if there's nothing
+      if (!shownHistoryPage1Ref.current) setError(t("history.error"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -202,7 +233,7 @@ export default function OrderHistoryScreen() {
                 <ActivityIndicator style={{ marginVertical: 16 }} color="#344225" />
               ) : history.length > 0 && page >= lastPage ? (
                 <Text style={styles.endOfList}>{t("history.end_of_list")}</Text>
-              ) : null
+              ) : undefined
             }
             onEndReached={loadMore}
             onEndReachedThreshold={0.4}
